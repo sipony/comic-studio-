@@ -15,6 +15,8 @@ export class EventiService {
   private tentativi = 0;
 
   readonly collegato = signal(false);
+  /** Comic Studio è stato chiuso con «Esci». */
+  readonly chiuso = signal(false);
   readonly log = signal<RigaLog[]>([]);
   readonly lavori = signal<Record<string, Lavoro>>({});
   readonly comfy = signal<StatoComfy | null>(null);
@@ -67,6 +69,7 @@ export class EventiService {
       const eraCaduto = this.tentativi > 0;
       this.tentativi = 0;
       this.collegato.set(true);
+      this.chiuso.set(false);
       if (eraCaduto) void this.ricarica();
     };
     ws.onmessage = (m) => this.ricevi(JSON.parse(m.data) as Evento);
@@ -114,6 +117,9 @@ export class EventiService {
         break;
       case 'kohya':
         this.kohya.update((n) => n + 1);
+        break;
+      case 'chiusura':
+        this.chiuso.set(true);
         break;
       case 'benvenuto':
         this.comfy.set(e.comfy);

@@ -1,6 +1,9 @@
 import { Component, computed, inject, OnInit } from '@angular/core';
 import { MatIconRegistry, MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatMenuModule } from '@angular/material/menu';
+import { ApiService } from './core/api.service';
+import { AvvisiService } from './core/avvisi.service';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { EventiService } from './core/eventi.service';
@@ -18,7 +21,7 @@ interface VoceMenu {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule, MatButtonModule, MatTooltipModule, ConsoleComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule, MatButtonModule, MatMenuModule, MatTooltipModule, ConsoleComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -26,6 +29,8 @@ export class App implements OnInit {
   protected eventi = inject(EventiService);
   protected progetti = inject(ProgettoService);
   private router = inject(Router);
+  private api = inject(ApiService);
+  private avvisi = inject(AvvisiService);
 
   constructor() {
     inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-outlined');
@@ -65,6 +70,15 @@ export class App implements OnInit {
 
   async ngOnInit() {
     await this.eventi.avvia();
+  }
+
+  protected async esci(comfy: boolean) {
+    try {
+      await this.api.esci(comfy);
+      this.eventi.chiuso.set(true);
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
   }
 
   protected vaiAlSistema() {

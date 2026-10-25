@@ -154,7 +154,8 @@ export type Evento =
   | EventoDidascalie
   | EventoAddestramento
   | EventoFumetto
-  | { tipo: 'kohya'; dati: StatoKohya; ts: number };
+  | { tipo: 'kohya'; dati: StatoKohya; ts: number }
+  | { tipo: 'chiusura'; ts: number };
 
 export const GENERI: { valore: Genere; etichetta: string }[] = [
   { valore: '1girl', etichetta: 'Donna (1girl)' },

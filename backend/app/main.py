@@ -36,6 +36,10 @@ class AvvioComfy(BaseModel):
     attesa_avvio: int | None = None
 
 
+class Esci(BaseModel):
+    comfy: bool = False          # chiudi anche il ComfyUI avviato da Comic Studio
+
+
 class DatiProgetto(BaseModel):
     nome: str
     descrizione: str = ""
@@ -99,6 +103,25 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
     @api.get("/api/comfy/stato")
     async def stato_comfy():
         return (await stato.aggiorna_comfy()).dict()
+
+    @api.post("/api/esci")
+    async def esci(dati: Esci, request: Request):
+        spegni = getattr(request.app.state, "spegni", None)
+        if spegni is None:
+            raise HTTPException(409, "Questo Comic Studio non si può chiudere dall'interfaccia.")
+        lavori = [l for l in stato.gestore.attivi() if l.tipo not in ("diagnostica", "ricerca_comfy")]
+        for l in lavori:
+            stato.gestore.annulla(l.id)
+        if dati.comfy and stato.comfy_pid:
+            from .comfy import avvio as avvio_comfy
+            pid, stato.comfy_pid = stato.comfy_pid, None
+            await asyncio.to_thread(avvio_comfy.ferma, pid)
+            stato.file_pid_comfy.unlink(missing_ok=True)
+            stato.bus.log("ComfyUI chiuso", "ok")
+        stato.bus.log("Comic Studio si chiude", "info")
+        stato.bus.pubblica({"tipo": "chiusura"})
+        asyncio.get_running_loop().call_later(0.5, spegni)
+        return {"ok": True, "annullati": len(lavori)}
 
     @api.post("/api/comfy/avvia")
     async def avvia_comfy():

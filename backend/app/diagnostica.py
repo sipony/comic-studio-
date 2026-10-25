@@ -171,7 +171,8 @@ def controlla_software(r: Rapporto, comfy_dir: Path | None, comfy_codice: Path |
         r.aggiungi("Software", "Git", "ok", out.replace("git version", "").strip())
     else:
         r.aggiungi("Software", "Git", "avviso", "non trovato",
-                   "Serve per installare kohya e i custom node e per controllare gli aggiornamenti.",
+                   "Consigliato per installare i custom node e controllare gli aggiornamenti di ComfyUI "
+                   "(kohya si scarica anche senza).",
                    "https://git-scm.com/downloads")
 
     if comfy_dir:

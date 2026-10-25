@@ -17,8 +17,8 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 3 | Step 2 Didascalie: tagger WD14, trigger word, tabella delle frequenze dei tag, modifica per immagine | ✅ unita |
 | 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | ✅ unita |
 | 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona), balloon, tavole, PDF | ✅ unita |
-| 6 | Avvio di ComfyUI da Comic Studio: aggancio se è già attivo, altrimenti avvio automatico (portable, Desktop, manuale o comando a mano), uscita nella console, Avvia / Riavvia / Ferma | ✅ questa PR |
-| 7 | Installer per Windows, macOS e Linux: doppio clic, senza terminale, con Python e interfaccia già dentro | da fare |
+| 6 | Avvio di ComfyUI da Comic Studio: aggancio se è già attivo, altrimenti avvio automatico (portable, Desktop, manuale o comando a mano), uscita nella console, Avvia / Riavvia / Ferma | ✅ unita |
+| 7 | Installer per Windows, macOS e Linux: doppio clic, senza terminale, con Python e interfaccia già dentro; chiusura dall'interfaccia | ✅ questa PR |
 | 8 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
 | 9 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
@@ -260,3 +260,52 @@ Non ancora verificato: l'avvio della portable e dell'app Desktop su un Windows v
 
 Prossimo passo: PR 7, installer per Windows, macOS e Linux.
 
+
+## PR 7 — Installer
+
+Richiesta: «un installer su tutte le versioni così da non dover usare il terminale, né da Linux, né da Mac, né da
+Windows 11».
+
+Fatto:
+
+- **`installer/costruisci.py`** costruisce tutto da Linux (anche per Windows e macOS, niente compilazione):
+  - Python 3.12 completo da [python-build-standalone](https://github.com/astral-sh/python-build-standalone)
+    (versione e checksum fissati nello script), senza test, IDLE e Tk
+  - librerie installate per la piattaforma di destinazione con `uv pip install --python-platform …`
+    (i marcatori come `sys_platform` sono valutati per il sistema giusto, non per Linux)
+  - su Windows anche le DLL del runtime Visual C++ (`msvc-runtime`), che servono a onnxruntime e non tutti i PC hanno
+  - interfaccia già compilata, `.pyc` già pronti (avvio più rapido, nessuna scrittura nella cartella dell'app)
+  - icona generata dal `favicon.svg` (PNG, ICO, ICNS)
+- **Pacchetti** in `installer/dist/`:
+  - Windows: `…-Windows-Setup.exe` (NSIS, in italiano, senza permessi di amministratore, in
+    `%LOCALAPPDATA%\Programs\ComicStudio`); icone nel menu Start e sul desktop, voce in «App installate»
+    con disinstallazione; chiude Comic Studio se è aperto prima di aggiornare o disinstallare
+  - macOS: `Comic Studio.app` in uno zip, uno per Apple Silicon e uno per Intel (macOS 13+); zip che conserva
+    permessi e collegamenti simbolici
+  - Linux: AppImage (al primo avvio si aggiunge da solo al menu delle applicazioni) e `.deb` in `/opt/comic-studio`
+  - `SHA256SUMS.txt`
+- **Avvio senza terminale** (`backend/app/installato.py`): uscita in `ComicStudio/comicstudio.log`, errori
+  all'avvio in una finestra del sistema, su Windows nessuna finestra nera per i comandi lanciati (git, pip, kohya),
+  se è già aperto apre solo il browser, se la porta 8765 è occupata da un altro programma usa la successiva
+- **Chiusura dall'interfaccia**: pulsante ⏻ in alto (`POST /api/esci`), con la scelta di chiudere anche ComfyUI;
+  la pagina mostra «Comic Studio è chiuso» e si riattiva da sola alla riapertura
+- **kohya** usa il Python incluso (3.12) per creare il suo ambiente: non serve installare Python neanche per
+  l'addestramento; git resta facoltativo
+- **Workflow `installer.yml`**: con un tag `v*` costruisce gli installer e li pubblica nella release
+- Versione 0.7.0
+- **Test**: 84 test backend (chiusura, avvio da installato con porta occupata, già aperto, errore all'avvio,
+  integrazione AppImage nel menu, zip per macOS con permessi e collegamenti). Collaudo vero dei pacchetti:
+  - AppImage e `.deb` installati e avviati su Ubuntu 24.04: interfaccia servita, chiusura con ⏻,
+    disinstallazione pulita
+  - installer Windows provato con Wine: installazione silenziosa, collegamenti, avvio con `pythonw.exe`
+    (nessuna console), server e interfaccia funzionanti, kohya trova il `python.exe` incluso, disinstallazione
+    che chiude l'app e rimuove i file lasciando i progetti
+
+Non ancora verificato: l'app per macOS su un Mac vero (gli eseguibili arm64 risultano firmati dal linker, come
+richiesto da macOS), e l'installer su un Windows 11 vero. Con Wine, numpy 2.5 si ferma su una funzione di
+`ucrtbase` che Wine non ha (`crealf`); su Windows vero c'è.
+
+Limiti: app non firmate (servono certificati a pagamento), quindi la prima apertura chiede conferma; le istruzioni
+sono in `installer/NOTE_RILASCIO.md`.
+
+Prossimo passo: PR 8, pose guidate e costruttore di workflow.

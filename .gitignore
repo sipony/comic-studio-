@@ -43,3 +43,8 @@ frontend/.angular/
 # Dati locali
 *.log
 .env.local
+
+# Installer
+installer/.cache/
+installer/build/
+installer/dist/
