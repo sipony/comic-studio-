@@ -33,8 +33,9 @@
     <div class="in-corso">
       <span><strong>{{ l.titolo }}</strong> · {{ l.testo || 'in coda' }}</span>
       <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
-      <button mat-icon-button (click)="ferma(l.id)" aria-label="Ferma"><mat-icon>stop</mat-icon></button>
+      <button mat-icon-button (click)="ferma(l.id)" aria-label="Ferma" [disabled]="l.annullando" matTooltip="Ferma e libera la GPU"><mat-icon>stop</mat-icon></button>
     </div>
+    <div class="anteprima-viva"><app-anteprima-lavoro [lavoro]="l" /></div>
   }
 
   <!-- ============================== STORIA DA TESTO ============================== -->

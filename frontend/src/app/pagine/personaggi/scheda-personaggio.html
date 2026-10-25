@@ -133,9 +133,11 @@
       </div>
       @if (lavoroProposte(); as l) {
         <div class="in-corso">
-          <span>{{ l.testo || 'in coda' }}</span>
+          <span>{{ l.annullando ? 'fermo e libero la GPU…' : l.testo || 'in coda' }}</span>
           <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
+          <button mat-icon-button (click)="ferma(l.id)" [disabled]="l.annullando" aria-label="Ferma" matTooltip="Ferma e libera la GPU"><mat-icon>stop</mat-icon></button>
         </div>
+        <app-anteprima-lavoro [lavoro]="l" />
       }
       @if (proposte().length) {
         <div class="galleria">

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
 from . import __version__
@@ -248,6 +248,18 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
         if not l:
             raise HTTPException(404, "Lavoro inesistente")
         return l.dict() | {"risultato": l.risultato if l.stato == "completato" else None}
+
+    @api.get("/api/lavori/{lid}/anteprima")
+    async def anteprima_lavoro(lid: str):
+        l = stato.gestore.lavori.get(lid)
+        if not l or not l.anteprima:
+            raise HTTPException(404, "Nessuna anteprima")
+        dati, tipo = l.anteprima
+        return Response(dati, media_type=tipo, headers={"Cache-Control": "no-store"})
+
+    @api.post("/api/lavori/annulla")
+    async def annulla_tutti():
+        return {"annullati": stato.gestore.annulla_tutti()}
 
     @api.post("/api/lavori/{lid}/annulla")
     async def annulla(lid: str):

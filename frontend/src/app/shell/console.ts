@@ -10,6 +10,7 @@ import { AvvisiService } from '../core/avvisi.service';
 import { EventiService } from '../core/eventi.service';
 import { eComfy, Parte, spezzaLink } from '../core/link';
 import { Livello } from '../core/modelli';
+import { AnteprimaLavoro } from './anteprima-lavoro';
 
 type Filtro = 'normale' | 'problemi' | 'tutto';
 
@@ -30,7 +31,8 @@ function scrivi(chiave: string, valore: string) {
 
 @Component({
   selector: 'app-console',
-  imports: [DatePipe, DecimalPipe, FormsModule, MatButtonModule, MatIconModule, MatProgressBarModule, MatTooltipModule],
+  imports: [AnteprimaLavoro, DatePipe, DecimalPipe, FormsModule, MatButtonModule, MatIconModule, MatProgressBarModule,
+    MatTooltipModule],
   templateUrl: './console.html',
   styleUrl: './console.scss',
   host: { '[class.aperta]': 'aperta()', '[style.--altezza.px]': 'altezza()' },
@@ -112,6 +114,15 @@ export class ConsoleComponent {
     try {
       await navigator.clipboard.writeText(testo);
       this.avvisi.ok(`${this.righe().length} righe copiate`);
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  protected async annullaTutti() {
+    if (!confirm(`Annullare tutti i ${this.eventi.attivi().length} lavori in corso e in coda?`)) return;
+    try {
+      await this.api.annullaTutti();
     } catch (e) {
       this.avvisi.errore(e);
     }

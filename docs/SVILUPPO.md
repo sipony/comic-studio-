@@ -21,9 +21,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 7 | Installer per Windows, macOS e Linux: doppio clic, senza terminale, con Python e interfaccia già dentro; chiusura dall'interfaccia | ✅ unita |
 | 8 | Dal testo al prompt: IA locale (Ollama) che legge descrizioni lunghe di personaggi, vignette e storie intere e ne ricava prompt fedeli per il checkpoint; controllo di aderenza con il tagger | ✅ unita |
 | 9 | Personaggio dal nulla: senza immagine, Comic Studio genera dalla descrizione alcune proposte di riferimento, l'utente sceglie (o chiede varianti) e la scelta diventa l'immagine di riferimento | ✅ unita |
-| 10 | Indirizzi cliccabili nella console (ComfyUI si apre nel browser) e pulsanti «Apri ComfyUI» | ✅ questa PR |
-| 11 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 12 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 10 | Indirizzi cliccabili nella console (ComfyUI si apre nel browser) e pulsanti «Apri ComfyUI» | ✅ unita |
+| 11 | Annullamento in qualsiasi momento con le risorse liberate (coda di ComfyUI, VRAM, processi, IA) e anteprime dal vivo delle immagini in generazione | ✅ questa PR |
+| 12 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 13 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -405,4 +406,42 @@ ComfyUI nel browser».
   accesso da un altro computer, riconoscimento di ComfyUI); collaudo con Playwright: clic sull'indirizzo nella
   console → si apre ComfyUI
 
-Prossimo passo: PR 11, pose guidate e costruttore di workflow.
+Prossimo passo: PR 11, annullamento e anteprime.
+
+## PR 11 — Annullamento sicuro e anteprime dal vivo
+
+Richieste: «prevedi l'annullamento in qualsiasi momento delle generazioni e che liberi correttamente le risorse
+hardware» e «rendi visibili come anteprima le immagini generate».
+
+Annullamento:
+
+- `ComfyClient.esegui`: se il lavoro viene annullato (in attesa del WebSocket, durante l'invio, in qualsiasi
+  punto) toglie dalla coda di ComfyUI i prompt di questo client, interrompe quello in corso solo se è suo
+  (gli altri programmi che usano ComfyUI non vengono toccati) e chiama `/free` per scaricare i modelli dalla VRAM.
+  La pulizia è protetta da un secondo annullamento (`asyncio.shield`). Prima ogni pagina chiamava `/interrupt`
+  per conto suo, senza togliere i prompt in coda né liberare la memoria
+- `Gestore`: un lavoro annullato mentre aspetta la GPU passa subito ad «annullato» (prima restava «in coda» per
+  sempre); il secondo clic su «annulla» non interrompe la pulizia; `POST /api/lavori/annulla` annulla tutto;
+  il lavoro dice `annullando` finché la pulizia non è finita, poi il registro conferma «memoria della GPU liberata»
+- kohya: il processo e tutti i figli vengono chiusi e si aspetta che siano usciti (solo allora la VRAM è libera),
+  senza bloccare il server
+- IA: annullando una domanda il modello viene tolto subito dalla memoria (`keep_alive: 0`)
+- un'esecuzione interrotta dall'interfaccia di ComfyUI ha ora un messaggio chiaro
+
+Anteprime:
+
+- ComfyUI manda anteprime binarie durante il campionamento (formati 1 e 4 del WebSocket): `leggi_anteprima` le
+  legge e il lavoro tiene l'ultima (`GET /api/lavori/{id}/anteprima`, evento `anteprima` al massimo 3 volte al
+  secondo); le immagini finite diventano anteprima anche senza anteprime di ComfyUI
+- quando Comic Studio avvia ComfyUI aggiunge `--preview-method auto` (se l'utente non ha scelto altro)
+- interfaccia: miniatura accanto alla barra della console, anteprima grande nella generazione del dataset, nel
+  fumetto e nelle proposte del personaggio; clic per vederla a schermo intero (Esc per chiudere); pulsante
+  «annulla tutti» quando i lavori sono più di uno
+- Versione 0.11.0
+- **Test**: 104 test backend; il finto ComfyUI ha ora una coda vera, `/interrupt`, `DELETE` dalla coda e
+  anteprime: annullare un prompt in coda lo toglie senza toccare quello di un altro client, annullare quello in
+  corso lo interrompe, la VRAM viene liberata; lavoro annullato in attesa della GPU; annulla tutti; kohya con
+  un processo figlio; annullamento dall'API con anteprima e nuova generazione subito dopo; IA scaricata
+  all'annullamento
+
+Prossimo passo: PR 12, pose guidate e costruttore di workflow.

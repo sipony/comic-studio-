@@ -68,15 +68,12 @@ async def genera(pid: str, cid: str, c: ConfigProposte, req: Request):
 
                 def avanza(x, t, i=i):
                     l.avanza(0.05 + 0.95 * (i + x) / c.numero, f"proposta {i + 1}/{c.numero} · {t}")
-                try:
-                    uscite = await client.esegui(per_invio(wf), avanza)
-                except asyncio.CancelledError:
-                    await client.interrompi()
-                    raise
+                uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
                 img = (uscite.get(salva) or next(iter(uscite.values()), [None]))[0]
                 if not img:
                     raise ComfyErrore("ComfyUI non ha restituito l'immagine.")
                 dati = await client.scarica(img)
+                l.imposta_anteprima(dati, "image/png", finale=True)
                 await asyncio.to_thread(archivio.aggiungi, pid, cid, dati, seme, positivo, c.da)
                 app.bus.pubblica({"tipo": "proposte", "progetto": pid, "personaggio": cid})
         l.log(f"{c.numero} proposte per {p.nome}: scegli quella giusta come immagine di riferimento", "ok")

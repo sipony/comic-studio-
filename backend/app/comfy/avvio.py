@@ -69,6 +69,8 @@ def comando(cartella: str | None, codice: str | None, tipo: str, url: str | None
             personalizzato: str | None = None, extra: str = "") -> Comando:
     """Il comando per avviare un'installazione di ComfyUI."""
     argomenti_extra = shlex.split(extra, posix=os.name != "nt") if extra.strip() else []
+    # le anteprime durante il campionamento, per vederle in Comic Studio
+    anteprime = [] if "--preview-method" in argomenti_extra else ["--preview-method", "auto"]
     if personalizzato and personalizzato.strip():
         parti = shlex.split(personalizzato, posix=os.name != "nt")
         return Comando(parti + argomenti_extra, Path(cartella) if cartella else None, "comando personalizzato",
@@ -91,7 +93,7 @@ def comando(cartella: str | None, codice: str | None, tipo: str, url: str | None
     embedded = sorgente.parent / "python_embeded" / ("python.exe" if os.name == "nt" else "python")
     if embedded.exists():
         return Comando([str(embedded), "-s", str(sorgente / "main.py"), "--windows-standalone-build",
-                        "--port", str(porta), *argomenti_extra], sorgente.parent, "ComfyUI portable", porta)
+                        "--port", str(porta), *anteprime, *argomenti_extra], sorgente.parent, "ComfyUI portable", porta)
     py = _python_venv(sorgente) or _python_venv(sorgente.parent)
     if py is None:
         trovato = shutil.which("python3") or shutil.which("python")
@@ -101,7 +103,8 @@ def comando(cartella: str | None, codice: str | None, tipo: str, url: str | None
         descrizione = "ComfyUI con il Python di sistema"
     else:
         descrizione = "ComfyUI con il suo ambiente Python"
-    return Comando([str(py), "main.py", "--port", str(porta), *argomenti_extra], sorgente, descrizione, porta)
+    return Comando([str(py), "main.py", "--port", str(porta), *anteprime, *argomenti_extra], sorgente, descrizione,
+                   porta)
 
 
 def avvia(c: Comando, log: Path, ambiente: dict[str, str] | None = None) -> int:

@@ -14,16 +14,22 @@
     @if (lavoro(); as l) {
       <div class="lavoro-testo">
         <span class="lavoro-titolo">{{ l.titolo }}</span>
-        <span class="lavoro-dettaglio">{{ l.stato === 'in_coda' ? 'in coda' : l.testo }}</span>
+        <span class="lavoro-dettaglio">{{ l.annullando ? 'annullamento: fermo e libero la GPU…' : l.stato === 'in_coda' ? 'in coda' : l.testo }}</span>
         @if (altriAttivi() > 0) {
           <span class="altri">+{{ altriAttivi() }} in coda</span>
         }
       </div>
-      <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
+      <app-anteprima-lavoro [lavoro]="l" [piccola]="true" />
+      <mat-progress-bar [mode]="l.stato === 'in_coda' || l.annullando ? 'query' : 'determinate'" [value]="l.progresso * 100" />
       <span class="percentuale">{{ l.progresso * 100 | number: '1.0-0' }}%</span>
-      <button mat-icon-button matTooltip="Annulla questo lavoro" (click)="annulla(l.id)">
+      <button mat-icon-button matTooltip="Annulla questo lavoro" (click)="annulla(l.id)" [disabled]="l.annullando">
         <mat-icon>stop_circle</mat-icon>
       </button>
+      @if (altriAttivi() > 0) {
+        <button mat-icon-button matTooltip="Annulla tutti i lavori" (click)="annullaTutti()">
+          <mat-icon>cancel</mat-icon>
+        </button>
+      }
     } @else {
       <span class="inattivo">Nessun lavoro in corso</span>
     }

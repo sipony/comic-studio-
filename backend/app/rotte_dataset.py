@@ -247,17 +247,14 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
 
                 def avanza(v, t, k=k):
                     l.avanza((k + v) / dati.quantita, f"immagine {k + 1}/{dati.quantita} · {t}")
-                try:
-                    uscite = await client.esegui(per_invio(wf), avanza)
-                except asyncio.CancelledError:
-                    await client.interrompi()
-                    raise
+                uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
                 immagini_uscite = uscite.get(ruoli.salva) if ruoli.salva else None
                 immagini_uscite = immagini_uscite or next(iter(uscite.values()), None)
                 if not immagini_uscite:
                     raise ComfyErrore("ComfyUI non ha restituito immagini: controlla il nodo di salvataggio "
                                       "scelto nel workflow.")
                 dati_img = await client.scarica(immagini_uscite[0])
+                l.imposta_anteprima(dati_img, "image/png", finale=True)
                 info = InfoImmagine(file=f"{numero:04d}.png", numero=numero, inquadratura=var["_nome_inquadratura"],
                                     variante=var["variante"], prompt=positivo, seme=seme,
                                     larghezza=larghezza, altezza=altezza)

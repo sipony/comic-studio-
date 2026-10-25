@@ -105,6 +105,8 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | Metodo | Percorso | Cosa fa |
 | --- | --- | --- |
 | GET | `/api/lavori/{id}` | il lavoro con il suo risultato |
+| GET | `/api/lavori/{id}/anteprima` | l'ultima anteprima (parziale o finita) del lavoro |
+| POST | `/api/lavori/annulla` | annulla tutti i lavori attivi |
 | GET | `/api/ia` | stato dell'IA locale, modelli scaricati e consigliati, impostazioni |
 | POST | `/api/ia/impostazioni` | `{tipo, url, modello, chiave, libera_gpu}` |
 | POST | `/api/ia/installa` | scarica Ollama portatile e il modello (lavoro) |
@@ -192,12 +194,15 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `kohya` | trainer installato o aggiornato |
 | `fumetto` | `progetto`, `vignetta`: nuova immagine generata |
 | `chiusura` | Comic Studio si sta chiudendo |
+| `anteprima` | `lavoro`, `n`, `finale`: nuova anteprima del lavoro |
 | `ia` | stato dell'IA locale |
 | `proposte`, `personaggi` | `progetto`, `personaggio`: nuove proposte o tratti ricavati dall'IA |
 
 ## Lavori
 
-`Gestore.avvia(tipo, titolo, funzione, esclusivo=False)` esegue `async def funzione(lavoro)`. Dentro:
+`Gestore.avvia(tipo, titolo, funzione, esclusivo=False)` esegue `async def funzione(lavoro)`. L'annullamento
+cancella il task: `ComfyClient.esegui` toglie i prompt dalla coda, interrompe il proprio e libera la VRAM;
+`lavoro.imposta_anteprima(dati, tipo)` pubblica l'anteprima. Dentro:
 `lavoro.log(msg, livello)`, `lavoro.avanza(0..1, testo)`, `lavoro.controlla()` nei cicli lunghi per
 rispettare l'annullamento. Si può chiamare `log` e `avanza` anche da un thread. I lavori con `esclusivo=True`
 (generazione, addestramento) usano la GPU uno alla volta.

@@ -78,7 +78,7 @@ async def esegui_processo(cmd: list[str], cwd: Path | None, l: Lavoro, riga, cod
             riga(testo)
         return await proc.wait()
     except asyncio.CancelledError:
-        _termina(proc.pid)
+        await asyncio.shield(asyncio.to_thread(_termina, proc.pid))
         raise
 
 
@@ -111,18 +111,23 @@ async def _esegui_in_thread(cmd, cwd, env, riga, coda: deque) -> int:
     try:
         return await asyncio.to_thread(leggi)
     except asyncio.CancelledError:
-        _termina(proc.pid)
+        await asyncio.shield(asyncio.to_thread(_termina, proc.pid))
         raise
 
 
-def _termina(pid: int):
+def _termina(pid: int, attesa: float = 20):
+    """Chiude il processo e i suoi figli e aspetta che siano usciti: solo allora la VRAM è davvero libera."""
     try:
         p = psutil.Process(pid)
-        for figlio in p.children(recursive=True):
-            figlio.kill()
-        p.kill()
+        tutti = [*p.children(recursive=True), p]
     except psutil.Error:
-        pass
+        return
+    for x in tutti:
+        try:
+            x.kill()
+        except psutil.Error:
+            pass
+    psutil.wait_procs(tutti, timeout=attesa)
 
 
 # ---------------------------------------------------------------- kohya
@@ -448,16 +453,14 @@ async def prova(pid: str, cid: str, dati: Prova, req: Request):
                     wf, salva = workflow_test_lora(checkpoint, nome, p, negativo, 1000 + i)
                     def avanza(v, t, fatte=fatte):
                         l.avanza((fatte + v) / totale, f"epoca {e['epoca']} · prova {i + 1}/{len(prompt)} · {t}")
-                    try:
-                        uscite = await client.esegui(per_invio(wf), avanza)
-                    except asyncio.CancelledError:
-                        await client.interrompi()
-                        raise
+                    uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
                     img = (uscite.get(salva) or next(iter(uscite.values()), [None]))[0]
                     if not img:
                         raise ComfyErrore("ComfyUI non ha restituito l'immagine di prova.")
                     f = dest / f"epoca{e['epoca']:03d}_{i + 1}.png"
-                    f.write_bytes(await client.scarica(img))
+                    dati_img = await client.scarica(img)
+                    f.write_bytes(dati_img)
+                    l.imposta_anteprima(dati_img, "image/png", finale=True)
                     files.append(f.name)
                     fatte += 1
                 risultati[str(e["epoca"])] = {"immagini": files, "punteggio": None}

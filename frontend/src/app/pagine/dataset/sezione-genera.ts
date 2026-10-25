@@ -10,10 +10,11 @@ import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
 import { ConfigDataset, Lavoro, Personaggio, RiepilogoDataset } from '../../core/modelli';
+import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
 
 @Component({
   selector: 'app-sezione-genera',
-  imports: [DecimalPipe, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule],
+  imports: [AnteprimaLavoro, DecimalPipe, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule],
   template: `
     @if (config(); as cfg) {
       <div class="due">
@@ -39,8 +40,11 @@ import { ConfigDataset, Lavoro, Personaggio, RiepilogoDataset } from '../../core
           <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
           <div class="riga">
             <span>{{ l.progresso * 100 | number: '1.0-0' }}%</span>
-            <button mat-stroked-button (click)="annulla(l.id)"><mat-icon>stop</mat-icon> Ferma</button>
+            <button mat-stroked-button (click)="annulla(l.id)" [disabled]="l.annullando">
+              <mat-icon>stop</mat-icon> {{ l.annullando ? 'Fermo e libero la GPU…' : 'Ferma' }}
+            </button>
           </div>
+          <app-anteprima-lavoro [lavoro]="l" />
         </div>
       } @else {
         <div class="pulsanti">
