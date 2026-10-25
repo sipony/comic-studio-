@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
@@ -167,8 +167,31 @@ export class ApiService {
   selezionaAuto(progetto: string, pers: string, quante: number) {
     return this.post<Lavoro>(`${this.ds(progetto, pers)}/seleziona`, { quante });
   }
-  eliminaImmagini(progetto: string, pers: string, dati: { file?: string[]; scartate?: boolean }) {
-    return this.post<{ eliminate: number }>(`${this.ds(progetto, pers)}/elimina`, dati);
+  eliminaImmagini(progetto: string, pers: string, dati: { file?: string[]; scartate?: boolean; definitivo?: boolean }) {
+    return this.post<{ eliminate: number; liberati: number }>(`${this.ds(progetto, pers)}/elimina`, dati);
+  }
+  svuotaCestinoDataset(progetto: string, pers: string) {
+    return this.post<{ immagini: number; byte: number }>(`${this.ds(progetto, pers)}/cestino/svuota`);
+  }
+  /** Prepara lo ZIP delle immagini (lavoro); il risultato ha nome, byte e file messi nello ZIP. */
+  esportaDataset(progetto: string, pers: string, file: string[] | null) {
+    return this.post<Lavoro>(`${this.ds(progetto, pers)}/esporta`, { file });
+  }
+  /** Scarica lo ZIP nel browser con l'avanzamento; finisce solo quando è arrivato tutto. */
+  scaricaEsportazione(progetto: string, pers: string, nome: string, avanzamento: (fatto: number, totale: number) => void): Promise<Blob> {
+    return new Promise((ok, ko) => {
+      this.http.get(`${this.ds(progetto, pers)}/esportazioni/${encodeURIComponent(nome)}`,
+        { responseType: 'blob', observe: 'events', reportProgress: true }).subscribe({
+        next: (e) => {
+          if (e.type === HttpEventType.DownloadProgress) avanzamento(e.loaded, e.total ?? 0);
+          else if (e.type === HttpEventType.Response) {
+            if (e.body) ok(e.body);
+            else ko(new Error('Download vuoto'));
+          }
+        },
+        error: (e) => ko(new Error(messaggioErrore(e))),
+      });
+    });
   }
   // ------------------------------------------------------------ Step 2: didascalie
   private dd(progetto: string, pers: string) { return `/api/progetti/${progetto}/personaggi/${pers}/didascalie`; }

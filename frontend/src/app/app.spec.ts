@@ -90,3 +90,21 @@ describe('scelta del modello dell\'IA', () => {
     expect(azionePrincipale(variante('qwen3:8b', 'gpu'), stato(true, 'x'))).toBe('Scarica e usa (5,2 GB)');
   });
 });
+
+import { etichettaGruppo, peso } from './pagine/dataset/galleria';
+
+describe('galleria del dataset: scarica ed elimina', () => {
+  it('dice su quali immagini agisce, secondo il filtro', () => {
+    expect(etichettaGruppo('tutte', 117)).toBe('tutte le 117 immagini');
+    expect(etichettaGruppo('tenuta', 30)).toBe('le 30 tenute');
+    expect(etichettaGruppo('scartata', 1)).toBe('l’immagine scartata');
+    expect(etichettaGruppo('da_decidere', 4)).toBe('le 4 da decidere');
+  });
+
+  it('mostra lo spazio in MB o GB', () => {
+    expect(peso(0)).toBe('0 MB');
+    expect(peso(1_000)).toBe('1 MB');
+    expect(peso(183_400_000)).toBe('183 MB');
+    expect(peso(2_540_000_000)).toBe('2,5 GB');
+  });
+});

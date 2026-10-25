@@ -213,7 +213,13 @@ export interface NodoAnalisi {
 }
 
 export interface DettaglioWorkflow extends RiassuntoWorkflow {
-  analisi: { ruoli: Ruoli; candidati: Record<Ruolo, string[]>; checkpoint: string | null; lora: string[]; nodi: NodoAnalisi[]; avvisi: string[] };
+  analisi: {
+    ruoli: Ruoli; candidati: Record<Ruolo, string[]>; checkpoint: string | null; lora: string[]; nodi: NodoAnalisi[]; avvisi: string[];
+    /** il campionatore parte dall'immagine di riferimento: posa e inquadratura sarebbero sempre le sue */
+    img2img?: { campionatore: string; codifica: string; denoise: number | null } | null;
+    /** IPAdapter, PuLID… che prendono l'aspetto dal riferimento */
+    guide?: string[];
+  };
   workflow: Record<string, { class_type: string; inputs: Record<string, unknown>; _meta?: { title?: string } }>;
 }
 
@@ -243,6 +249,8 @@ export interface ConfigDataset {
   tag_qualita_negativi: string | null;
   varianti: Varianti;
   modifiche: Record<string, Record<string, unknown>>;
+  /** con un workflow img2img: pose dalle varianti (da zero) o composizione del riferimento */
+  composizione?: 'libera' | 'riferimento';
   quantita: number;
   da_tenere: number;
 }
@@ -252,6 +260,9 @@ export interface RiepilogoDataset {
   tenute: number;
   scartate: number;
   da_decidere: number;
+  /** spazio occupato da immagini e anteprime */
+  byte?: number;
+  cestino?: { immagini: number; byte: number };
 }
 
 export type StatoImmagine = 'tenuta' | 'scartata' | null;

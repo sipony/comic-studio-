@@ -17,6 +17,7 @@ import shutil
 import threading
 import time
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Any, Literal
 
@@ -84,6 +85,9 @@ class ConfigDataset(BaseModel):
     tag_qualita_negativi: str | None = None
     varianti: Varianti = Field(default_factory=varianti_predefinite)
     modifiche: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    # con un workflow img2img: "libera" genera ogni immagine da zero con la posa e l'inquadratura della variante,
+    # "riferimento" tiene la composizione dell'immagine di riferimento (tutte nella stessa posa)
+    composizione: Literal["libera", "riferimento"] = "libera"
     quantita: int = Field(default=100, ge=1, le=2000)
     da_tenere: int = Field(default=30, ge=1, le=500)
 
@@ -359,22 +363,105 @@ class ArchivioDataset:
             self._salva_immagini(pid, cid, voci)
             return voci
 
-    def elimina_immagini(self, pid: str, cid: str, files: list[str] | None = None) -> int:
-        """Sposta nel cestino le immagini indicate (tutte se None)."""
+    def elimina_immagini(self, pid: str, cid: str, files: list[str] | None = None, definitivo: bool = False) -> int:
+        """Sposta nel cestino le immagini indicate (tutte se None). Con `definitivo` le cancella dal disco: si usa
+        solo dopo che l'utente le ha scaricate, per liberare lo spazio."""
         with _lock:
             voci = self.immagini(pid, cid)
-            via = [v for v in voci if files is None or v.file in files]
+            scelte = None if files is None else set(files)
+            via = [v for v in voci if scelte is None or v.file in scelte]
             if not via:
                 return 0
             d = self.cartella(pid, cid)
-            cestino = self.progetti.radice / ".cestino" / f"{pid}-{cid}-dataset-{int(time.time())}"
-            cestino.mkdir(parents=True, exist_ok=True)
+            cestino = None
+            if not definitivo:
+                cestino = self.progetti.radice / ".cestino" / f"{pid}-{cid}-dataset-{int(time.time())}"
+                cestino.mkdir(parents=True, exist_ok=True)
             for v in via:
                 for f in (d / "generate" / v.file, d / "anteprime" / (Path(v.file).stem + ".jpg")):
-                    if f.exists():
+                    if not f.exists():
+                        continue
+                    if cestino:
                         shutil.move(str(f), str(cestino / f.name))
+                    else:
+                        f.unlink()
             self._salva_immagini(pid, cid, [v for v in voci if v not in via])
             return len(via)
+
+    # ------------------------------------------------------------ cestino e spazio
+
+    def _cestini(self, pid: str, cid: str) -> list[Path]:
+        radice = self.progetti.radice / ".cestino"
+        if not radice.is_dir():
+            return []
+        regola = re.compile(rf"^{re.escape(pid)}-{re.escape(cid)}-dataset-\d+$")
+        return sorted(p for p in radice.iterdir() if p.is_dir() and regola.match(p.name))
+
+    def cestino(self, pid: str, cid: str) -> dict:
+        """Immagini del dataset di questo personaggio finite nel cestino e quanto spazio occupano."""
+        file = [f for c in self._cestini(pid, cid) for f in c.iterdir() if f.is_file()]
+        return {"immagini": sum(f.suffix.lower() == ".png" for f in file),
+                "byte": sum(f.stat().st_size for f in file)}
+
+    def svuota_cestino(self, pid: str, cid: str) -> dict:
+        """Cancella dal disco le immagini del dataset di questo personaggio che sono nel cestino."""
+        prima = self.cestino(pid, cid)
+        for c in self._cestini(pid, cid):
+            shutil.rmtree(c, ignore_errors=True)
+        return prima
+
+    def spazio(self, pid: str, cid: str) -> int:
+        d = self.cartella(pid, cid)
+        return sum(f.stat().st_size for sotto in ("generate", "anteprime") if (d / sotto).is_dir()
+                   for f in (d / sotto).iterdir() if f.is_file())
+
+    # ------------------------------------------------------------ esportazione
+
+    def cartella_esportazioni(self, pid: str, cid: str) -> Path:
+        return self.cartella(pid, cid) / "esportazioni"
+
+    def esporta(self, pid: str, cid: str, files: list[str] | None, avanza=None, controlla=None) -> dict:
+        """ZIP con le immagini indicate (tutte se None), il prompt di ognuna in un .txt e i metadati."""
+        voci = self.immagini(pid, cid)
+        scelte = None if files is None else set(files)
+        voci = [v for v in voci if scelte is None or v.file in scelte]
+        if not voci:
+            raise ErroreProgetto("Nessuna immagine da scaricare.", 400)
+        d = self.cartella(pid, cid)
+        dest = self.cartella_esportazioni(pid, cid)
+        dest.mkdir(parents=True, exist_ok=True)
+        for vecchio in dest.glob("*.zip.parziale"):
+            vecchio.unlink(missing_ok=True)
+        nome = f"{cid}-dataset-{time.strftime('%Y%m%d-%H%M%S')}.zip"
+        tmp = dest / (nome + ".parziale")
+        messe = []
+        # le PNG sono già compresse: ZIP_STORED è veloce e non perde spazio
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:
+            for k, v in enumerate(voci):
+                if controlla:
+                    controlla()
+                f = d / "generate" / v.file
+                if not f.exists():
+                    continue
+                z.write(f, f"{cid}/{v.file}")
+                if v.prompt:
+                    z.writestr(f"{cid}/{Path(v.file).stem}.txt", v.prompt)
+                messe.append(v)
+                if avanza:
+                    avanza((k + 1) / len(voci), f"{k + 1}/{len(voci)} immagini nello ZIP")
+            z.writestr(f"{cid}/immagini.json", json.dumps([v.model_dump() for v in messe], indent=2,
+                                                          ensure_ascii=False))
+        tmp.replace(dest / nome)
+        return {"nome": nome, "byte": (dest / nome).stat().st_size, "immagini": len(messe),
+                "file": [v.file for v in messe]}
+
+    def file_esportazione(self, pid: str, cid: str, nome: str) -> Path:
+        if not re.fullmatch(r"[\w.-]{1,120}\.zip", nome):
+            raise ErroreProgetto("Nome di file non valido", 404)
+        f = self.cartella_esportazioni(pid, cid) / nome
+        if not f.is_file():
+            raise ErroreProgetto("Lo ZIP non c'è più: preparalo di nuovo.", 404)
+        return f
 
     def file_immagine(self, pid: str, cid: str, file: str, anteprima: bool = False) -> Path:
         if not re.fullmatch(r"[\w-]{1,64}\.(png|jpg|jpeg|webp)", file):
@@ -395,7 +482,8 @@ class ArchivioDataset:
         voci = self.immagini(pid, cid)
         return {"totale": len(voci), "tenute": sum(v.stato == "tenuta" for v in voci),
                 "scartate": sum(v.stato == "scartata" for v in voci),
-                "da_decidere": sum(v.stato is None for v in voci)}
+                "da_decidere": sum(v.stato is None for v in voci),
+                "byte": self.spazio(pid, cid), "cestino": self.cestino(pid, cid)}
 
 
 def crea_anteprima(sorgente: Path, dest: Path, lato: int = 384):

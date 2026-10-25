@@ -11,6 +11,7 @@ from typing import Literal
 import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 
 from .comfy.client import ComfyErrore
@@ -19,7 +20,8 @@ from .jobs import Lavoro
 from .projects import ErroreProgetto
 from .settings import cartella_dati
 from .somiglianza import scegli, valutatore
-from .workflows import ErroreWorkflow, analizza, applica, controlla_ruoli, normalizza, per_invio
+from .modelinfo import famiglia_da_nome
+from .workflows import ErroreWorkflow, analizza, applica, controlla_ruoli, guide_identita, img2img, normalizza, per_invio
 
 rotte = APIRouter(prefix="/api/progetti/{pid}")
 
@@ -172,6 +174,7 @@ async def imposta_stato(pid: str, cid: str, file: str, dati: Stato, req: Request
 class Elimina(BaseModel):
     file: list[str] | None = None
     scartate: bool = False
+    definitivo: bool = False          # cancella dal disco invece di spostare nel cestino (dopo il download)
 
 
 @rotte.post("/personaggi/{cid}/dataset/elimina")
@@ -180,10 +183,63 @@ async def elimina(pid: str, cid: str, dati: Elimina, req: Request):
     files = dati.file
     if dati.scartate:
         files = [v.file for v in a.immagini(pid, cid) if v.stato == "scartata"]
-    n = a.elimina_immagini(pid, cid, files)
-    _app(req).bus.log(f"{n} immagini spostate nel cestino", "avviso" if n else "info")
+    prima = a.spazio(pid, cid)
+    n = await asyncio.to_thread(a.elimina_immagini, pid, cid, files, dati.definitivo)
+    liberati = prima - a.spazio(pid, cid)
+    if dati.definitivo:
+        _app(req).bus.log(f"{n} immagini cancellate dal disco: liberati {_mb(liberati)}", "avviso" if n else "info")
+    else:
+        _app(req).bus.log(f"{n} immagini spostate nel cestino", "avviso" if n else "info")
     _app(req).bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "elenco"})
-    return {"eliminate": n}
+    return {"eliminate": n, "liberati": liberati if dati.definitivo else 0}
+
+
+def _mb(byte: int) -> str:
+    if byte >= 1e9:
+        return f"{byte / 1e9:.1f} GB"
+    return f"{byte / 1e6:.0f} MB" if byte >= 1e6 else f"{byte / 1e3:.0f} KB"
+
+
+@rotte.get("/personaggi/{cid}/dataset/cestino")
+async def cestino(pid: str, cid: str, req: Request):
+    return _archivio(req).cestino(pid, cid)
+
+
+@rotte.post("/personaggi/{cid}/dataset/cestino/svuota")
+async def svuota_cestino(pid: str, cid: str, req: Request):
+    """Cancella dal disco le immagini di questo dataset che erano nel cestino."""
+    r = await asyncio.to_thread(_archivio(req).svuota_cestino, pid, cid)
+    _app(req).bus.log(f"Cestino del dataset svuotato: {r['immagini']} immagini, liberati {_mb(r['byte'])}", "ok")
+    _app(req).bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "elenco"})
+    return r
+
+
+class Esporta(BaseModel):
+    file: list[str] | None = None     # None = tutte
+
+
+@rotte.post("/personaggi/{cid}/dataset/esporta")
+async def esporta(pid: str, cid: str, dati: Esporta, req: Request):
+    """Prepara lo ZIP delle immagini (lavoro); poi si scarica da /esportazioni/<nome>."""
+    app = _app(req)
+    a = _archivio(req)
+    _, pers = a.personaggio(pid, cid)
+
+    async def lavoro(l: Lavoro):
+        r = await asyncio.to_thread(a.esporta, pid, cid, dati.file, l.avanza, l.controlla)
+        l.log(f"ZIP pronto: {r['immagini']} immagini, {_mb(r['byte'])}", "ok")
+        return r
+    n = len(dati.file) if dati.file is not None else len(a.immagini(pid, cid))
+    return app.gestore.avvia("dataset_esporta", f"ZIP del dataset di {pers.nome} ({n} immagini)", lavoro,
+                             progetto=pid).dict()
+
+
+@rotte.get("/personaggi/{cid}/dataset/esportazioni/{nome}")
+async def scarica_esportazione(pid: str, cid: str, nome: str, req: Request):
+    """Lo ZIP preparato; dopo l'invio viene tolto dal disco (si può sempre rifare)."""
+    f = _archivio(req).file_esportazione(pid, cid, nome)
+    return FileResponse(f, media_type="application/zip", filename=nome,
+                        background=BackgroundTask(f.unlink, missing_ok=True))
 
 
 # ---------------------------------------------------------------- generazione
@@ -214,8 +270,23 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
             if n:
                 l.log(f"{n} immagini precedenti spostate nel cestino")
             app.bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "elenco"})
-        checkpoint = analizza(voce.workflow).checkpoint
+        analisi = analizza(voce.workflow)
+        checkpoint = analisi.checkpoint
         qualita = tag_qualita(checkpoint, config)
+        da_rif = img2img(voce.workflow, ruoli.riferimento)
+        libera = bool(da_rif) and config.composizione == "libera"
+        classe_latente = ("EmptySD3LatentImage" if famiglia_da_nome(checkpoint or "") in ("flux", "sd3")
+                          else "EmptyLatentImage")
+        if libera:
+            l.log("Il workflow è img2img: ogni immagine parte da zero con la posa e l'inquadratura della "
+                  "variante, non da quelle del riferimento.")
+            if not guide_identita(voce.workflow, ruoli.riferimento) and not analisi.lora:
+                l.log("Nel workflow non ci sono né LoRA del personaggio né IPAdapter: senza la composizione del "
+                      "riferimento il personaggio potrebbe non somigliare. Usa «Crea quello integrato» oppure "
+                      "aggiungi un LoRA.", "avviso")
+        elif da_rif:
+            l.log("Composizione dal riferimento (img2img): tutte le immagini avranno la posa e l'inquadratura "
+                  "dell'immagine di riferimento.", "avviso")
         rng = random.Random()
         conteggio: dict[str, int] = {}
         for v in a.immagini(pid, cid):
@@ -242,7 +313,8 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                 seme = rng.randrange(2 ** 48)
                 wf = applica(voce.workflow, ruoli, riferimento=nome_rif, positivo=positivo, negativo=negativo,
                              seme=seme, dimensioni=(larghezza, altezza),
-                             prefisso=f"comic_studio/{pid}/{cid}/dataset", modifiche=config.modifiche)
+                             prefisso=f"comic_studio/{pid}/{cid}/dataset", modifiche=config.modifiche,
+                             composizione_libera=libera, classe_latente=classe_latente)
                 l.log(f"Immagine {k + 1}/{dati.quantita} · {var['_nome_inquadratura']}: {var['variante']}")
 
                 def avanza(v, t, k=k):

@@ -184,3 +184,32 @@ section {
     border-color: var(--mat-sys-tertiary);
   }
 }
+
+.composizione {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 40%, transparent);
+  background: color-mix(in srgb, var(--mat-sys-primary) 7%, transparent);
+  &.attenzione {
+    border-color: color-mix(in srgb, var(--cs-avviso) 45%, transparent);
+    background: color-mix(in srgb, var(--cs-avviso) 7%, transparent);
+  }
+  .testa-comp {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    mat-icon {
+      color: var(--mat-sys-primary);
+    }
+  }
+  .nota {
+    margin: 0;
+  }
+  mat-button-toggle-group {
+    align-self: flex-start;
+  }
+}

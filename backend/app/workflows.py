@@ -23,6 +23,9 @@ LATENTI = {"EmptyLatentImage", "EmptySD3LatentImage", "EmptyHunyuanLatentVideo",
 SALVATAGGIO = {"SaveImage", "Image Save", "SaveImageExtended"}
 CARICA_IMMAGINE = {"LoadImage", "LoadImageMask", "Load Image (Inspire)"}
 CAMPI_TESTO = ("text", "text_g", "text_l", "prompt", "positive", "negative", "string")
+CODIFICA = {"VAEEncode", "VAEEncodeTiled", "VAEEncodeForInpaint"}
+# nodi che portano l'aspetto del riferimento senza fissare posa e inquadratura
+GUIDE_IDENTITA = ("ipadapter", "pulid", "instantid", "photomaker", "stylemodel", "redux", "reference")
 
 
 class ErroreWorkflow(Exception):
@@ -205,6 +208,8 @@ class Analisi:
     lora: list[str] = field(default_factory=list)
     nodi: list[dict] = field(default_factory=list)
     avvisi: list[str] = field(default_factory=list)
+    img2img: dict | None = None       # il campionatore parte dall'immagine di riferimento (vedi img2img())
+    guide: list[str] = field(default_factory=list)   # IPAdapter, PuLID… che usano il riferimento
 
     def dict(self):
         d = asdict(self)
@@ -307,7 +312,62 @@ def analizza(wf: dict) -> Analisi:
             for k, n in sorted(wf.items(), key=lambda kv: (len(kv[0]), kv[0]))]
     return Analisi(ruoli=r, candidati={"riferimento": carica, "positivo": testi, "negativo": testi,
                                        "seme": sampler, "latente": latenti, "salva": salva + anteprime},
-                   checkpoint=ckpt, lora=lora, nodi=nodi, avvisi=avvisi)
+                   checkpoint=ckpt, lora=lora, nodi=nodi, avvisi=avvisi,
+                   img2img=img2img(wf, r.riferimento), guide=guide_identita(wf, r.riferimento))
+
+
+def img2img(wf: dict, riferimento: str | None) -> dict | None:
+    """Se il workflow è img2img, cioè il campionatore parte dall'immagine di riferimento codificata dal VAE,
+    restituisce {campionatore, codifica, denoise}. In questo caso posa e inquadratura restano quelle del
+    riferimento per ogni immagine, qualunque cosa dica il prompt."""
+    if not riferimento or riferimento not in wf:
+        return None
+    for s in sorted((k for k, n in wf.items() if n.get("class_type") in SAMPLER), key=lambda x: (len(x), x)):
+        ing = wf[s]["inputs"]
+        v = ing.get("latent_image")
+        nodo, passi = (str(v[0]) if isinstance(v, list) else None), 0
+        # attraversa i nodi che passano il latente (LatentUpscale, RepeatLatentBatch, SetLatentNoiseMask…)
+        while nodo in wf and wf[nodo].get("class_type") not in CODIFICA and passi < 6:
+            v = wf[nodo]["inputs"].get("samples")
+            nodo, passi = (str(v[0]) if isinstance(v, list) else None), passi + 1
+        if nodo in wf and wf[nodo].get("class_type") in CODIFICA and riferimento in _a_monte(wf, nodo):
+            d = ing.get("denoise")
+            return {"campionatore": s, "codifica": nodo, "denoise": None if isinstance(d, list) else d}
+    return None
+
+
+def guide_identita(wf: dict, riferimento: str | None) -> list[str]:
+    """I nodi (IPAdapter, PuLID…) che prendono l'aspetto del personaggio dal riferimento."""
+    if not riferimento:
+        return []
+    return [n["class_type"] for k, n in wf.items()
+            if any(g in n.get("class_type", "").lower() for g in GUIDE_IDENTITA) and riferimento in _a_monte(wf, k)]
+
+
+def libera_composizione(w: dict, info: dict, dimensioni: tuple[int, int], classe: str = "EmptyLatentImage") -> str:
+    """Trasforma un img2img in una generazione da zero: il campionatore parte da un latente vuoto delle
+    dimensioni della variante, con denoise pieno. Il resto del workflow (LoRA, IPAdapter…) non cambia."""
+    nid = "cs_latente"
+    while nid in w:
+        nid += "_"
+    w[nid] = {"class_type": classe, "inputs": {"width": dimensioni[0], "height": dimensioni[1], "batch_size": 1},
+              "_meta": {"title": "Latente vuoto (Comic Studio)"}}
+    s = w[info["campionatore"]]
+    ing = s["inputs"]
+    ing["latent_image"] = [nid, 0]
+    if "denoise" in ing and not isinstance(ing["denoise"], list):
+        ing["denoise"] = 1.0
+    if s["class_type"] == "KSamplerAdvanced":
+        if not isinstance(ing.get("start_at_step"), list):
+            ing["start_at_step"] = 0
+        if not isinstance(ing.get("add_noise"), list):
+            ing["add_noise"] = "enable"
+    sig = ing.get("sigmas")
+    if isinstance(sig, list) and str(sig[0]) in w:          # SamplerCustom: il denoise è nello scheduler
+        sch = w[str(sig[0])]["inputs"]
+        if "denoise" in sch and not isinstance(sch["denoise"], list):
+            sch["denoise"] = 1.0
+    return nid
 
 
 def controlla_ruoli(wf: dict, ruoli: Ruoli) -> list[str]:
@@ -333,8 +393,10 @@ def controlla_ruoli(wf: dict, ruoli: Ruoli) -> list[str]:
 
 def applica(wf: dict, ruoli: Ruoli, *, riferimento: str | None = None, positivo: str | None = None,
             negativo: str | None = None, seme: int | None = None, dimensioni: tuple[int, int] | None = None,
-            prefisso: str | None = None, modifiche: dict[str, dict[str, Any]] | None = None) -> dict:
-    """Copia del workflow con i valori di una singola generazione."""
+            prefisso: str | None = None, modifiche: dict[str, dict[str, Any]] | None = None,
+            composizione_libera: bool = False, classe_latente: str = "EmptyLatentImage") -> dict:
+    """Copia del workflow con i valori di una singola generazione. Con `composizione_libera` un workflow
+    img2img parte da un latente vuoto (posa e inquadratura dal prompt, non dal riferimento)."""
     w = copy.deepcopy(wf)
     for nodo, valori in (modifiche or {}).items():
         if nodo in w:
@@ -366,6 +428,10 @@ def applica(wf: dict, ruoli: Ruoli, *, riferimento: str | None = None, positivo:
             n["height"] = dimensioni[1]
         if "batch_size" in n and not isinstance(n["batch_size"], list):
             n["batch_size"] = 1
+    if composizione_libera and dimensioni:
+        info = img2img(w, ruoli.riferimento)
+        if info:
+            libera_composizione(w, info, dimensioni, classe_latente)
     if ruoli.salva and prefisso and ruoli.salva in w and "filename_prefix" in w[ruoli.salva]["inputs"]:
         w[ruoli.salva]["inputs"]["filename_prefix"] = prefisso
     # niente _meta nel workflow inviato: ComfyUI lo accetta, ma è inutile
