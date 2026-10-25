@@ -52,7 +52,7 @@
         @if (r.lavoro) {
           <span class="id">{{ r.lavoro }}</span>
         }
-        <span class="msg">{{ r.msg }}</span>
+        <span class="msg">@for (p of parti(r.msg); track $index) {@if (p.href) {<a [href]="p.href" target="_blank" rel="noopener noreferrer" [class.comfy]="eComfy(p.href)" [matTooltip]="eComfy(p.href) ? 'Apri ComfyUI nel browser' : 'Apri nel browser'">{{ p.testo }}</a>} @else {{{ p.testo }}}}</span>
       </div>
     } @empty {
       <div class="vuoto">Qui compariranno i messaggi del programma, di ComfyUI e dell'addestramento.</div>

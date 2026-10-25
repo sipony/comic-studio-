@@ -281,6 +281,9 @@
               <mat-icon>play_arrow</mat-icon> Avvia ComfyUI
             </button>
           }
+          @if (c?.connesso && c?.url) {
+            <a mat-flat-button [href]="apri(c!.url!)" target="_blank" rel="noopener noreferrer"><mat-icon>open_in_new</mat-icon> Apri ComfyUI</a>
+          }
           @if (c?.avviato_da_noi && !c?.in_avvio) {
             <button mat-stroked-button (click)="riavviaComfy()" [disabled]="!!lavoroComfy()"
               matTooltip="Utile dopo aver installato custom node o modelli nuovi">

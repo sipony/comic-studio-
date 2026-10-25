@@ -7,6 +7,7 @@ import { AvvisiService } from './core/avvisi.service';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { EventiService } from './core/eventi.service';
+import { apribile } from './core/link';
 import { gb } from './core/modelli';
 import { ProgettoService } from './core/progetto.service';
 import { ConsoleComponent } from './shell/console';
@@ -61,6 +62,11 @@ export class App implements OnInit {
       testo: `ComfyUI ${c.versione ?? ''}`.trim(),
       dettaglio: gpu ? `${gpu} · ${gb(c.vram_totale)}` : '',
     };
+  });
+
+  protected urlComfy = computed(() => {
+    const u = this.eventi.comfy()?.url;
+    return u ? apribile(u) : null;
   });
 
   protected problemi = computed(() => {

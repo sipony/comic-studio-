@@ -20,9 +20,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 6 | Avvio di ComfyUI da Comic Studio: aggancio se è già attivo, altrimenti avvio automatico (portable, Desktop, manuale o comando a mano), uscita nella console, Avvia / Riavvia / Ferma | ✅ unita |
 | 7 | Installer per Windows, macOS e Linux: doppio clic, senza terminale, con Python e interfaccia già dentro; chiusura dall'interfaccia | ✅ unita |
 | 8 | Dal testo al prompt: IA locale (Ollama) che legge descrizioni lunghe di personaggi, vignette e storie intere e ne ricava prompt fedeli per il checkpoint; controllo di aderenza con il tagger | ✅ unita |
-| 9 | Personaggio dal nulla: senza immagine, Comic Studio genera dalla descrizione alcune proposte di riferimento, l'utente sceglie (o chiede varianti) e la scelta diventa l'immagine di riferimento | ✅ questa PR |
-| 10 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 11 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 9 | Personaggio dal nulla: senza immagine, Comic Studio genera dalla descrizione alcune proposte di riferimento, l'utente sceglie (o chiede varianti) e la scelta diventa l'immagine di riferimento | ✅ unita |
+| 10 | Indirizzi cliccabili nella console (ComfyUI si apre nel browser) e pulsanti «Apri ComfyUI» | ✅ questa PR |
+| 11 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 12 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -385,4 +386,23 @@ Prima il dataset (Step 1) partiva sempre da un'immagine di riferimento caricata 
 - **Test**: 97 test backend; dal solo testo a 2 proposte (tratti ricavati e salvati, prompt, workflow), scelta del
   riferimento, varianti img2img, scarto nel cestino, errori senza descrizione e blocco
 
-Prossimo passo: PR 10, pose guidate e costruttore di workflow.
+Prossimo passo: PR 10, indirizzi cliccabili.
+
+## PR 10 — Indirizzi cliccabili
+
+Richiesta: «dalla console, quando nei log c'è l'indirizzo IP dell'istanza, cliccandolo voglio che mi rimandi su
+ComfyUI nel browser».
+
+- `frontend/src/app/core/link.ts`: trova negli messaggi gli indirizzi `http(s)://…`, `ip:porta` e
+  `localhost:porta` (togliendo la punteggiatura finale) e li divide dal testo, senza HTML; `0.0.0.0` diventa
+  `127.0.0.1`; se Comic Studio è aperto da un altro computer della rete, gli indirizzi locali puntano all'host
+  di Comic Studio
+- console: gli indirizzi sono collegamenti che si aprono in una nuova scheda; quello di ComfyUI è in grassetto
+  con il suggerimento «Apri ComfyUI nel browser» (vale anche per le righe `ComfyUI › To see the GUI go to: …`)
+- pulsante «Apri ComfyUI» accanto al chip in alto e in Sistema → Connessione, quando è connesso
+- Versione 0.10.0
+- **Test**: 9 test dell'interfaccia (indirizzi nel testo, ip:porta senza schema, punteggiatura, 0.0.0.0,
+  accesso da un altro computer, riconoscimento di ComfyUI); collaudo con Playwright: clic sull'indirizzo nella
+  console → si apre ComfyUI
+
+Prossimo passo: PR 11, pose guidate e costruttore di workflow.

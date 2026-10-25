@@ -18,6 +18,11 @@
       <span class="dett">{{ chipComfy().dettaglio }}</span>
     }
   </button>
+  @if (eventi.comfy()?.connesso && urlComfy(); as u) {
+    <a mat-icon-button [href]="u" target="_blank" rel="noopener noreferrer" matTooltip="Apri ComfyUI nel browser" aria-label="Apri ComfyUI nel browser">
+      <mat-icon>open_in_new</mat-icon>
+    </a>
+  }
   <button mat-icon-button routerLink="/sistema" matTooltip="Controllo del sistema">
     <mat-icon>{{ problemi() > 0 ? 'report' : 'monitor_heart' }}</mat-icon>
     @if (problemi() > 0) {

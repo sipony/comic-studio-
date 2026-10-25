@@ -161,6 +161,17 @@
   .msg {
     white-space: pre-wrap;
     word-break: break-word;
+    a {
+      color: var(--mat-sys-primary);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      &:hover {
+        text-decoration-thickness: 2px;
+      }
+      &.comfy {
+        font-weight: 600;
+      }
+    }
   }
   &.ok .liv {
     color: var(--cs-ok);
