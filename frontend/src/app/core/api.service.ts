@@ -38,6 +38,7 @@ export class ApiService {
   log(n = 1000) { return this.get<RigaLog[]>('/api/log', { n: String(n) }); }
   lavori() { return this.get<Lavoro[]>('/api/lavori'); }
   annulla(id: string) { return this.post(`/api/lavori/${id}/annulla`); }
+  annullaTutti() { return this.post<{ annullati: number }>('/api/lavori/annulla'); }
 
   // ComfyUI
   cercaComfy() { return this.post<Lavoro>('/api/comfy/cerca'); }

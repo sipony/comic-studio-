@@ -48,6 +48,8 @@ class FintoOllama:
         self.modelli = list(modelli if modelli is not None else ["qwen3:8b"])
         self.richieste: list[dict] = []
         self.scena = SCENA
+        self.lento = 0.0
+        self.scaricati: list[str] = []          # modelli tolti dalla memoria con keep_alive 0
         self.app = self._crea()
         self.porta = _porta_libera()
         self.url = f"http://127.0.0.1:{self.porta}"
@@ -76,9 +78,19 @@ class FintoOllama:
                 yield json.dumps({"status": "success"}) + "\n"
             return StreamingResponse(righe(), media_type="application/x-ndjson")
 
+        @app.post("/api/generate")
+        async def generate(req: Request):
+            corpo = await req.json()
+            if corpo.get("keep_alive") == 0:
+                self.scaricati.append(corpo["model"])
+            return {"done": True}
+
         @app.post("/api/chat")
         async def chat(req: Request):
             corpo = await req.json()
+            if self.lento:
+                import asyncio
+                await asyncio.sleep(self.lento)
             self.richieste.append(corpo)
             if corpo["model"] not in self.modelli:
                 return JSONResponse({"error": f"model '{corpo['model']}' not found"}, status_code=404)

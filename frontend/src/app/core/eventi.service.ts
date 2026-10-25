@@ -93,6 +93,12 @@ export class EventiService {
           return x ? { ...l, [e.lavoro]: { ...x, progresso: e.progresso, testo: e.testo } } : l;
         });
         break;
+      case 'anteprima':
+        this.lavori.update((l) => {
+          const x = l[e.lavoro];
+          return x ? { ...l, [e.lavoro]: { ...x, anteprima: e.n } } : l;
+        });
+        break;
       case 'lavoro':
         this.lavori.update((l) => ({ ...l, [e.lavoro]: e.dati }));
         break;

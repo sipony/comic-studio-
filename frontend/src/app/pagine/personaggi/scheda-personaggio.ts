@@ -10,11 +10,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
+import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
 import { GENERI, Genere, InquadraturaProposta, Personaggio, Proposta, TrattiRicavati } from '../../core/modelli';
 
 @Component({
   selector: 'app-scheda-personaggio',
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule,
+  imports: [AnteprimaLavoro, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule,
     MatTooltipModule],
   templateUrl: './scheda-personaggio.html',
   styleUrl: './scheda-personaggio.scss',
@@ -200,6 +201,10 @@ export class SchedaPersonaggio {
     } catch (e) {
       this.avvisi.errore(e);
     }
+  }
+
+  protected async ferma(id: string) {
+    await this.api.annulla(id).catch((e) => this.avvisi.errore(e));
   }
 
   protected urlProposta(file: string) {

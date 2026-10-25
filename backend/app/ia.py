@@ -143,7 +143,12 @@ class ServizioIA:
                     pass
             inizio = time.monotonic()
             async with self.client() as c:
-                r = await c.chat_json(sistema, utente, schema, contesto)
+                try:
+                    r = await c.chat_json(sistema, utente, schema, contesto)
+                except asyncio.CancelledError:
+                    # annullato: il modello esce subito dalla memoria della GPU
+                    await asyncio.shield(c.scarica_dalla_memoria())
+                    raise
             if l:
                 l.log(f"IA ({i.ia_modello}): risposta in {time.monotonic() - inizio:.0f} s", "debug")
             return r

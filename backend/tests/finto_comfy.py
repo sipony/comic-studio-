@@ -9,7 +9,7 @@ import time
 import uuid
 
 import uvicorn
-from fastapi import FastAPI, File, Form, UploadFile, WebSocket
+from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket
 from fastapi.responses import JSONResponse, Response
 from PIL import Image
 
@@ -22,6 +22,15 @@ class FintoComfy:
         self.client_ws: dict[str, WebSocket] = {}
         self.errore_nodo: str | None = None     # se impostato, l'esecuzione fallisce
         self.object_info: dict | None = None    # definizioni dei nodi restituite da /object_info
+        self.lento = 0.0                        # secondi per ogni passo del KSampler
+        self.anteprime = False                  # manda anteprime binarie durante il campionamento
+        self.coda: list[list] = []              # [numero, prompt_id, workflow, extra, uscite]
+        self.in_corso: list | None = None
+        self.interrotto: str | None = None
+        self.interruzioni = 0
+        self.cancellati: list[str] = []
+        self.liberazioni = 0
+        self._lavoratore: asyncio.Task | None = None
         self.app = self._crea()
         self.porta = _porta_libera()
         self.url = f"http://127.0.0.1:{self.porta}"
@@ -64,8 +73,28 @@ class FintoComfy:
                                      "node_errors": errori}, status_code=400)
             self.ricevuti.append(wf)
             pid = uuid.uuid4().hex
-            asyncio.get_running_loop().create_task(self._esegui(pid, wf, corpo.get("client_id")))
+            self.coda.append([len(self.ricevuti), pid, wf, {"client_id": corpo.get("client_id")}, []])
+            if self._lavoratore is None or self._lavoratore.done():
+                self._lavoratore = asyncio.get_running_loop().create_task(self._lavora())
             return {"prompt_id": pid, "number": len(self.ricevuti), "node_errors": {}}
+
+        @app.get("/queue")
+        async def queue():
+            return {"queue_running": [self.in_corso] if self.in_corso else [], "queue_pending": list(self.coda)}
+
+        @app.post("/queue")
+        async def queue_modifica(corpo: dict):
+            via = set(corpo.get("delete", []))
+            self.cancellati += [v[1] for v in self.coda if v[1] in via]
+            self.coda = [v for v in self.coda if v[1] not in via]
+            return {}
+
+        @app.post("/interrupt")
+        async def interrupt(req: Request):
+            self.interruzioni += 1
+            if self.in_corso:
+                self.interrotto = self.in_corso[1]
+            return {}
 
         @app.get("/history/{pid}")
         async def history(pid: str):
@@ -80,6 +109,7 @@ class FintoComfy:
 
         @app.post("/free")
         async def free():
+            self.liberazioni += 1
             return {}
 
         @app.websocket("/ws")
@@ -94,6 +124,15 @@ class FintoComfy:
                 self.client_ws.pop(clientId, None)
 
         return app
+
+    async def _lavora(self):
+        while self.coda:
+            voce = self.coda.pop(0)
+            self.in_corso = voce
+            try:
+                await self._esegui(voce[1], voce[2], voce[3].get("client_id"))
+            finally:
+                self.in_corso = None
 
     async def _esegui(self, pid, wf, client_id):
         await asyncio.sleep(0.05)
@@ -111,8 +150,21 @@ class FintoComfy:
             await invia({"type": "executing", "data": {"node": k, "prompt_id": pid}})
             if n.get("class_type") == "KSampler":
                 for i in range(1, 5):
+                    if self.interrotto == pid:
+                        self.interrotto = None
+                        await invia({"type": "execution_interrupted", "data": {"prompt_id": pid, "node_id": k}})
+                        self.storia[pid] = {"status": {"status_str": "error", "completed": False, "messages": [
+                            ["execution_interrupted", {"node_type": "KSampler"}]]}, "outputs": {}}
+                        return
                     await invia({"type": "progress", "data": {"value": i, "max": 4, "node": k, "prompt_id": pid}})
-                    await asyncio.sleep(0.01)
+                    if self.anteprime and ws:
+                        b = io.BytesIO()
+                        Image.new("RGB", (32, 48), (40 * i, 80, 160)).save(b, "JPEG")
+                        try:
+                            await ws.send_bytes((1).to_bytes(4, "big") + (1).to_bytes(4, "big") + b.getvalue())
+                        except Exception:
+                            pass
+                    await asyncio.sleep(0.01 + self.lento)
             if self.errore_nodo and n.get("class_type") == self.errore_nodo:
                 await invia({"type": "execution_error", "data": {"prompt_id": pid, "node_id": k,
                                                                  "node_type": self.errore_nodo,

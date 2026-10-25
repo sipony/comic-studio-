@@ -131,7 +131,9 @@ In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, i
 - gli **indirizzi** nei messaggi sono cliccabili: quello di ComfyUI (es. `http://127.0.0.1:8188`) apre ComfyUI
   nel browser; c'è anche il pulsante ↗ accanto allo stato di ComfyUI in alto
 - **Normale / Problemi / Dettagli** filtra i messaggi (Dettagli mostra anche i dati tecnici degli errori)
-- la barra mostra il lavoro in corso con la percentuale; il pulsante ⏹ lo annulla
+- la barra mostra il lavoro in corso con la percentuale e la **miniatura** dell'immagine che si sta generando
+  (clic per vederla grande); il pulsante ⏹ lo annulla in qualsiasi momento: ComfyUI si ferma, i lavori in coda
+  vengono tolti e la memoria della scheda video viene liberata; con più lavori c'è anche «annulla tutti»
 - trascina il bordo superiore per ingrandirla, fai clic su *Console* per chiuderla
 - il pulsante copia mette le righe visibili negli appunti: utile per chiedere aiuto
 

@@ -25,6 +25,8 @@ export interface Lavoro {
   creato: number;
   iniziato: number | null;
   finito: number | null;
+  anteprima?: number;          // numero dell'ultima anteprima (0 = nessuna)
+  annullando?: boolean;
 }
 
 export interface StatoComfy {
@@ -160,6 +162,7 @@ export type Evento =
   | { tipo: 'chiusura'; ts: number }
   | { tipo: 'ia'; dati: StatoIA; ts: number }
   | { tipo: 'proposte'; progetto: string; personaggio: string; ts: number }
+  | { tipo: 'anteprima'; lavoro: string; n: number; finale: boolean; ts: number }
   | { tipo: 'personaggi'; progetto: string; personaggio: string; ts: number };
 
 export const GENERI: { valore: Genere; etichetta: string }[] = [

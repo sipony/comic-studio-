@@ -81,6 +81,10 @@ class Lavoro:
         self.finito: float | None = None
         self._task: asyncio.Task | None = None
         self._annulla = False
+        self.esclusivo = False
+        self.anteprima: tuple[bytes, str] | None = None     # ultima immagine (parziale o finita)
+        self.n_anteprima = 0
+        self._ultima_anteprima = 0.0
 
     # chiamabili dal codice del lavoro, anche da un thread
     def log(self, msg: str, livello: Livello = "info"):
@@ -92,6 +96,16 @@ class Lavoro:
             self.testo = testo
         self.gestore.bus.pubblica({"tipo": "avanzamento", "lavoro": self.id,
                                    "progresso": self.progresso, "testo": self.testo})
+
+    def imposta_anteprima(self, dati: bytes, tipo: str = "image/png", finale: bool = False):
+        """Anteprima del lavoro: le parziali al massimo 3 volte al secondo, le immagini finite sempre."""
+        self.anteprima = (dati, tipo)
+        self.n_anteprima += 1
+        adesso = time.monotonic()
+        if finale or adesso - self._ultima_anteprima >= 0.33:
+            self._ultima_anteprima = adesso
+            self.gestore.bus.pubblica({"tipo": "anteprima", "lavoro": self.id, "n": self.n_anteprima,
+                                       "finale": finale})
 
     def controlla(self):
         """Da chiamare nei cicli lunghi: interrompe il lavoro se è stato annullato."""
@@ -105,7 +119,8 @@ class Lavoro:
     def dict(self) -> dict:
         return {"id": self.id, "tipo": self.tipo, "titolo": self.titolo, "progetto": self.progetto,
                 "stato": self.stato, "progresso": self.progresso, "testo": self.testo, "errore": self.errore,
-                "creato": self.creato, "iniziato": self.iniziato, "finito": self.finito}
+                "creato": self.creato, "iniziato": self.iniziato, "finito": self.finito,
+                "anteprima": self.n_anteprima if self.anteprima else 0, "annullando": self._annulla}
 
 
 Funzione = Callable[[Lavoro], Awaitable[Any]]
@@ -126,16 +141,19 @@ class Gestore:
     def avvia(self, tipo: str, titolo: str, funzione: Funzione, progetto: str | None = None,
               esclusivo: bool = False) -> Lavoro:
         l = Lavoro(self, f"L{next(self._contatore):04d}", tipo, titolo, progetto)
+        l.esclusivo = esclusivo
         self.lavori[l.id] = l
         self._pota()
         self._stato(l, "in_coda")
 
         async def esegui():
-            if esclusivo:
-                if self._esclusivi.locked():
-                    l.log("In attesa che finisca il lavoro precedente sulla GPU...")
-                await self._esclusivi.acquire()
+            preso = False
             try:
+                if esclusivo:
+                    if self._esclusivi.locked():
+                        l.log("In attesa che finisca il lavoro precedente sulla GPU...")
+                    await self._esclusivi.acquire()
+                    preso = True
                 if l._annulla:
                     raise Annullato()
                 l.iniziato = time.time()
@@ -148,7 +166,10 @@ class Gestore:
                 self._stato(l, "completato")
             except (Annullato, asyncio.CancelledError):
                 l.finito = time.time()
-                l.log(f"Annullato: {titolo}", "avviso")
+                if esclusivo and l.iniziato:
+                    l.log(f"Annullato: {titolo}. Generazione fermata e memoria della GPU liberata.", "avviso")
+                else:
+                    l.log(f"Annullato: {titolo}", "avviso")
                 self._stato(l, "annullato")
             except Exception as e:  # noqa: BLE001 - qualunque errore va mostrato all'utente
                 l.finito = time.time()
@@ -158,7 +179,7 @@ class Gestore:
                 l.log(dettaglio, "debug")
                 self._stato(l, "errore")
             finally:
-                if esclusivo:
+                if preso:
                     self._esclusivi.release()
 
         l._task = asyncio.get_running_loop().create_task(esegui())
@@ -168,11 +189,19 @@ class Gestore:
         l = self.lavori.get(id_)
         if not l or l.stato in ("completato", "errore", "annullato"):
             return False
+        if l._annulla:          # già richiesto: un secondo annullamento interromperebbe la pulizia
+            return True
         l._annulla = True
+        if l.stato == "in_corso":
+            l.log(f"Annullamento di «{l.titolo}»: fermo e libero le risorse...", "info")
+        self.bus.pubblica({"tipo": "lavoro", "lavoro": l.id, "dati": l.dict()})
         if l._task:
             # interrompe l'attesa corrente; il codice che gira in un thread si ferma al prossimo controlla()
             l._task.cancel()
         return True
+
+    def annulla_tutti(self) -> int:
+        return sum(self.annulla(l.id) for l in self.attivi())
 
     def attivi(self) -> list[Lavoro]:
         return [l for l in self.lavori.values() if l.stato in ("in_coda", "in_corso")]

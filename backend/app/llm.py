@@ -251,6 +251,15 @@ class ClientIA:
                 else:
                     avanzamento(-1, f"{nome}: {stato}")
 
+    async def scarica_dalla_memoria(self):
+        """Toglie il modello dalla memoria (Ollama); con gli altri server non si può fare."""
+        if self.tipo != "ollama":
+            return
+        try:
+            await self._http.post("/api/generate", json={"model": self.modello, "keep_alive": 0}, timeout=10)
+        except httpx.HTTPError:
+            pass
+
     async def chat_json(self, sistema: str, utente: str, schema: dict, contesto: int = 12288,
                         temperatura: float = 0.2) -> dict:
         """Una risposta JSON che rispetta lo schema."""

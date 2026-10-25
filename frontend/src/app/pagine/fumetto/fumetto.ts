@@ -18,6 +18,7 @@ import {
   Vignetta,
 } from '../../core/modelli';
 import { ProgettoService } from '../../core/progetto.service';
+import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
 
 const ESEMPIO = `# Una vignetta per riga:  formato | personaggi | cosa succede (in inglese) | chi: battuta | …
 # formato: larga, alta (due alte di fila stanno affiancate), quadrata
@@ -33,7 +34,7 @@ function nuovoId() {
 
 @Component({
   selector: 'app-fumetto',
-  imports: [FormsModule, MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule,
+  imports: [AnteprimaLavoro, FormsModule, MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule,
     MatProgressBarModule, MatSelectModule, MatTooltipModule, RouterLink],
   templateUrl: './fumetto.html',
   styleUrl: './fumetto.scss',

@@ -85,7 +85,7 @@ def test_comando_portable(tmp_path):
     (emb / ("python.exe" if os.name == "nt" else "python")).write_text("")
     cmd = avvio.comando(str(c), str(c), "portable", "http://127.0.0.1:8190", extra="--lowvram")
     assert cmd.argomenti[1:] == ["-s", str(c / "main.py"), "--windows-standalone-build", "--port", "8190",
-                                 "--lowvram"]
+                                 "--preview-method", "auto", "--lowvram"]
     assert cmd.cartella == radice and cmd.porta == 8190
 
 
@@ -93,7 +93,9 @@ def test_comando_manuale_usa_il_venv(tmp_path):
     c = crea_cartella_comfy(tmp_path)
     py = con_venv(c)
     cmd = avvio.comando(str(c), None, "manuale", None)
-    assert cmd.argomenti == [str(py), "main.py", "--port", "8188"] and cmd.cartella == c
+    assert cmd.argomenti == [str(py), "main.py", "--port", "8188", "--preview-method", "auto"] and cmd.cartella == c
+    con = avvio.comando(str(c), None, "manuale", None, extra="--preview-method taesd")
+    assert con.argomenti.count("--preview-method") == 1
 
 
 def test_comando_personalizzato_e_desktop(tmp_path, monkeypatch):
