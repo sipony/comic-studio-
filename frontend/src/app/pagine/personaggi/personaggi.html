@@ -1,0 +1,46 @@
+<div class="pagina">
+  <div class="intestazione">
+    <div>
+      <h1>Personaggi</h1>
+      <p class="sotto">
+        Per ogni personaggio verrà creato un dataset e addestrato un LoRA. Nelle scene del fumetto potrai
+        mettere insieme tutti quelli che vuoi.
+      </p>
+    </div>
+  </div>
+
+  @if (senzaRiferimento() > 0) {
+    <div class="nota-info">
+      <mat-icon>info</mat-icon>
+      <span>
+        {{ senzaRiferimento() === 1 ? 'Un personaggio non ha' : senzaRiferimento() + ' personaggi non hanno' }}
+        ancora l'immagine di riferimento: serve per generare il dataset. Usa un'immagine pulita, a figura intera
+        o mezzo busto, su sfondo semplice.
+      </span>
+    </div>
+  }
+
+  <div class="elenco">
+    @for (c of progetto().personaggi; track c.id) {
+      <app-scheda-personaggio [progetto]="progetto().id" [personaggio]="c" (cambiato)="cambiato($event)" (eliminato)="eliminato($event)" />
+    }
+  </div>
+
+  <form class="aggiungi" (ngSubmit)="aggiungi()">
+    <mat-icon class="icona">person_add</mat-icon>
+    <mat-form-field class="nome">
+      <mat-label>Nuovo personaggio</mat-label>
+      <input matInput name="nome" [ngModel]="nuovoNome()" (ngModelChange)="nuovoNome.set($event)" maxlength="60" placeholder="Es. Agente Vigil" />
+    </mat-form-field>
+    <mat-form-field class="genere">
+      <mat-label>Tipo</mat-label>
+      <mat-select name="genere" [value]="nuovoGenere()" (valueChange)="nuovoGenere.set($event)">
+        @for (g of generi; track g.valore) {
+          <mat-option [value]="g.valore">{{ g.etichetta }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <button mat-flat-button type="submit" [disabled]="!nuovoNome().trim() || aggiungendo()">Aggiungi</button>
+  </form>
+  <p class="nota">La trigger word viene inventata in automatico: puoi cambiarla dopo.</p>
+</div>

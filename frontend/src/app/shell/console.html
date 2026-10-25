@@ -1,0 +1,66 @@
+@if (aperta()) {
+  <div class="maniglia" (pointerdown)="iniziaRidimensiona($event)" title="Trascina per ridimensionare"></div>
+}
+<header class="barra">
+  <button mat-button class="titolo" (click)="interruttore()" [attr.aria-expanded]="aperta()">
+    <mat-icon>{{ aperta() ? 'expand_more' : 'expand_less' }}</mat-icon>
+    Console
+    @if (eventi.errori() > 0) {
+      <span class="contatore errore" matTooltip="Errori nella sessione">{{ eventi.errori() }}</span>
+    }
+  </button>
+
+  <div class="lavoro">
+    @if (lavoro(); as l) {
+      <div class="lavoro-testo">
+        <span class="lavoro-titolo">{{ l.titolo }}</span>
+        <span class="lavoro-dettaglio">{{ l.stato === 'in_coda' ? 'in coda' : l.testo }}</span>
+        @if (altriAttivi() > 0) {
+          <span class="altri">+{{ altriAttivi() }} in coda</span>
+        }
+      </div>
+      <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
+      <span class="percentuale">{{ l.progresso * 100 | number: '1.0-0' }}%</span>
+      <button mat-icon-button matTooltip="Annulla questo lavoro" (click)="annulla(l.id)">
+        <mat-icon>stop_circle</mat-icon>
+      </button>
+    } @else {
+      <span class="inattivo">Nessun lavoro in corso</span>
+    }
+  </div>
+
+  @if (aperta()) {
+    <div class="strumenti">
+      <div class="filtri" role="group" aria-label="Filtro dei messaggi">
+        <button [class.attivo]="filtro() === 'normale'" (click)="impostaFiltro('normale')">Normale</button>
+        <button [class.attivo]="filtro() === 'problemi'" (click)="impostaFiltro('problemi')">Problemi</button>
+        <button [class.attivo]="filtro() === 'tutto'" (click)="impostaFiltro('tutto')">Dettagli</button>
+      </div>
+      <input class="cerca" type="search" placeholder="Cerca…" [ngModel]="cerca()" (ngModelChange)="cerca.set($event)" />
+      <button mat-icon-button matTooltip="Copia le righe visibili" (click)="copia()"><mat-icon>content_copy</mat-icon></button>
+      <button mat-icon-button matTooltip="Svuota la vista" (click)="eventi.pulisciLog()"><mat-icon>delete_sweep</mat-icon></button>
+    </div>
+  }
+</header>
+
+@if (aperta()) {
+  <div class="corpo" #corpo (scroll)="allaRotella()">
+    @for (r of righe(); track $index) {
+      <div class="riga" [class]="r.livello">
+        <span class="ora">{{ r.ts * 1000 | date: 'HH:mm:ss' }}</span>
+        <mat-icon class="liv">{{ icona(r.livello) }}</mat-icon>
+        @if (r.lavoro) {
+          <span class="id">{{ r.lavoro }}</span>
+        }
+        <span class="msg">{{ r.msg }}</span>
+      </div>
+    } @empty {
+      <div class="vuoto">Qui compariranno i messaggi del programma, di ComfyUI e dell'addestramento.</div>
+    }
+  </div>
+  @if (!segui()) {
+    <button mat-mini-fab class="in-fondo" matTooltip="Vai agli ultimi messaggi" (click)="segui.set(true); scorriInFondo()">
+      <mat-icon>arrow_downward</mat-icon>
+    </button>
+  }
+}

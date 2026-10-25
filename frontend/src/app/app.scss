@@ -1,0 +1,204 @@
+:host {
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  height: 100dvh;
+}
+
+.testata {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-low);
+}
+.marchio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  font-size: 17px;
+}
+.logo {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--mat-sys-primary), var(--mat-sys-tertiary));
+  color: var(--mat-sys-on-primary);
+  mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+}
+.separatore {
+  color: var(--mat-sys-outline);
+}
+.progetto {
+  color: var(--mat-sys-on-surface);
+  text-decoration: none;
+  font-weight: 500;
+  max-width: 30vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+.spazio {
+  flex: 1;
+}
+
+.chip-comfy {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container);
+  color: var(--mat-sys-on-surface);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  .punto {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--mat-sys-outline);
+  }
+  .dett {
+    color: var(--mat-sys-on-surface-variant);
+  }
+  &.ok .punto {
+    background: var(--cs-ok);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--cs-ok) 25%, transparent);
+  }
+  &.errore .punto {
+    background: var(--cs-errore);
+  }
+  &.attesa .punto {
+    background: var(--cs-avviso);
+  }
+}
+.badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: var(--cs-errore);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  padding: 0 3px;
+}
+
+.corpo {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container-lowest);
+  overflow-y: auto;
+}
+.gruppo {
+  margin: 18px 12px 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--mat-sys-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.voce {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 20px;
+  color: var(--mat-sys-on-surface-variant);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-on-surface) 6%, transparent);
+    color: var(--mat-sys-on-surface);
+  }
+  &.attivo {
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+  &.da-fare {
+    opacity: 0.7;
+  }
+  .numero {
+    flex: 0 0 24px;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .presto {
+    margin-left: auto;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: var(--mat-sys-surface-container-high);
+  }
+}
+
+.contenuto {
+  overflow: auto;
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .corpo {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .menu {
+    padding: 8px 6px;
+    .voce span:not(.numero),
+    .gruppo {
+      display: none;
+    }
+    .voce {
+      justify-content: center;
+      padding: 0;
+    }
+  }
+  .chip-comfy .dett,
+  .marchio .nome {
+    display: none;
+  }
+}

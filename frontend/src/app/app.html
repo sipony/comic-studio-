@@ -1,0 +1,61 @@
+<header class="testata">
+  <a class="marchio" routerLink="/progetti">
+    <span class="logo" aria-hidden="true"><mat-icon>auto_stories</mat-icon></span>
+    <span class="nome">Comic Studio</span>
+  </a>
+
+  @if (progetti.corrente(); as p) {
+    <span class="separatore">/</span>
+    <a class="progetto" [routerLink]="['/progetto', p.id, 'personaggi']">{{ p.nome }}</a>
+  }
+
+  <span class="spazio"></span>
+
+  <button class="chip-comfy" [class]="chipComfy().classe" (click)="vaiAlSistema()" [matTooltip]="chipComfy().dettaglio || 'Stato della connessione'">
+    <span class="punto"></span>
+    <span>{{ chipComfy().testo }}</span>
+    @if (chipComfy().dettaglio) {
+      <span class="dett">{{ chipComfy().dettaglio }}</span>
+    }
+  </button>
+  <button mat-icon-button routerLink="/sistema" matTooltip="Controllo del sistema">
+    <mat-icon>{{ problemi() > 0 ? 'report' : 'monitor_heart' }}</mat-icon>
+    @if (problemi() > 0) {
+      <span class="badge">{{ problemi() }}</span>
+    }
+  </button>
+</header>
+
+<div class="corpo">
+  <nav class="menu" aria-label="Navigazione">
+    <a routerLink="/sistema" routerLinkActive="attivo" class="voce">
+      <mat-icon>monitor_heart</mat-icon><span>Sistema</span>
+    </a>
+    <a routerLink="/progetti" routerLinkActive="attivo" [routerLinkActiveOptions]="{ exact: true }" class="voce">
+      <mat-icon>folder_open</mat-icon><span>Progetti</span>
+    </a>
+
+    @if (passi().length) {
+      <div class="gruppo">{{ progetti.corrente()?.nome }}</div>
+      @for (v of passi(); track v.percorso) {
+        <a [routerLink]="v.percorso" routerLinkActive="attivo" class="voce" [class.da-fare]="!v.pronto">
+          @if (v.passo) {
+            <span class="numero">{{ v.passo }}</span>
+          } @else {
+            <mat-icon>{{ v.icona }}</mat-icon>
+          }
+          <span>{{ v.etichetta }}</span>
+          @if (!v.pronto) {
+            <span class="presto">presto</span>
+          }
+        </a>
+      }
+    }
+  </nav>
+
+  <main class="contenuto">
+    <router-outlet />
+  </main>
+</div>
+
+<app-console />

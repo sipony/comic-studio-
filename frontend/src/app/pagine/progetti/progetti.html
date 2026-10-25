@@ -1,0 +1,61 @@
+<div class="pagina">
+  <div class="intestazione">
+    <div>
+      <h1>Progetti</h1>
+      <p class="sotto">Ogni progetto contiene i suoi personaggi, i dataset, i LoRA e le pagine del fumetto.</p>
+    </div>
+    <div class="azioni">
+      <button mat-flat-button (click)="nuovoAperto.set(true)"><mat-icon>add</mat-icon> Nuovo progetto</button>
+    </div>
+  </div>
+
+  @if (nuovoAperto()) {
+    <form class="nuovo" (ngSubmit)="crea()">
+      <h2>Nuovo progetto</h2>
+      <mat-form-field>
+        <mat-label>Nome</mat-label>
+        <input matInput name="nome" [ngModel]="nome()" (ngModelChange)="nome.set($event)" required maxlength="80" placeholder="La mappa di vetro" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Descrizione (facoltativa)</mat-label>
+        <input matInput name="descrizione" [ngModel]="descrizione()" (ngModelChange)="descrizione.set($event)" placeholder="Noir poliziesco, 2 personaggi" />
+      </mat-form-field>
+      <div class="pulsanti">
+        @if (progetti.elenco().length) {
+          <button mat-button type="button" (click)="nuovoAperto.set(false)">Annulla</button>
+        }
+        <button mat-flat-button type="submit" [disabled]="!nome().trim()">Crea</button>
+      </div>
+    </form>
+  }
+
+  <div class="griglia">
+    @for (p of progetti.elenco(); track p.id) {
+      <article class="progetto" tabindex="0" (click)="apri(p)" (keydown.enter)="apri(p)">
+        <div class="copertina">
+          <mat-icon>auto_stories</mat-icon>
+        </div>
+        <div class="info">
+          <h3>{{ p.nome }}</h3>
+          @if (p.descrizione) {
+            <p class="descr">{{ p.descrizione }}</p>
+          }
+          <p class="meta">
+            {{ p.personaggi.length }} {{ p.personaggi.length === 1 ? 'personaggio' : 'personaggi' }} ·
+            modificato {{ p.modificato * 1000 | date: 'd MMM y, HH:mm' }}
+          </p>
+        </div>
+        <button mat-icon-button class="menu" [matMenuTriggerFor]="m" (click)="$event.stopPropagation()" aria-label="Altre azioni">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #m="matMenu">
+          <button mat-menu-item (click)="elimina(p)"><mat-icon>delete</mat-icon> Sposta nel cestino</button>
+        </mat-menu>
+      </article>
+    } @empty {
+      @if (caricato() && !nuovoAperto()) {
+        <p class="sotto">Nessun progetto. Creane uno per iniziare.</p>
+      }
+    }
+  </div>
+</div>
