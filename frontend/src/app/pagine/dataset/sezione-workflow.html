@@ -113,6 +113,37 @@
     }
   </section>
 
+  @if (img2img(); as i2i) {
+    <section class="composizione" [class.attenzione]="!composizioneLibera()">
+      <div class="testa-comp">
+        <mat-icon>open_with</mat-icon>
+        <strong>Workflow img2img: pose e inquadrature</strong>
+      </div>
+      <p class="nota">
+        Il KSampler parte dall’immagine di riferimento{{ i2i.denoise !== null ? ' (denoise ' + i2i.denoise + ')' : '' }}:
+        così ogni immagine avrebbe la stessa posa e la stessa inquadratura del riferimento, qualunque cosa dica il prompt.
+      </p>
+      <mat-button-toggle-group [value]="config()?.composizione ?? 'libera'" (change)="impostaComposizione($event.value)"
+        aria-label="Composizione delle immagini" hideSingleSelectionIndicator>
+        <mat-button-toggle value="libera">Pose dalle varianti</mat-button-toggle>
+        <mat-button-toggle value="riferimento">Come il riferimento</mat-button-toggle>
+      </mat-button-toggle-group>
+      @if (composizioneLibera()) {
+        <p class="nota">
+          Ogni immagine parte da zero (denoise 1) con la posa, l’angolazione e le dimensioni della sua variante.
+          @if (aspetto()) { L’aspetto del personaggio viene da <strong>{{ aspetto() }}</strong> e dal prompt. }
+        </p>
+        @if (!aspetto()) {
+          <p class="avviso"><mat-icon>warning</mat-icon>
+            Nel workflow non ci sono LoRA del personaggio né IPAdapter: senza il riferimento il personaggio potrebbe
+            non somigliare. Aggiungi un LoRA o usa «Crea quello integrato».</p>
+        }
+      } @else {
+        <p class="avviso"><mat-icon>warning</mat-icon> Tutte le immagini avranno la posa del riferimento: utile solo per variare dettagli e colori.</p>
+      }
+    </section>
+  }
+
   <section class="ruoli">
     <div class="titolo">
       <h3>Nodi riconosciuti</h3>
@@ -130,7 +161,7 @@
             <mat-option [value]="o.id">{{ o.etichetta }}</mat-option>
           }
         </mat-select>
-        <mat-hint>{{ r.aiuto }}</mat-hint>
+        <mat-hint>{{ r.chiave === 'latente' && composizioneLibera() && !ruoli()?.latente ? 'Non serve: con le pose dalle varianti Comic Studio aggiunge un latente vuoto' : r.aiuto }}</mat-hint>
       </mat-form-field>
     }
   </section>

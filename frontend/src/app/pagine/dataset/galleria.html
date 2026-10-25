@@ -6,6 +6,7 @@
         <span class="tag tenuta" [class.raggiunto]="r.tenute >= daTenere()">{{ r.tenute }} / {{ daTenere() }} tenute</span>
         <span class="tag">{{ r.totale }} totali</span>
         @if (r.scartate) { <span class="tag scartata">{{ r.scartate }} scartate</span> }
+        @if (r.byte) { <span class="tag" matTooltip="Spazio occupato sul disco da immagini e anteprime"><mat-icon>hard_drive</mat-icon> {{ spazio() }}</span> }
       }
     </div>
     <div class="azioni">
@@ -13,13 +14,34 @@
         matTooltip="Tiene le immagini più somiglianti al riferimento, varie e senza doppioni. Le tue scelte manuali restano.">
         <mat-icon>auto_awesome</mat-icon> Tieni le {{ daTenere() }} migliori
       </button>
-      <button mat-icon-button [matMenuTriggerFor]="altro" aria-label="Altre azioni"><mat-icon>more_vert</mat-icon></button>
-      <mat-menu #altro="matMenu">
-        <button mat-menu-item (click)="eliminaScartate()" [disabled]="!riepilogo()?.scartate"><mat-icon>delete_sweep</mat-icon> Butta le scartate</button>
-        <button mat-menu-item (click)="ricarica.emit()"><mat-icon>refresh</mat-icon> Ricarica</button>
+      <button mat-stroked-button [matMenuTriggerFor]="menuScarica" [disabled]="!visibili().length || !!operazione()">
+        <mat-icon>download</mat-icon> Scarica
+      </button>
+      <mat-menu #menuScarica="matMenu">
+        <button mat-menu-item (click)="scarica(false)"><mat-icon>folder_zip</mat-icon> Scarica {{ etichetta() }} (ZIP)</button>
+        <button mat-menu-item (click)="scarica(true)"><mat-icon>cleaning_services</mat-icon> Scarica {{ etichetta() }} e cancellale dal computer</button>
       </mat-menu>
+      <button mat-stroked-button [matMenuTriggerFor]="menuElimina" [disabled]="!!operazione()">
+        <mat-icon>delete</mat-icon> Elimina
+      </button>
+      <mat-menu #menuElimina="matMenu">
+        <button mat-menu-item (click)="elimina()" [disabled]="!visibili().length || !!lavoro()"><mat-icon>delete</mat-icon> Elimina {{ etichetta() }}</button>
+        <button mat-menu-item (click)="eliminaScartate()" [disabled]="!riepilogo()?.scartate"><mat-icon>delete_sweep</mat-icon> Butta le scartate</button>
+        <mat-divider />
+        <button mat-menu-item (click)="svuota()" [disabled]="!cestino().immagini">
+          <mat-icon>delete_forever</mat-icon> Svuota il cestino{{ cestino().immagini ? ' (' + cestino().immagini + ' · ' + pesoCestino() + ')' : '' }}
+        </button>
+      </mat-menu>
+      <button mat-icon-button (click)="ricarica.emit()" matTooltip="Ricarica" aria-label="Ricarica"><mat-icon>refresh</mat-icon></button>
     </div>
   </header>
+
+  @if (operazione(); as o) {
+    <div class="operazione" role="status">
+      <span>{{ o.testo }}</span>
+      <mat-progress-bar [mode]="o.progresso === null ? 'indeterminate' : 'determinate'" [value]="(o.progresso ?? 0) * 100" />
+    </div>
+  }
 
   <div class="barra">
     <div class="filtri" role="group" aria-label="Filtro">

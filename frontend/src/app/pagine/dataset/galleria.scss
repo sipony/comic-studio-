@@ -286,3 +286,18 @@ dl {
     }
   }
 }
+
+.operazione {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--mat-sys-on-surface-variant);
+}
+.conteggi .tag mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+}

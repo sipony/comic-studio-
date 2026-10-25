@@ -119,8 +119,11 @@ export class DatasetPage {
     const id = this.sceltoId();
     if (!id) return;
     try {
-      this.immagini.set(await this.api.immaginiDataset(this.progetto().id, id));
-      this.aggiornaRiepilogo();
+      const [imm, stato] = await Promise.all([this.api.immaginiDataset(this.progetto().id, id),
+        this.api.statoDataset(this.progetto().id, id)]);
+      if (this.sceltoId() !== id) return;
+      this.immagini.set(imm);
+      this.riepilogo.set(stato.riepilogo);         // conteggi, spazio occupato e cestino
     } catch (e) {
       this.avvisi.errore(e);
     }
@@ -137,6 +140,7 @@ export class DatasetPage {
   private aggiornaRiepilogo() {
     const l = this.immagini();
     this.riepilogo.set({
+      ...this.riepilogo(),
       totale: l.length,
       tenute: l.filter((i) => i.stato === 'tenuta').length,
       scartate: l.filter((i) => i.stato === 'scartata').length,

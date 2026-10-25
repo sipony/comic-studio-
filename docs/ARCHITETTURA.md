@@ -156,7 +156,11 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | GET | `…/dataset/immagini` | elenco con metadati e stato |
 | GET / PATCH | `…/dataset/immagini/{file}` | immagine (`?anteprima=true` per la miniatura) / `{stato}` |
 | POST | `…/dataset/seleziona` | `{quante}` selezione automatica (lavoro) |
-| POST | `…/dataset/elimina` | `{file: [...]}` o `{scartate: true}` nel cestino |
+| POST | `…/dataset/elimina` | `{file: [...]}` o `{scartate: true}` nel cestino; con `definitivo: true` cancella dal disco (dopo il download) e restituisce i byte liberati |
+| POST | `…/dataset/esporta` | `{file: [...] \| null}` prepara lo ZIP (lavoro `dataset_esporta`): immagini, prompt in `.txt`, `immagini.json` |
+| GET | `…/dataset/esportazioni/{nome}` | scarica lo ZIP, che poi viene tolto dal disco |
+| GET | `…/dataset/cestino` | immagini del dataset nel cestino e byte |
+| POST | `…/dataset/cestino/svuota` | cancella dal disco le immagini del dataset nel cestino |
 | GET | `…/didascalie` | configurazione, didascalie di ogni immagine, frequenze dei tag |
 | PUT | `…/didascalie/config` | salva la configurazione e restituisce le didascalie ricalcolate |
 | POST | `…/didascalie/analizza` | `{tutte}` tag automatici con WD14 (lavoro) |

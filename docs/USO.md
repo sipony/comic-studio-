@@ -56,6 +56,10 @@ Per ogni personaggio (scegli in alto quale):
    stile e modelli dagli elenchi. Il programma riconosce da solo i nodi del riferimento, dei prompt, del seme,
    delle dimensioni e dell'immagine finale: controlla in «Nodi riconosciuti» e correggi solo se serve.
    In «Parametri dei nodi» puoi cambiare qualunque valore (passi, CFG, forza dell'IPAdapter…) solo per questo personaggio.
+   Se il workflow è **img2img** (il KSampler parte dall'immagine di riferimento) compare il riquadro **pose e
+   inquadrature**: con **Pose dalle varianti** (predefinito) ogni immagine parte da zero con la posa, l'angolazione e
+   le dimensioni della sua variante, e l'aspetto del personaggio viene dai LoRA / IPAdapter del workflow e dal
+   prompt; con **Come il riferimento** tutte le immagini hanno la posa del riferimento.
 2. **Prompt e varianti** — il prompt è un modello: `{descrizione}` diventa i tratti fissi del personaggio,
    `{variante}` cambia a ogni immagine (inquadratura, angolazione, espressione, posa, sfondo), `{qualita}` mette i
    tag giusti per il checkpoint. Sotto vedi esempi dei prompt che verranno usati.
@@ -64,6 +68,12 @@ Per ogni personaggio (scegli in alto quale):
 4. **Galleria** — **Tieni le N migliori** sceglie da sola le più somiglianti al riferimento, varie e senza doppioni.
    Poi rifinisci a mano: passa sopra un'immagine e premi ✓ o ✕, oppure aprila e usa **T** (tieni), **S** (scarta)
    e le frecce. Le tue scelte manuali non vengono più toccate dalla selezione automatica.
+5. **Scarica ed Elimina** — agiscono sulle immagini del filtro scelto (Tutte, Tenute, Da decidere, Scartate):
+   - **Scarica → ZIP**: le immagini con il prompt di ognuna in un `.txt`
+   - **Scarica → … e cancellale dal computer**: dopo il download completo le immagini vengono cancellate dal disco
+     (non passano dal cestino), così non occupano più spazio
+   - **Elimina**: le sposta nel cestino; dal messaggio, o da **Elimina → Svuota il cestino**, le cancelli davvero
+     e liberi lo spazio. In alto vedi quanto occupano.
 
 ## 5. Step 2 · Didascalie
 

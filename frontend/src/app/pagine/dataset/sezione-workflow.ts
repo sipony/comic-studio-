@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, input, model, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -37,7 +38,7 @@ const AUTOMATICI: Partial<Record<Ruolo, string[]>> = {
 
 @Component({
   selector: 'app-sezione-workflow',
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule,
+  imports: [FormsModule, MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule,
     MatSliderModule, MatTooltipModule],
   templateUrl: './sezione-workflow.html',
   styleUrl: './sezione-workflow.scss',
@@ -65,6 +66,16 @@ export class SezioneWorkflow {
     fine_ipadapter: 0.8, passi: 30, cfg: 6.5, sampler: 'euler_ancestral', scheduler: 'karras',
   });
 
+  /** il workflow parte dall'immagine di riferimento (img2img): senza intervento tutte le pose sarebbero uguali */
+  protected img2img = computed(() => this.dettaglio()?.analisi.img2img ?? null);
+  protected composizioneLibera = computed(() => !!this.img2img() && (this.config()?.composizione ?? 'libera') === 'libera');
+  /** da dove viene l'aspetto del personaggio quando la composizione è libera */
+  protected aspetto = computed(() => {
+    const a = this.dettaglio()?.analisi;
+    if (!a) return '';
+    const parti = [...new Set(a.guide ?? [])].concat(a.lora.map((l) => l.replace(/\.safetensors$/i, '')));
+    return parti.join(', ');
+  });
   protected scelto = computed(() => this.libreria().find((w) => w.id === this.config()?.workflow) ?? null);
   protected ruoli = computed<Ruoli | null>(() => {
     const w = this.scelto();
@@ -209,6 +220,10 @@ export class SezioneWorkflow {
 
   protected impostaRuolo(r: Ruolo, id: string | null) {
     this.config.update((c) => (c ? { ...c, ruoli: { ...(c.ruoli ?? {}), [r]: id } } : c));
+  }
+
+  protected impostaComposizione(c: 'libera' | 'riferimento') {
+    this.config.update((cfg) => (cfg ? { ...cfg, composizione: c } : cfg));
   }
 
   protected ripristinaRuoli() {

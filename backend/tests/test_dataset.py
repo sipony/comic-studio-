@@ -200,3 +200,160 @@ def test_caricamento_formato_interfaccia(ambiente):
     assert w["ruoli"]["riferimento"] is None and any("LoadImage" in a for a in w["avvisi"])
     r = c.get(f"/api/comfy/nodi", params={"classi": "KSampler,Inesistente"}).json()
     assert list(r) == ["KSampler"] and "seed" in r["KSampler"]["input"]["required"]
+
+
+# ---------------------------------------------------------------- img2img: pose e inquadrature diverse
+
+def wf_img2img(lora=True, campionatore="KSampler"):
+    """Come «Cala_Maranello_img2img»: il KSampler parte dall'immagine di riferimento codificata dal VAE."""
+    wf = {
+        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "waiIllustriousSDXL_v170.safetensors"}},
+        "4": {"class_type": "CLIPTextEncode", "inputs": {"text": "1girl", "clip": ["1", 1]}},
+        "5": {"class_type": "CLIPTextEncode", "inputs": {"text": "lowres", "clip": ["1", 1]}},
+        "20": {"class_type": "LoadImage", "inputs": {"image": "rif.png"}},
+        "21": {"class_type": "ImageScale", "inputs": {"image": ["20", 0], "width": 832, "height": 1216,
+                                                       "upscale_method": "lanczos", "crop": "center"}},
+        "22": {"class_type": "VAEEncode", "inputs": {"pixels": ["21", 0], "vae": ["1", 2]}},
+        "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["1", 2]}},
+        "9": {"class_type": "SaveImage", "inputs": {"images": ["8", 0], "filename_prefix": "x"}},
+    }
+    modello, clip = ["1", 0], ["1", 1]
+    if lora:
+        wf["2"] = {"class_type": "LoraLoader", "inputs": {"model": modello, "clip": clip, "strength_model": 0.8,
+                                                         "strength_clip": 0.8, "lora_name": "Maranello_ViperRSR.safetensors"}}
+        modello = ["2", 0]
+    if campionatore == "KSampler":
+        wf["7"] = {"class_type": "KSampler", "inputs": {"model": modello, "positive": ["4", 0], "negative": ["5", 0],
+                                                        "latent_image": ["22", 0], "seed": 1, "steps": 28, "cfg": 6,
+                                                        "sampler_name": "euler", "scheduler": "karras", "denoise": 0.55}}
+    else:
+        wf["7"] = {"class_type": "KSamplerAdvanced", "inputs": {"model": modello, "positive": ["4", 0],
+                                                                "negative": ["5", 0], "latent_image": ["22", 0],
+                                                                "noise_seed": 1, "add_noise": "disable",
+                                                                "start_at_step": 12, "end_at_step": 10000}}
+    return wf
+
+
+def test_img2img_riconosciuto_e_composizione_libera():
+    from app.workflows import analizza, applica, guide_identita, img2img, integrato
+    wf = wf_img2img()
+    a = analizza(wf)
+    assert a.ruoli.riferimento == "20" and a.ruoli.latente is None
+    assert a.img2img == {"campionatore": "7", "codifica": "22", "denoise": 0.55} and a.guide == []
+    assert a.lora == ["Maranello_ViperRSR.safetensors"]
+
+    # composizione libera: latente vuoto della variante, denoise pieno; il workflow salvato non cambia
+    w = applica(wf, a.ruoli, riferimento="r.png", dimensioni=(1024, 1024), composizione_libera=True)
+    assert w["cs_latente"]["class_type"] == "EmptyLatentImage"
+    assert (w["cs_latente"]["inputs"]["width"], w["cs_latente"]["inputs"]["height"]) == (1024, 1024)
+    assert w["7"]["inputs"]["latent_image"] == ["cs_latente", 0] and w["7"]["inputs"]["denoise"] == 1.0
+    assert wf["7"]["inputs"]["latent_image"] == ["22", 0] and "cs_latente" not in wf
+    # composizione del riferimento: img2img come prima
+    w = applica(wf, a.ruoli, riferimento="r.png", dimensioni=(1024, 1024), composizione_libera=False)
+    assert "cs_latente" not in w and w["7"]["inputs"]["denoise"] == 0.55
+    # Flux / SD3 usano il loro latente
+    w = applica(wf, a.ruoli, dimensioni=(832, 1216), composizione_libera=True, classe_latente="EmptySD3LatentImage")
+    assert w["cs_latente"]["class_type"] == "EmptySD3LatentImage"
+
+    # KSamplerAdvanced: si parte dal primo passo, con il rumore
+    adv = wf_img2img(campionatore="KSamplerAdvanced")
+    w = applica(adv, analizza(adv).ruoli, dimensioni=(832, 1216), composizione_libera=True)
+    assert w["7"]["inputs"]["start_at_step"] == 0 and w["7"]["inputs"]["add_noise"] == "enable"
+
+    # il workflow integrato (IPAdapter + latente vuoto) non è img2img e ha una guida dell'aspetto
+    integ, ruoli = integrato("ck.safetensors", "ip.safetensors", "cv.safetensors")
+    assert img2img(integ, ruoli.riferimento) is None and guide_identita(integ, ruoli.riferimento)
+    w = applica(integ, ruoli, dimensioni=(832, 1216), composizione_libera=True)
+    assert "cs_latente" not in w
+
+    # un secondo passaggio (hires fix) che ricodifica l'uscita del primo non è img2img
+    due = wf_img2img()
+    due["7"]["inputs"]["latent_image"] = ["30", 0]
+    due["30"] = {"class_type": "EmptyLatentImage", "inputs": {"width": 832, "height": 1216, "batch_size": 1}}
+    due["31"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["8", 0], "vae": ["1", 2]}}
+    due["32"] = {"class_type": "KSampler", "inputs": {**due["7"]["inputs"], "latent_image": ["31", 0]}}
+    assert img2img(due, "20") is None
+
+
+def test_generazione_img2img_con_pose_diverse(ambiente):
+    import json
+    c, p, stato, finto = ambiente
+    base = f"/api/progetti/{p}"
+    c.put(f"{base}/personaggi/agente/riferimento", files={"file": ("r.png", png((250, 220, 90)), "image/png")})
+    r = c.post(f"{base}/workflows", files={"file": ("img2img.json", json.dumps(wf_img2img()).encode(), "application/json")})
+    assert r.status_code == 201, r.text
+    wid = r.json()["id"]
+    assert c.get(f"{base}/workflows/{wid}").json()["analisi"]["img2img"]["denoise"] == 0.55
+    cfg = c.get(f"{base}/personaggi/agente/dataset").json()["config"]
+    assert cfg["composizione"] == "libera"
+    cfg["workflow"] = wid
+    c.put(f"{base}/personaggi/agente/dataset/config", json=cfg)
+    l = attendi(c, c.post(f"{base}/personaggi/agente/dataset/genera", json={"quantita": 4}).json()["id"])
+    assert l["stato"] == "completato", l["errore"]
+    inviati = finto.ricevuti[-4:]
+    # ogni immagine parte da un latente vuoto delle dimensioni della sua inquadratura, con il prompt della variante
+    assert all(w["7"]["inputs"]["latent_image"] == ["cs_latente", 0] and w["7"]["inputs"]["denoise"] == 1.0
+               for w in inviati)
+    imm = c.get(f"{base}/personaggi/agente/dataset/immagini").json()
+    for w, i in zip(inviati, imm):
+        assert (w["cs_latente"]["inputs"]["width"], w["cs_latente"]["inputs"]["height"]) == (i["larghezza"], i["altezza"])
+        assert w["4"]["inputs"]["text"] == i["prompt"]
+    assert len({i["inquadratura"] for i in imm}) == 4
+    assert any("ogni immagine parte da zero" in r["msg"] for r in c.get("/api/log").json())
+
+    # chi vuole la composizione del riferimento la può tenere
+    cfg["composizione"] = "riferimento"
+    c.put(f"{base}/personaggi/agente/dataset/config", json=cfg)
+    attendi(c, c.post(f"{base}/personaggi/agente/dataset/genera", json={"quantita": 1}).json()["id"])
+    assert finto.ricevuti[-1]["7"]["inputs"]["latent_image"] == ["22", 0]
+
+
+# ---------------------------------------------------------------- scaricare, eliminare, liberare spazio
+
+def test_scarica_zip_elimina_e_libera_spazio(ambiente):
+    import zipfile
+    c, p, stato, finto = ambiente
+    base = f"/api/progetti/{p}/personaggi/agente/dataset"
+    a = rotte_dataset.ArchivioDataset(stato.progetti)
+    from app.dataset import InfoImmagine
+    for k in range(1, 6):
+        a.aggiungi_immagine(p, "agente", png((k * 40, 10, 10), 200, 300),
+                            InfoImmagine(file=f"{k:04d}.png", numero=k, prompt=f"prompt {k}"))
+    rie = c.get(base).json()["riepilogo"]
+    assert rie["totale"] == 5 and rie["byte"] > 0 and rie["cestino"] == {"immagini": 0, "byte": 0}
+
+    # ZIP di tre immagini, con i prompt e i metadati
+    l = attendi(c, c.post(f"{base}/esporta", json={"file": ["0001.png", "0002.png", "0003.png"]}).json()["id"])
+    assert l["stato"] == "completato", l["errore"]
+    r = stato.gestore.lavori[l["id"]].risultato
+    assert r["immagini"] == 3 and r["file"] == ["0001.png", "0002.png", "0003.png"]
+    z = c.get(f"{base}/esportazioni/{r['nome']}")
+    assert z.status_code == 200 and z.headers["content-type"] == "application/zip"
+    assert r["nome"] in z.headers["content-disposition"]
+    with zipfile.ZipFile(io.BytesIO(z.content)) as zz:
+        assert sorted(zz.namelist()) == ["agente/0001.png", "agente/0001.txt", "agente/0002.png", "agente/0002.txt",
+                                         "agente/0003.png", "agente/0003.txt", "agente/immagini.json"]
+        assert zz.read("agente/0002.txt") == b"prompt 2"
+    # dopo il download lo ZIP non resta sul disco
+    assert c.get(f"{base}/esportazioni/{r['nome']}").status_code == 404
+    assert c.get(f"{base}/esportazioni/..%2F..%2Fx.zip").status_code == 404
+
+    # scaricate: cancellate davvero dal disco, senza passare dal cestino
+    cartella = a.cartella(p, "agente")
+    d = c.post(f"{base}/elimina", json={"file": r["file"], "definitivo": True}).json()
+    assert d["eliminate"] == 3 and d["liberati"] > 0
+    assert not (cartella / "generate" / "0001.png").exists() and not (cartella / "anteprime" / "0001.jpg").exists()
+    assert c.get(base).json()["riepilogo"]["cestino"]["immagini"] == 0
+
+    # elimina tutte: nel cestino, poi lo svuoto per liberare lo spazio
+    assert c.post(f"{base}/elimina", json={}).json()["eliminate"] == 2
+    rie = c.get(base).json()["riepilogo"]
+    assert rie["totale"] == 0 and rie["byte"] == 0 and rie["cestino"]["immagini"] == 2
+    # il cestino di un altro personaggio non si tocca
+    altro = stato.progetti.radice / ".cestino" / f"{p}-altro-dataset-1"
+    altro.mkdir(parents=True)
+    (altro / "0001.png").write_bytes(b"x")
+    s = c.post(f"{base}/cestino/svuota").json()
+    assert s["immagini"] == 2 and s["byte"] > 0
+    assert c.get(f"{base}/cestino").json() == {"immagini": 0, "byte": 0} and altro.exists()
+    assert c.post(f"{base}/esporta", json={}).status_code == 200      # il lavoro fallisce: nessuna immagine

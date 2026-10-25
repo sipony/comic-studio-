@@ -23,9 +23,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 9 | Personaggio dal nulla: senza immagine, Comic Studio genera dalla descrizione alcune proposte di riferimento, l'utente sceglie (o chiede varianti) e la scelta diventa l'immagine di riferimento | ✅ unita |
 | 10 | Indirizzi cliccabili nella console (ComfyUI si apre nel browser) e pulsanti «Apri ComfyUI» | ✅ unita |
 | 11 | Annullamento in qualsiasi momento con le risorse liberate (coda di ComfyUI, VRAM, processi, IA) e anteprime dal vivo delle immagini in generazione | ✅ unita |
-| 12 | Scelta del modello dell'IA: finestra che si apre quando manca Ollama o il modello, elenco dal registro di Ollama con le quantizzazioni, ordinato per la VRAM e la RAM del computer | ✅ questa PR |
-| 13 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 14 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 12 | Scelta del modello dell'IA: finestra che si apre quando manca Ollama o il modello, elenco dal registro di Ollama con le quantizzazioni, ordinato per la VRAM e la RAM del computer | ✅ unita |
+| 13 | Dataset: pose e inquadrature diverse anche con i workflow img2img; Scarica (ZIP), Scarica e cancella, Elimina e Svuota il cestino per liberare spazio | ✅ questa PR |
+| 14 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 15 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -496,4 +497,53 @@ Interfaccia:
   12 test dell'interfaccia; collaudo con Chromium: da «Ricava i tratti» senza modello → finestra → Scarica e
   usa → la finestra si chiude e i tratti compaiono
 
-Prossimo passo: PR 13, pose guidate e costruttore di workflow.
+Prossimo passo: PR 13, pose diverse nel dataset e spazio su disco.
+
+## PR 13 — Dataset: pose diverse e spazio su disco
+
+Richiesta: «devi mettere un tasto per cancellare tutte le immagini generate da un dataset, mettere uno "scarica
+tutte" e che vengano eliminate dal sistema così non occupano spazio; e poi non ho visto la generazione dello stesso
+personaggio in posizioni diverse: puoi verificare e correggere».
+
+**Perché le pose erano tutte uguali.** Il workflow dell'utente («Cala_Maranello_img2img») è img2img: LoadImage del
+riferimento → VAEEncode → KSampler con denoise 0.55. Comic Studio cambiava il prompt di ogni variante (inquadratura,
+angolazione, posa) ma il campionamento partiva sempre dall'immagine di riferimento, quindi composizione, posa e
+inquadratura restavano le sue; e le dimensioni delle inquadrature non venivano applicate perché non c'era un
+EmptyLatentImage. Il prompt diverso cambiava solo dettagli e colori.
+
+Correzione:
+
+- `workflows.img2img()`: riconosce i workflow in cui un campionatore (KSampler, KSamplerAdvanced, SamplerCustom)
+  parte, anche attraverso nodi come LatentUpscale, da un VAEEncode dell'immagine di riferimento (un secondo
+  passaggio che ricodifica l'uscita del primo non conta); `guide_identita()` trova IPAdapter, PuLID, InstantID…
+- `ConfigDataset.composizione`: `libera` (predefinita) o `riferimento`. Con `libera`, `applica()` aggiunge un
+  latente vuoto (`EmptyLatentImage`, `EmptySD3LatentImage` per Flux / SD3) con le dimensioni dell'inquadratura,
+  ci collega il campionatore e mette il denoise a 1 (KSamplerAdvanced: dal primo passo con il rumore; SamplerCustom:
+  denoise dello scheduler). LoRA, IPAdapter e il resto del workflow restano com'erano; il file salvato non cambia
+- nel registro della generazione: cosa succede e un avviso se il workflow non ha né LoRA né IPAdapter (senza il
+  riferimento il personaggio potrebbe non somigliare)
+- interfaccia: nella sezione Workflow il riquadro «Workflow img2img: pose e inquadrature» spiega il problema, mostra
+  da dove viene l'aspetto (es. Maranello_ViperRSR) e permette di scegliere «Pose dalle varianti» / «Come il riferimento»;
+  il ruolo «Dimensioni» vuoto non è più un problema
+
+Spazio su disco:
+
+- galleria: pulsanti **Scarica** ed **Elimina** sempre visibili, che agiscono sul filtro scelto («tutte le 117
+  immagini», «le 30 tenute»…), e lo spazio occupato accanto ai conteggi
+- **Scarica → ZIP**: un lavoro prepara lo ZIP (`ZIP_STORED`, le PNG sono già compresse) con le immagini, il prompt di
+  ognuna in un `.txt` e `immagini.json`; il browser lo scarica con l'avanzamento e lo ZIP viene tolto dal disco
+- **Scarica → … e cancellale dal computer**: le immagini vengono cancellate solo quando lo ZIP è arrivato tutto nel
+  browser (dimensione controllata), e solo quelle finite nello ZIP. Qui si cancella davvero, senza cestino: è
+  l'eccezione alla regola del cestino, perché l'utente ne ha appena scaricato la copia e chiede di liberare spazio
+- **Elimina**: sposta nel cestino come prima; il messaggio ha «Libera lo spazio», e **Svuota il cestino** (con il
+  numero e il peso) cancella dal disco solo le immagini del dataset di questo personaggio
+- `riepilogo` del dataset con `byte` e `cestino`
+- Versione 0.13.0
+- **Test**: 113 test backend (riconoscimento img2img con KSampler, KSamplerAdvanced e un secondo passaggio, latente
+  per Flux, workflow integrato non toccato; generazione via API con ogni immagine da un latente vuoto delle
+  dimensioni della sua inquadratura e scelta «come il riferimento»; ZIP con prompt e metadati, nomi non validi,
+  cancellazione definitiva, cestino di un altro personaggio non toccato); 14 test dell'interfaccia; collaudo con
+  Chromium: riquadro img2img, menu, «Scarica e cancellale» con ZIP salvato e galleria vuota, 100 immagini generate
+  nelle 4 inquadrature
+
+Prossimo passo: PR 14, pose guidate e costruttore di workflow.
