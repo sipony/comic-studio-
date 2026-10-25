@@ -37,7 +37,7 @@ export class App implements OnInit {
     const base = `/progetto/${id}`;
     return [
       { percorso: `${base}/personaggi`, icona: 'groups', etichetta: 'Personaggi', pronto: true },
-      { percorso: `${base}/dataset`, icona: 'photo_library', etichetta: 'Dataset', passo: 1, pronto: false },
+      { percorso: `${base}/dataset`, icona: 'photo_library', etichetta: 'Dataset', passo: 1, pronto: true },
       { percorso: `${base}/didascalie`, icona: 'sell', etichetta: 'Didascalie', passo: 2, pronto: false },
       { percorso: `${base}/addestramento`, icona: 'model_training', etichetta: 'Addestramento', passo: 3, pronto: false },
       { percorso: `${base}/fumetto`, icona: 'auto_stories', etichetta: 'Fumetto', passo: 4, pronto: false },

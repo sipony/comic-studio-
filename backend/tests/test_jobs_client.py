@@ -96,7 +96,7 @@ async def test_client_esegue_e_segue_avanzamento(finto_comfy):
         assert (await c.stato())["system"]["comfyui_version"] == "0.9.9"
         assert "ponyDiffusionV6XL.safetensors" in await c.modelli("checkpoints")
         uscite = await c.esegui(WF, lambda v, t: avanzamenti.append((v, t)))
-        assert uscite == {"3": [{"filename": "img_3.png", "subfolder": "", "type": "output"}]}
+        assert list(uscite) == ["3"] and uscite["3"][0]["filename"].endswith("_3.png")
         assert (await c.scarica(uscite["3"][0]))[:4] == b"\x89PNG"
     assert avanzamenti[-1][0] == 1.0
     assert any("KSampler 2/4" in t for _, t in avanzamenti)

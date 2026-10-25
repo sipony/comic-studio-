@@ -1,0 +1,360 @@
+"""API e lavori dello Step 1 (Dataset): libreria dei workflow, configurazione, generazione, galleria, selezione."""
+from __future__ import annotations
+
+import asyncio
+import json
+import random
+import time
+from pathlib import Path
+from typing import Literal
+
+import numpy as np
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+
+from .comfy.client import ComfyErrore
+from .dataset import ArchivioDataset, ConfigDataset, InfoImmagine, componi, crea_variante, tag_qualita, valori_prompt
+from .jobs import Lavoro
+from .projects import ErroreProgetto
+from .settings import cartella_dati
+from .somiglianza import scegli, valutatore
+from .workflows import ErroreWorkflow, analizza, applica, controlla_ruoli, normalizza, per_invio
+
+rotte = APIRouter(prefix="/api/progetti/{pid}")
+
+
+def _app(req: Request):
+    return req.app.state.app
+
+
+def _archivio(req: Request) -> ArchivioDataset:
+    return ArchivioDataset(_app(req).progetti)
+
+
+# ---------------------------------------------------------------- libreria dei workflow
+
+@rotte.get("/workflows")
+async def elenco_workflow(pid: str, req: Request):
+    return [_riassunto(v) for v in _archivio(req).elenco_workflow(pid)]
+
+
+def _riassunto(v) -> dict:
+    a = analizza(v.workflow)
+    return {"id": v.id, "nome": v.nome, "origine": v.origine, "creato": v.creato, "ruoli": v.ruoli,
+            "avvisi": v.avvisi, "nodi": len(v.workflow), "checkpoint": a.checkpoint, "lora": a.lora,
+            "parametri": v.parametri}
+
+
+@rotte.post("/workflows", status_code=201)
+async def carica_workflow(pid: str, req: Request, file: UploadFile = File(...), nome: str = Form("")):
+    app = _app(req)
+    try:
+        dati = json.loads((await file.read()).decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError):
+        raise HTTPException(400, "Il file non è un JSON valido") from None
+    object_info = None
+    if isinstance(dati, dict) and isinstance(dati.get("nodes"), list):
+        try:
+            object_info = await app.object_info()
+        except ComfyErrore:
+            object_info = None
+    try:
+        wf, avvisi = normalizza(dati, object_info)
+    except ErroreWorkflow as e:
+        raise HTTPException(400, str(e)) from None
+    nome = nome or Path(file.filename or "workflow").stem
+    v, a = _archivio(req).aggiungi_workflow(pid, nome, file.filename or "workflow.json", wf, avvisi)
+    app.bus.log(f"Workflow «{v.nome}» caricato: {len(wf)} nodi" + (f", {len(v.avvisi)} avvisi" if v.avvisi else ""), "ok")
+    for x in v.avvisi:
+        app.bus.log(f"Workflow «{v.nome}»: {x}", "avviso")
+    return _riassunto(v)
+
+
+class ParametriIntegrato(BaseModel):
+    checkpoint: str
+    ipadapter: str
+    clip_vision: str
+    lora_stile: str | None = None
+    forza_stile: float = Field(0.6, ge=0, le=2)
+    peso_ipadapter: float = Field(0.7, ge=0, le=2)
+    fine_ipadapter: float = Field(0.8, ge=0.1, le=1)
+    passi: int = Field(30, ge=1, le=150)
+    cfg: float = Field(6.5, ge=1, le=30)
+    sampler: str = "euler_ancestral"
+    scheduler: str = "karras"
+
+
+@rotte.post("/workflows/integrato", status_code=201)
+async def crea_integrato(pid: str, dati: ParametriIntegrato, req: Request):
+    v = _archivio(req).workflow_integrato(pid, dati.model_dump())
+    _app(req).bus.log(f"Creato il workflow «{v.nome}»", "ok")
+    return _riassunto(v)
+
+
+@rotte.get("/workflows/{wid}")
+async def dettaglio_workflow(pid: str, wid: str, req: Request):
+    v = _archivio(req).leggi_workflow(pid, wid)
+    a = analizza(v.workflow)
+    return {**_riassunto(v), "analisi": a.dict(), "workflow": v.workflow}
+
+
+class ModificaWorkflow(BaseModel):
+    nome: str | None = None
+    ruoli: dict[str, str | None] | None = None
+
+
+@rotte.patch("/workflows/{wid}")
+async def modifica_workflow(pid: str, wid: str, dati: ModificaWorkflow, req: Request):
+    a = _archivio(req)
+    v = a.leggi_workflow(pid, wid)
+    if dati.nome:
+        v = a.rinomina_workflow(pid, wid, dati.nome)
+    if dati.ruoli is not None:
+        v = a.imposta_ruoli_workflow(pid, wid, dati.ruoli)
+    return _riassunto(v)
+
+
+@rotte.delete("/workflows/{wid}", status_code=204)
+async def elimina_workflow(pid: str, wid: str, req: Request):
+    _archivio(req).elimina_workflow(pid, wid)
+
+
+@rotte.get("/workflows/{wid}/scarica")
+async def scarica_workflow(pid: str, wid: str, req: Request):
+    v = _archivio(req).leggi_workflow(pid, wid)
+    return per_invio(v.workflow)
+
+
+# ---------------------------------------------------------------- configurazione
+
+@rotte.get("/personaggi/{cid}/dataset")
+async def stato_dataset(pid: str, cid: str, req: Request):
+    a = _archivio(req)
+    return {"config": a.config(pid, cid).model_dump(), "riepilogo": a.riepilogo(pid, cid)}
+
+
+@rotte.put("/personaggi/{cid}/dataset/config")
+async def salva_config(pid: str, cid: str, c: ConfigDataset, req: Request):
+    return _archivio(req).salva_config(pid, cid, c).model_dump()
+
+
+@rotte.post("/personaggi/{cid}/dataset/esempi")
+async def esempi(pid: str, cid: str, c: ConfigDataset, req: Request, n: int = 4):
+    return _archivio(req).esempi_prompt(pid, cid, c, max(1, min(n, 12)))
+
+
+# ---------------------------------------------------------------- immagini
+
+@rotte.get("/personaggi/{cid}/dataset/immagini")
+async def immagini(pid: str, cid: str, req: Request):
+    return [v.model_dump() for v in _archivio(req).immagini(pid, cid)]
+
+
+@rotte.get("/personaggi/{cid}/dataset/immagini/{file}")
+async def immagine(pid: str, cid: str, file: str, req: Request, anteprima: bool = False):
+    f = await asyncio.to_thread(_archivio(req).file_immagine, pid, cid, file, anteprima)
+    return FileResponse(f, headers={"Cache-Control": "max-age=3600"})
+
+
+class Stato(BaseModel):
+    stato: Literal["tenuta", "scartata"] | None
+
+
+@rotte.patch("/personaggi/{cid}/dataset/immagini/{file}")
+async def imposta_stato(pid: str, cid: str, file: str, dati: Stato, req: Request):
+    v = _archivio(req).imposta_stato(pid, cid, file, dati.stato)
+    _app(req).bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "stato",
+                            "immagine": v.model_dump()})
+    return v.model_dump()
+
+
+class Elimina(BaseModel):
+    file: list[str] | None = None
+    scartate: bool = False
+
+
+@rotte.post("/personaggi/{cid}/dataset/elimina")
+async def elimina(pid: str, cid: str, dati: Elimina, req: Request):
+    a = _archivio(req)
+    files = dati.file
+    if dati.scartate:
+        files = [v.file for v in a.immagini(pid, cid) if v.stato == "scartata"]
+    n = a.elimina_immagini(pid, cid, files)
+    _app(req).bus.log(f"{n} immagini spostate nel cestino", "avviso" if n else "info")
+    _app(req).bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "elenco"})
+    return {"eliminate": n}
+
+
+# ---------------------------------------------------------------- generazione
+
+class Genera(BaseModel):
+    quantita: int = Field(ge=1, le=2000)
+    sostituisci: bool = False
+
+
+@rotte.post("/personaggi/{cid}/dataset/genera")
+async def genera(pid: str, cid: str, dati: Genera, req: Request):
+    app = _app(req)
+    a = _archivio(req)
+    progetto, pers = a.personaggio(pid, cid)
+    config = a.config(pid, cid)
+    voce, ruoli = a.ruoli_effettivi(pid, config)
+    errori = controlla_ruoli(voce.workflow, ruoli)
+    if errori:
+        raise HTTPException(400, "Ruoli del workflow non validi: " + "; ".join(errori))
+    if ruoli.riferimento and not pers.riferimento:
+        raise HTTPException(400, f"{pers.nome} non ha un'immagine di riferimento: caricala nella pagina Personaggi.")
+    if not app.comfy.connesso:
+        raise HTTPException(409, "ComfyUI non è connesso: avvialo e riprova.")
+
+    async def lavoro(l: Lavoro):
+        if dati.sostituisci:
+            n = a.elimina_immagini(pid, cid)
+            if n:
+                l.log(f"{n} immagini precedenti spostate nel cestino")
+            app.bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "elenco"})
+        checkpoint = analizza(voce.workflow).checkpoint
+        qualita = tag_qualita(checkpoint, config)
+        rng = random.Random()
+        conteggio: dict[str, int] = {}
+        for v in a.immagini(pid, cid):
+            if v.inquadratura:
+                conteggio[v.inquadratura] = conteggio.get(v.inquadratura, 0) + 1
+        nome_rif = None
+        async with app.client() as client:
+            if ruoli.riferimento:
+                rif = app.progetti.file_riferimento(pid, cid)
+                copia = rif.with_name(f"{pid}_{cid}_riferimento.png")
+                copia.write_bytes(rif.read_bytes())
+                nome_rif = await client.carica_immagine(copia)
+                copia.unlink(missing_ok=True)
+                l.log(f"Immagine di riferimento caricata in ComfyUI ({nome_rif})")
+            inizio = time.time()
+            for k in range(dati.quantita):
+                l.controlla()
+                numero = a.prossimo_numero(pid, cid)
+                var = crea_variante(config.varianti, conteggio, rng)
+                val = valori_prompt(pers, var, qualita)
+                positivo = componi(config.prompt_positivo, val)
+                negativo = componi(config.prompt_negativo, val)
+                larghezza, altezza = (int(x) for x in var["_dimensioni"].split("x"))
+                seme = rng.randrange(2 ** 48)
+                wf = applica(voce.workflow, ruoli, riferimento=nome_rif, positivo=positivo, negativo=negativo,
+                             seme=seme, dimensioni=(larghezza, altezza),
+                             prefisso=f"comic_studio/{pid}/{cid}/dataset", modifiche=config.modifiche)
+                l.log(f"Immagine {k + 1}/{dati.quantita} · {var['_nome_inquadratura']}: {var['variante']}")
+
+                def avanza(v, t, k=k):
+                    l.avanza((k + v) / dati.quantita, f"immagine {k + 1}/{dati.quantita} · {t}")
+                try:
+                    uscite = await client.esegui(per_invio(wf), avanza)
+                except asyncio.CancelledError:
+                    await client.interrompi()
+                    raise
+                immagini_uscite = uscite.get(ruoli.salva) if ruoli.salva else None
+                immagini_uscite = immagini_uscite or next(iter(uscite.values()), None)
+                if not immagini_uscite:
+                    raise ComfyErrore("ComfyUI non ha restituito immagini: controlla il nodo di salvataggio "
+                                      "scelto nel workflow.")
+                dati_img = await client.scarica(immagini_uscite[0])
+                info = InfoImmagine(file=f"{numero:04d}.png", numero=numero, inquadratura=var["_nome_inquadratura"],
+                                    variante=var["variante"], prompt=positivo, seme=seme,
+                                    larghezza=larghezza, altezza=altezza)
+                await asyncio.to_thread(a.aggiungi_immagine, pid, cid, dati_img, info)
+                app.bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "nuova",
+                                  "immagine": info.model_dump()})
+                trascorso = time.time() - inizio
+                resto = trascorso / (k + 1) * (dati.quantita - k - 1)
+                l.avanza((k + 1) / dati.quantita, f"{k + 1}/{dati.quantita} fatte · mancano circa {_durata(resto)}")
+        l.log(f"Generate {dati.quantita} immagini di {pers.nome} in {_durata(time.time() - inizio)}", "ok")
+        return {"generate": dati.quantita}
+
+    l = app.gestore.avvia("dataset_genera", f"Dataset di {pers.nome}: {dati.quantita} immagini", lavoro,
+                          progetto=pid, esclusivo=True)
+    return l.dict()
+
+
+def _durata(s: float) -> str:
+    s = int(s)
+    if s < 90:
+        return f"{s} s"
+    if s < 3600:
+        return f"{s // 60} min"
+    return f"{s // 3600} h {s % 3600 // 60} min"
+
+
+# ---------------------------------------------------------------- selezione automatica
+
+class Seleziona(BaseModel):
+    quante: int | None = Field(default=None, ge=1, le=500)
+    soglia_doppioni: float = Field(default=0.96, ge=0.5, le=1.0)
+
+
+@rotte.post("/personaggi/{cid}/dataset/seleziona")
+async def seleziona(pid: str, cid: str, dati: Seleziona, req: Request):
+    app = _app(req)
+    a = _archivio(req)
+    _, pers = a.personaggio(pid, cid)
+    config = a.config(pid, cid)
+    voci = a.immagini(pid, cid)
+    if not voci:
+        raise HTTPException(400, "Non ci sono immagini da selezionare: genera prima il dataset.")
+    quante = dati.quante or config.da_tenere
+
+    async def lavoro(l: Lavoro):
+        cartella = a.cartella(pid, cid) / "generate"
+        file = [cartella / v.file for v in voci]
+        rif = None
+        if pers.riferimento:
+            try:
+                rif = app.progetti.file_riferimento(pid, cid)
+            except ErroreProgetto:
+                rif = None
+        l.avanza(0.02, "preparo il modello di somiglianza")
+        val = await asyncio.to_thread(valutatore, cartella_dati() / "modelli",
+                                      lambda v, t: l.avanza(0.02 + v * 0.3, t), l.log)
+        l.log(f"Somiglianza calcolata con: {val.nome}")
+        percorsi = ([rif] if rif else []) + file
+        E = await asyncio.to_thread(val.vettori, percorsi, lambda v, t: l.avanza(0.35 + v * 0.6, t))
+        if rif is not None:
+            riferimento, E = E[0], E[1:]
+        else:
+            l.log("Nessuna immagine di riferimento: uso la coerenza tra le immagini.", "avviso")
+            riferimento = E.mean(axis=0)
+            riferimento = riferimento / (np.linalg.norm(riferimento) or 1)
+        punteggi = (E @ riferimento).tolist()
+        quote = {i.nome: i.quota for i in config.varianti.inquadrature}
+        gruppi = [v.inquadratura for v in voci]
+        forzati = {i for i, v in enumerate(voci) if v.manuale and v.stato == "tenuta"}
+        esclusi = {i for i, v in enumerate(voci) if v.manuale and v.stato == "scartata"}
+        scelti = scegli(punteggi, E, gruppi, quante, quote, dati.soglia_doppioni, esclusi, forzati)
+        tenute = {voci[i].file for i in scelti}
+        a.imposta_selezione(pid, cid, {v.file: p for v, p in zip(voci, punteggi)}, tenute)
+        simili = E @ E.T
+        doppioni = int(np.triu(simili > dati.soglia_doppioni, k=1).sum())
+        l.log(f"Tenute {len(tenute)} immagini su {len(voci)} (le più somiglianti, distribuite per inquadratura"
+              + (f"; {doppioni} coppie quasi identiche escluse" if doppioni else "") + ")", "ok")
+        app.bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "elenco"})
+        return {"tenute": len(tenute)}
+
+    l = app.gestore.avvia("dataset_seleziona", f"Selezione del dataset di {pers.nome}", lavoro, progetto=pid)
+    return l.dict()
+
+
+# ---------------------------------------------------------------- definizioni dei nodi (per l'editor)
+
+rotte_comfy = APIRouter(prefix="/api/comfy")
+
+
+@rotte_comfy.get("/nodi")
+async def nodi(req: Request, classi: str, ricarica: bool = False):
+    info = await _app(req).object_info(ricarica)
+    out = {}
+    for c in classi.split(","):
+        c = c.strip()
+        if c in info:
+            d = info[c]
+            out[c] = {"input": d.get("input", {}), "input_order": d.get("input_order"),
+                      "display_name": d.get("display_name"), "category": d.get("category")}
+    return out

@@ -1,0 +1,80 @@
+@if (config(); as cfg) {
+  <mat-form-field>
+    <mat-label>Prompt positivo (modello)</mat-label>
+    <textarea matInput #positivo rows="3" [ngModel]="cfg.prompt_positivo" (ngModelChange)="imposta('prompt_positivo', $event)"></textarea>
+  </mat-form-field>
+  <div class="segnaposto">
+    @for (s of segnaposto; track s.t) {
+      <button type="button" (click)="inserisci(s.t)" [matTooltip]="s.d">{{ s.t }}</button>
+    }
+  </div>
+
+  <mat-form-field>
+    <mat-label>Prompt negativo (modello)</mat-label>
+    <textarea matInput rows="3" [ngModel]="cfg.prompt_negativo" (ngModelChange)="imposta('prompt_negativo', $event)"></textarea>
+  </mat-form-field>
+
+  <div class="due">
+    <mat-form-field>
+      <mat-label>Tag di qualità</mat-label>
+      <input matInput [ngModel]="cfg.tag_qualita ?? ''" (ngModelChange)="imposta('tag_qualita', $event === '' ? null : $event)" placeholder="automatici" />
+      <mat-hint>Vuoto = in base al checkpoint (Pony, Illustrious…)</mat-hint>
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Tag di qualità negativi</mat-label>
+      <input matInput [ngModel]="cfg.tag_qualita_negativi ?? ''" (ngModelChange)="imposta('tag_qualita_negativi', $event === '' ? null : $event)" placeholder="automatici" />
+    </mat-form-field>
+  </div>
+
+  <h3>Inquadrature</h3>
+  <p class="nota">Ogni immagine usa un'inquadratura, a rotazione secondo la quota. Le dimensioni cambiano con l'inquadratura.</p>
+  <div class="inquadrature">
+    @for (q of cfg.varianti.inquadrature; track $index; let i = $index) {
+      <div class="inq">
+        <input class="nome" [ngModel]="q.nome" (ngModelChange)="impostaInquadratura(i, 'nome', $event)" aria-label="Nome" />
+        <input class="testo" [ngModel]="q.testo" (ngModelChange)="impostaInquadratura(i, 'testo', $event)" aria-label="Tag" />
+        <select [ngModel]="q.larghezza + 'x' + q.altezza" (ngModelChange)="impostaDimensioni(i, $event)" aria-label="Dimensioni">
+          @if (!dimensioni.includes(q.larghezza + 'x' + q.altezza)) {
+            <option [value]="q.larghezza + 'x' + q.altezza">{{ q.larghezza }}×{{ q.altezza }}</option>
+          }
+          @for (d of dimensioni; track d) { <option [value]="d">{{ d.replace('x', '×') }}</option> }
+        </select>
+        <label class="quota" [matTooltip]="percentuale(q.quota) + '% delle immagini'">
+          <input type="number" min="0" step="0.05" [ngModel]="q.quota" (ngModelChange)="impostaInquadratura(i, 'quota', +$event)" />
+          <span>{{ percentuale(q.quota) }}%</span>
+        </label>
+        <label class="posa" matTooltip="Aggiungi una posa (no nei primi piani)">
+          <input type="checkbox" [ngModel]="q.con_posa" (ngModelChange)="impostaInquadratura(i, 'con_posa', $event)" /> posa
+        </label>
+        <button mat-icon-button (click)="rimuoviInquadratura(i)" [disabled]="cfg.varianti.inquadrature.length <= 1" aria-label="Rimuovi">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    }
+    <button mat-button (click)="aggiungiInquadratura()"><mat-icon>add</mat-icon> Aggiungi inquadratura</button>
+  </div>
+
+  <h3>Elementi casuali</h3>
+  <p class="nota">Una voce per riga, in inglese. Ripeti una voce per renderla più frequente.</p>
+  <div class="liste">
+    @for (l of liste; track l.chiave) {
+      <mat-form-field>
+        <mat-label>{{ l.etichetta }} ({{ cfg.varianti[l.chiave].length }})</mat-label>
+        <textarea matInput rows="5" [ngModel]="testoLista(l.chiave)" (change)="impostaLista(l.chiave, $any($event.target).value)"></textarea>
+      </mat-form-field>
+    }
+  </div>
+
+  @if (esempi().length) {
+    <h3>Esempi di prompt</h3>
+    <div class="esempi">
+      @for (e of esempi(); track $index) {
+        <div class="esempio">
+          <div class="testa">{{ e.inquadratura }} · {{ e.dimensioni.replace('x', '×') }}</div>
+          <div class="pos">{{ e.positivo }}</div>
+          <div class="neg">{{ e.negativo }}</div>
+        </div>
+      }
+    </div>
+  }
+}

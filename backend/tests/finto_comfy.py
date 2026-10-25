@@ -21,6 +21,7 @@ class FintoComfy:
         self.storia: dict[str, dict] = {}
         self.client_ws: dict[str, WebSocket] = {}
         self.errore_nodo: str | None = None     # se impostato, l'esecuzione fallisce
+        self.object_info: dict | None = None    # definizioni dei nodi restituite da /object_info
         self.app = self._crea()
         self.porta = _porta_libera()
         self.url = f"http://127.0.0.1:{self.porta}"
@@ -45,7 +46,7 @@ class FintoComfy:
 
         @app.get("/object_info")
         async def object_info():
-            return {"CheckpointLoaderSimple": {"input": {"required": {"ckpt_name": [["a.safetensors"]]}}}}
+            return self.object_info or {"CheckpointLoaderSimple": {"input": {"required": {"ckpt_name": [["a.safetensors"]]}}}}
 
         @app.post("/upload/image")
         async def upload(image: UploadFile = File(...), subfolder: str = Form(""), overwrite: str = Form("")):
@@ -73,7 +74,8 @@ class FintoComfy:
         @app.get("/view")
         async def view(filename: str, subfolder: str = "", type: str = "output"):
             b = io.BytesIO()
-            Image.new("RGB", (64, 96), (200, 30, 30)).save(b, "PNG")
+            h = abs(hash(filename))
+            Image.new("RGB", (64, 96), (h % 256, h // 256 % 256, h // 65536 % 256)).save(b, "PNG")
             return Response(b.getvalue(), media_type="image/png")
 
         @app.post("/free")
@@ -120,7 +122,7 @@ class FintoComfy:
                     "outputs": {}}
                 return
         self.storia[pid] = {"status": {"status_str": "success", "completed": True, "messages": []},
-                            "outputs": {k: {"images": [{"filename": f"img_{k}.png", "subfolder": "", "type": "output"}]}
+                            "outputs": {k: {"images": [{"filename": f"img_{pid[:8]}_{k}.png", "subfolder": "", "type": "output"}]}
                                         for k in salva}}
         await invia({"type": "executing", "data": {"node": None, "prompt_id": pid}})
 

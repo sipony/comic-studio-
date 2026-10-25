@@ -1,0 +1,134 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+h3 {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.nota {
+  margin: -6px 0 0;
+  font-size: 12.5px;
+  color: var(--mat-sys-on-surface-variant);
+}
+.segnaposto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -6px;
+  button {
+    font: inherit;
+    font-family: 'JetBrains Mono', Consolas, Menlo, monospace;
+    font-size: 11.5px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--mat-sys-outline-variant);
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface);
+    cursor: pointer;
+    &:hover {
+      border-color: var(--mat-sys-primary);
+    }
+  }
+}
+.due {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.inquadrature {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inq {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 96px 70px auto 32px;
+  gap: 6px;
+  align-items: center;
+  input,
+  select {
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--mat-sys-outline-variant);
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface);
+    font: inherit;
+    font-size: 12.5px;
+  }
+  .nome {
+    font-weight: 600;
+  }
+  .quota {
+    display: flex;
+    flex-direction: column;
+    font-size: 10.5px;
+    color: var(--mat-sys-on-surface-variant);
+    input {
+      width: 100%;
+    }
+  }
+  .posa {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    color: var(--mat-sys-on-surface-variant);
+    input {
+      padding: 0;
+    }
+  }
+  button {
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+  }
+}
+.liste {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  textarea {
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+}
+.esempi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.esempio {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--mat-sys-surface-container-highest);
+  font-size: 12px;
+  line-height: 1.45;
+  .testa {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .pos {
+    color: var(--mat-sys-on-surface);
+  }
+  .neg {
+    margin-top: 4px;
+    color: var(--mat-sys-on-surface-variant);
+    &::before {
+      content: 'negativo: ';
+      font-weight: 600;
+    }
+  }
+}
+@media (max-width: 520px) {
+  .liste,
+  .due {
+    grid-template-columns: 1fr;
+  }
+  .inq {
+    grid-template-columns: 1fr 1fr;
+  }
+}

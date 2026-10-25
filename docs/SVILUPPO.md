@@ -12,8 +12,8 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 
 | PR | Contenuto | Stato |
 | --- | --- | --- |
-| 1 | Base: backend, interfaccia, progetti e personaggi, ricerca automatica di ComfyUI, controllo del sistema, console e avanzamento, avvio multipiattaforma, CI | ✅ questa PR |
-| 2 | Step 1 Dataset: caricamento e analisi dei workflow (formato UI e API), associazione dei nodi, varianti, generazione con avanzamento, galleria, selezione automatica per somiglianza | da fare |
+| 1 | Base: backend, interfaccia, progetti e personaggi, ricerca automatica di ComfyUI, controllo del sistema, console e avanzamento, avvio multipiattaforma, CI | ✅ unita |
+| 2 | Step 1 Dataset: caricamento e analisi dei workflow (formato UI e API), associazione dei nodi, varianti, generazione con avanzamento, galleria, selezione automatica per somiglianza | ✅ questa PR |
 | 3 | Step 2 Didascalie: tagger WD14, trigger word, tabella delle frequenze dei tag, modifica per immagine | da fare |
 | 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | da fare |
 | 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona + pose), balloon, tavole | da fare |
@@ -41,6 +41,16 @@ differenza di OneTrainer che è pensato per la sua interfaccia.
 
 **Aggiornamenti: si segnalano, non si installano da soli.** Un aggiornamento di ComfyUI o di un custom node può
 rompere i workflow: il programma li rileva e li mostra, l'installazione arriverà (PR 7) solo con conferma.
+
+**Somiglianza con CLIP in ONNX, senza PyTorch.** Per scegliere le immagini più somiglianti al riferimento serve
+un modello visivo. PyTorch peserebbe più di 2 GB solo per questo: si usa invece il modello visivo di CLIP ViT-B/32
+quantizzato (circa 90 MB) con onnxruntime, scaricato la prima volta. Se non si può scaricare (offline) si usa un
+metodo semplice su colori e forma, meno preciso, e lo si dice nella console. Lo stesso runtime servirà al tagger
+WD14 dello Step 2.
+
+**Il programma gestisce prompt, seme, dimensioni e riferimento; il resto del workflow resta tuo.** Ogni workflow
+viene analizzato per trovare i nodi con questi ruoli (si possono correggere a mano). Tutti gli altri valori di
+ogni nodo si possono cambiare per singolo personaggio senza toccare il file originale.
 
 **Eliminazioni nel cestino.** Progetti e personaggi eliminati vengono spostati in `progetti/.cestino`.
 
@@ -85,4 +95,36 @@ Fatto:
 Non ancora verificato: il programma non è stato provato su una GPU vera né con un ComfyUI reale, solo con
 un ComfyUI simulato che risponde come l'API vera.
 
-Prossimo passo: PR 2, Step 1 Dataset.
+## PR 2 — Step 1 Dataset
+
+Fatto:
+
+- **Libreria dei workflow del progetto** (`backend/app/workflows.py`, `dataset.py`)
+  - si carica il file salvato normalmente da ComfyUI (convertito nel formato API usando le definizioni dei
+    nodi di ComfyUI: widget, `control_after_generate`, Reroute, nodi Primitive, nodi in bypass o disattivati,
+    note) oppure quello esportato con «Export (API)»; nodi mancanti e subgraph sono segnalati con un messaggio chiaro
+  - **workflow integrato** SDXL + IPAdapter, creato da un modulo con i modelli presenti in ComfyUI
+  - **analisi automatica dei ruoli**: immagine di riferimento (il LoadImage che va all'IPAdapter), prompt
+    positivo e negativo (risalendo dal sampler), seme, dimensioni, nodo finale; correggibili a mano
+- **Configurazione per personaggio**, salvata da sola mentre la modifichi
+  - modello di prompt con segnaposto (`{qualita}`, `{genere}`, `{descrizione}`, `{variante}`, …) e tag di
+    qualità automatici in base al checkpoint (Pony `score_9…`, Illustrious `masterpiece…`, …)
+  - **varianti**: inquadrature con dimensioni e quota, angolazioni, espressioni, pose, sfondi; esempi dei
+    prompt che verranno generati
+  - **parametri dei nodi**: qualunque valore di qualunque nodo, modificabile solo per quel personaggio
+- **Generazione** come lavoro GPU: carica il riferimento in ComfyUI, crea ogni immagine con la sua variante e
+  un seme nuovo, avanzamento per passo del sampler e per immagine, tempo rimanente, si ferma quando vuoi
+  (interrompendo anche ComfyUI); «Genera altre» continua la numerazione, «Rifai da capo» sposta tutto nel cestino
+- **Galleria** in tempo reale: filtri (tenute, da decidere, scartate), ordine per somiglianza, anteprime,
+  ingrandimento con prompt e seme, tasti T / S per tenere o scartare e frecce per scorrere
+- **Selezione automatica** (`somiglianza.py`): punteggio di somiglianza al riferimento con CLIP, quote per
+  inquadratura, esclusione dei quasi-doppioni; le scelte fatte a mano restano
+- **Test**: 47 test backend (conversione UI→API con link nei due formati, analisi su un workflow reale a 4
+  vignette, applicazione dei valori, varianti e quote, selezione, valutatore ONNX con un modello di prova, flusso
+  completo via API contro il ComfyUI simulato); collaudo dell'interfaccia con Playwright
+
+Non ancora verificato: la qualità della selezione con il modello CLIP vero (qui non si può scaricare) e la
+generazione su un ComfyUI reale.
+
+Prossimo passo: PR 3, Step 2 Didascalie.
+

@@ -138,7 +138,8 @@ export type Evento =
   | { tipo: 'comfy'; dati: StatoComfy; ts: number }
   | { tipo: 'installazioni'; dati: Installazione[]; ts: number }
   | { tipo: 'diagnostica'; dati: Rapporto; ts: number }
-  | { tipo: 'benvenuto'; comfy: StatoComfy; lavori: Lavoro[]; ts?: number };
+  | { tipo: 'benvenuto'; comfy: StatoComfy; lavori: Lavoro[]; ts?: number }
+  | EventoDataset;
 
 export const GENERI: { valore: Genere; etichetta: string }[] = [
   { valore: '1girl', etichetta: 'Donna (1girl)' },
@@ -149,4 +150,133 @@ export const GENERI: { valore: Genere; etichetta: string }[] = [
 export function gb(byte: number | null | undefined, decimali = 0): string {
   if (byte == null) return '—';
   return `${(byte / 1024 ** 3).toFixed(decimali)} GB`;
+}
+
+// ------------------------------------------------------------ Step 1: dataset
+
+export type Ruolo = 'riferimento' | 'positivo' | 'negativo' | 'seme' | 'latente' | 'salva';
+export type Ruoli = Record<Ruolo, string | null>;
+
+export const RUOLI: { chiave: Ruolo; etichetta: string; aiuto: string }[] = [
+  { chiave: 'riferimento', etichetta: 'Immagine di riferimento', aiuto: 'LoadImage che riceve il riferimento del personaggio' },
+  { chiave: 'positivo', etichetta: 'Prompt positivo', aiuto: 'Nodo di testo dove va il prompt di ogni variante' },
+  { chiave: 'negativo', etichetta: 'Prompt negativo', aiuto: 'Nodo di testo del prompt negativo' },
+  { chiave: 'seme', etichetta: 'Seme (sampler)', aiuto: 'KSampler a cui cambiare il seme a ogni immagine' },
+  { chiave: 'latente', etichetta: 'Dimensioni', aiuto: 'Nodo con larghezza e altezza (Empty Latent Image)' },
+  { chiave: 'salva', etichetta: 'Immagine finale', aiuto: 'SaveImage o PreviewImage da cui prendere il risultato' },
+];
+
+export interface RiassuntoWorkflow {
+  id: string;
+  nome: string;
+  origine: string;
+  creato: number;
+  ruoli: Ruoli;
+  avvisi: string[];
+  nodi: number;
+  checkpoint: string | null;
+  lora: string[];
+  parametri: Record<string, unknown> | null;
+}
+
+export interface NodoAnalisi {
+  id: string;
+  classe: string;
+  titolo: string;
+  valori: Record<string, unknown>;
+}
+
+export interface DettaglioWorkflow extends RiassuntoWorkflow {
+  analisi: { ruoli: Ruoli; candidati: Record<Ruolo, string[]>; checkpoint: string | null; lora: string[]; nodi: NodoAnalisi[]; avvisi: string[] };
+  workflow: Record<string, { class_type: string; inputs: Record<string, unknown>; _meta?: { title?: string } }>;
+}
+
+export interface Inquadratura {
+  nome: string;
+  testo: string;
+  larghezza: number;
+  altezza: number;
+  quota: number;
+  con_posa: boolean;
+}
+
+export interface Varianti {
+  inquadrature: Inquadratura[];
+  angolazioni: string[];
+  espressioni: string[];
+  pose: string[];
+  sfondi: string[];
+}
+
+export interface ConfigDataset {
+  workflow: string | null;
+  ruoli: Partial<Ruoli> | null;
+  prompt_positivo: string;
+  prompt_negativo: string;
+  tag_qualita: string | null;
+  tag_qualita_negativi: string | null;
+  varianti: Varianti;
+  modifiche: Record<string, Record<string, unknown>>;
+  quantita: number;
+  da_tenere: number;
+}
+
+export interface RiepilogoDataset {
+  totale: number;
+  tenute: number;
+  scartate: number;
+  da_decidere: number;
+}
+
+export type StatoImmagine = 'tenuta' | 'scartata' | null;
+
+export interface ImmagineDataset {
+  file: string;
+  numero: number;
+  inquadratura: string;
+  variante: string;
+  prompt: string;
+  seme: number | null;
+  larghezza: number | null;
+  altezza: number | null;
+  creato: number;
+  stato: StatoImmagine;
+  manuale: boolean;
+  punteggio: number | null;
+}
+
+export interface EsempioPrompt {
+  inquadratura: string;
+  dimensioni: string;
+  positivo: string;
+  negativo: string;
+}
+
+export interface ParametriIntegrato {
+  checkpoint: string;
+  ipadapter: string;
+  clip_vision: string;
+  lora_stile: string | null;
+  forza_stile: number;
+  peso_ipadapter: number;
+  fine_ipadapter: number;
+  passi: number;
+  cfg: number;
+  sampler: string;
+  scheduler: string;
+}
+
+export type SpecIngresso = [unknown, Record<string, unknown>?];
+export interface SpecNodo {
+  input: { required?: Record<string, SpecIngresso>; optional?: Record<string, SpecIngresso> };
+  display_name?: string;
+}
+
+export interface EventoDataset {
+  tipo: 'dataset';
+  progetto: string;
+  personaggio: string;
+  azione: 'nuova' | 'stato' | 'elenco';
+  immagine?: ImmagineDataset;
+  ts: number;
 }

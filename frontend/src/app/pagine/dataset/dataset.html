@@ -1,0 +1,79 @@
+<div class="pagina larga">
+  <div class="intestazione">
+    <div>
+      <h1>Step 1 · Dataset</h1>
+      <p class="sotto">
+        Per ogni personaggio genera tante immagini diverse (inquadrature, pose, espressioni) con il workflow che
+        scegli, poi tieni le migliori: saranno il materiale per addestrare il suo LoRA.
+      </p>
+    </div>
+    <div class="salvataggio" [class]="salvataggio()">
+      @switch (salvataggio()) {
+        @case ('salvato') { <mat-icon>cloud_done</mat-icon> Impostazioni salvate }
+        @case ('salvataggio') { <mat-icon>sync</mat-icon> Salvataggio… }
+        @case ('modificato') { <mat-icon>edit</mat-icon> Modifiche in corso }
+        @case ('errore') { <mat-icon>error</mat-icon> Non salvato }
+      }
+    </div>
+  </div>
+
+  @if (!personaggi().length) {
+    <div class="vuoto">
+      <mat-icon>group_add</mat-icon>
+      <p>Prima aggiungi i personaggi del progetto.</p>
+      <a mat-flat-button [routerLink]="['/progetto', progetto().id, 'personaggi']">Vai ai personaggi</a>
+    </div>
+  } @else {
+    <nav class="personaggi" aria-label="Personaggio">
+      @for (p of personaggi(); track p.id) {
+        <button class="chip" [class.attivo]="p.id === sceltoId()" (click)="scegli(p.id)">
+          @if (p.riferimento) {
+            <img [src]="'/api/progetti/' + progetto().id + '/personaggi/' + p.id + '/riferimento'" alt="" />
+          } @else {
+            <mat-icon>person</mat-icon>
+          }
+          <span>{{ p.nome }}</span>
+        </button>
+      }
+    </nav>
+
+    @if (personaggio(); as pers) {
+      @if (config(); as cfg) {
+        <div class="griglia">
+          <div class="colonna">
+            <mat-accordion multi displayMode="flat">
+              <mat-expansion-panel [expanded]="!cfg.workflow">
+                <mat-expansion-panel-header>
+                  <mat-panel-title><span class="n">1</span> Workflow</mat-panel-title>
+                  <mat-panel-description>{{ workflowScelto()?.nome ?? 'da scegliere' }}</mat-panel-description>
+                </mat-expansion-panel-header>
+                <app-sezione-workflow [progetto]="progetto().id" [libreria]="libreria()" [(config)]="config"
+                  (libreriaCambiata)="ricaricaLibreria()" />
+              </mat-expansion-panel>
+
+              <mat-expansion-panel>
+                <mat-expansion-panel-header>
+                  <mat-panel-title><span class="n">2</span> Prompt e varianti</mat-panel-title>
+                  <mat-panel-description>{{ cfg.varianti.inquadrature.length }} inquadrature</mat-panel-description>
+                </mat-expansion-panel-header>
+                <app-sezione-prompt [progetto]="progetto().id" [personaggio]="pers" [(config)]="config" />
+              </mat-expansion-panel>
+
+              <mat-expansion-panel [expanded]="!!cfg.workflow">
+                <mat-expansion-panel-header>
+                  <mat-panel-title><span class="n">3</span> Generazione</mat-panel-title>
+                  <mat-panel-description>{{ riepilogo()?.totale ?? 0 }} immagini</mat-panel-description>
+                </mat-expansion-panel-header>
+                <app-sezione-genera [progetto]="progetto().id" [personaggio]="pers" [(config)]="config"
+                  [riepilogo]="riepilogo()" [lavoro]="lavoro()" [prima]="primaDiGenerare" />
+              </mat-expansion-panel>
+            </mat-accordion>
+          </div>
+
+          <app-galleria class="colonna" [progetto]="progetto().id" [personaggio]="pers" [immagini]="immagini()"
+            [riepilogo]="riepilogo()" [daTenere]="cfg.da_tenere" [lavoro]="lavoro()" (ricarica)="ricaricaImmagini()" />
+        </div>
+      }
+    }
+  }
+</div>

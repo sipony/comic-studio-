@@ -43,6 +43,8 @@ class App:
     installazioni: list[Installazione] = field(default_factory=list)
     ricerca_in_corso: bool = False
     rapporto: dict | None = None
+    _object_info: dict | None = None
+    _object_info_chiave: tuple | None = None
 
     def __post_init__(self):
         self.gestore = Gestore(self.bus)
@@ -136,6 +138,15 @@ class App:
                 self.bus.pubblica({"tipo": "installazioni", "dati": [i.dict() for i in self.installazioni]})
 
         return self.gestore.avvia("ricerca_comfy", "Ricerca di ComfyUI", lavoro)
+
+    async def object_info(self, ricarica: bool = False) -> dict:
+        """Definizioni dei nodi di ComfyUI, tenute in memoria finché non cambia l'installazione."""
+        chiave = (self.comfy.url, self.comfy.versione)
+        if ricarica or self._object_info is None or self._object_info_chiave != chiave:
+            async with self.client() as c:
+                self._object_info = await c.object_info()
+            self._object_info_chiave = chiave
+        return self._object_info
 
     # ------------------------------------------------------------ controllo del sistema
 

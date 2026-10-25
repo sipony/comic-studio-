@@ -33,7 +33,25 @@ Nel riquadro **Consigli** trovi le impostazioni più adatte alla tua scheda vide
    - **Immagine di riferimento**: trascinala nel riquadro. Meglio un'immagine pulita, a figura intera o
      mezzo busto, su sfondo semplice.
 
-## 4. La console
+## 4. Step 1 · Dataset
+
+Per ogni personaggio (scegli in alto quale):
+
+1. **Workflow** — scegline uno dalla libreria del progetto, **caricane uno** tuo (il file salvato da ComfyUI va
+   bene, con ComfyUI avviato) oppure **crea quello integrato** (SDXL + IPAdapter) scegliendo checkpoint, LoRA di
+   stile e modelli dagli elenchi. Il programma riconosce da solo i nodi del riferimento, dei prompt, del seme,
+   delle dimensioni e dell'immagine finale: controlla in «Nodi riconosciuti» e correggi solo se serve.
+   In «Parametri dei nodi» puoi cambiare qualunque valore (passi, CFG, forza dell'IPAdapter…) solo per questo personaggio.
+2. **Prompt e varianti** — il prompt è un modello: `{descrizione}` diventa i tratti fissi del personaggio,
+   `{variante}` cambia a ogni immagine (inquadratura, angolazione, espressione, posa, sfondo), `{qualita}` mette i
+   tag giusti per il checkpoint. Sotto vedi esempi dei prompt che verranno usati.
+3. **Generazione** — scegli quante immagini (80-120) e quante tenerne (20-40), poi **Genera**. Segui
+   l'avanzamento qui e nella console; puoi fermarla quando vuoi.
+4. **Galleria** — **Tieni le N migliori** sceglie da sola le più somiglianti al riferimento, varie e senza doppioni.
+   Poi rifinisci a mano: passa sopra un'immagine e premi ✓ o ✕, oppure aprila e usa **T** (tieni), **S** (scarta)
+   e le frecce. Le tue scelte manuali non vengono più toccate dalla selezione automatica.
+
+## 5. La console
 
 In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, in futuro, dell'addestramento.
 
@@ -44,4 +62,4 @@ In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, i
 
 ## Prossimi step
 
-Dataset, Didascalie, Addestramento e Fumetto arrivano con le prossime versioni (vedi [SVILUPPO.md](SVILUPPO.md)).
+Didascalie, Addestramento e Fumetto arrivano con le prossime versioni (vedi [SVILUPPO.md](SVILUPPO.md)).

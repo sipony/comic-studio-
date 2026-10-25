@@ -22,13 +22,18 @@ backend/app/
   jobs.py                 lavori in background, bus degli eventi
   diagnostica.py          controllo di hardware, componenti, aggiornamenti, consigli
   modelinfo.py            famiglia e precisione dei modelli dall'intestazione dei file
+  workflows.py            conversione UI→API, analisi dei ruoli, applicazione dei valori, workflow integrato
+  dataset.py              Step 1: libreria dei workflow, configurazione, varianti, immagini
+  somiglianza.py          CLIP in ONNX (o metodo semplice) e scelta delle immagini
+  rotte_dataset.py        API e lavori dello Step 1
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
   comfy/client.py         client asincrono per l'API di ComfyUI
 backend/tests/            pytest; finto_comfy.py simula ComfyUI (HTTP + WebSocket)
 frontend/src/app/
   core/                   servizi: api, eventi (WebSocket), progetto, avvisi; tipi condivisi
   shell/console.*         console in basso con avanzamento
-  pagine/                 sistema, progetti, progetto (contenitore), personaggi, in-arrivo
+  pagine/                 sistema, progetti, progetto (contenitore), personaggi, dataset, in-arrivo
+  pagine/dataset/         sezione-workflow, sezione-prompt, sezione-genera, galleria
 docs/                     questa documentazione
 ```
 
@@ -41,7 +46,14 @@ docs/                     questa documentazione
   progetti/
     <id-progetto>/
       progetto.json                  nome, descrizione, personaggi[]
+      workflows/<id>.json            libreria dei workflow (formato API + ruoli)
       personaggi/<id>/riferimento.png
+      personaggi/<id>/dataset/
+        config.json                  workflow, ruoli, prompt, varianti, parametri dei nodi, quantità
+        immagini.json                variante, prompt, seme, stato (tenuta/scartata), punteggio
+        generate/0001.png …          immagini generate
+        anteprime/0001.jpg …         miniature
+  modelli/                           modello CLIP per la somiglianza (scaricato al primo uso)
     .cestino/                        progetti e personaggi eliminati
 ```
 
@@ -61,6 +73,19 @@ docs/                     questa documentazione
 | PATCH / DELETE | `/api/progetti/{id}/personaggi/{pid}` | modifica / elimina |
 | PUT / GET | `/api/progetti/{id}/personaggi/{pid}/riferimento` | carica (multipart `file`) / scarica l'immagine |
 | GET | `/api/trigger/suggerisci?nome=&progetto=` | trigger word inventata e libera |
+| GET / POST | `/api/progetti/{id}/workflows` | libreria / carica un workflow (multipart `file`, `nome`) |
+| POST | `/api/progetti/{id}/workflows/integrato` | crea il workflow integrato SDXL + IPAdapter |
+| GET / PATCH / DELETE | `/api/progetti/{id}/workflows/{wid}` | dettaglio con analisi / nome e ruoli / elimina |
+| GET | `/api/progetti/{id}/workflows/{wid}/scarica` | il workflow in formato API |
+| GET | `/api/progetti/{id}/personaggi/{pid}/dataset` | configurazione e riepilogo |
+| PUT | `…/dataset/config` | salva la configurazione |
+| POST | `…/dataset/esempi` | esempi dei prompt che verranno generati |
+| POST | `…/dataset/genera` | `{quantita, sostituisci}` avvia la generazione (lavoro GPU) |
+| GET | `…/dataset/immagini` | elenco con metadati e stato |
+| GET / PATCH | `…/dataset/immagini/{file}` | immagine (`?anteprima=true` per la miniatura) / `{stato}` |
+| POST | `…/dataset/seleziona` | `{quante}` selezione automatica (lavoro) |
+| POST | `…/dataset/elimina` | `{file: [...]}` o `{scartate: true}` nel cestino |
+| GET | `/api/comfy/nodi?classi=A,B` | definizioni dei nodi (per l'editor dei parametri) |
 | GET | `/api/lavori` | lavori recenti |
 | POST | `/api/lavori/{id}/annulla` | annulla un lavoro |
 | GET | `/api/log?n=500` | ultime righe della console |
@@ -78,6 +103,7 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `comfy` | stato della connessione (ogni 5 s) |
 | `installazioni` | installazioni di ComfyUI trovate |
 | `diagnostica` | nuovo rapporto del controllo del sistema |
+| `dataset` | `progetto`, `personaggio`, `azione` (nuova, stato, elenco), `immagine` |
 
 ## Lavori
 

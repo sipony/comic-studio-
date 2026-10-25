@@ -1,7 +1,10 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { Genere, Lavoro, Personaggio, Progetto, Rapporto, RigaLog, Sistema, StatoComfy } from './modelli';
+import {
+  ConfigDataset, DettaglioWorkflow, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
+  Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoImmagine,
+} from './modelli';
 
 /** Accesso alle API REST del backend. Tutti i metodi restituiscono Promise e lanciano un Error leggibile. */
 @Injectable({ providedIn: 'root' })
@@ -75,6 +78,56 @@ export class ApiService {
     return this.chiama(firstValueFrom(
       this.http.put<Personaggio>(`/api/progetti/${progetto}/personaggi/${id}/riferimento`, fd)));
   }
+  // ------------------------------------------------------------ Step 1: workflow e dataset
+  workflow(progetto: string) { return this.get<RiassuntoWorkflow[]>(`/api/progetti/${progetto}/workflows`); }
+  dettaglioWorkflow(progetto: string, id: string) {
+    return this.get<DettaglioWorkflow>(`/api/progetti/${progetto}/workflows/${id}`);
+  }
+  caricaWorkflow(progetto: string, file: File, nome = '') {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('nome', nome);
+    return this.post<RiassuntoWorkflow>(`/api/progetti/${progetto}/workflows`, fd);
+  }
+  creaIntegrato(progetto: string, p: ParametriIntegrato) {
+    return this.post<RiassuntoWorkflow>(`/api/progetti/${progetto}/workflows/integrato`, p);
+  }
+  modificaWorkflow(progetto: string, id: string, dati: { nome?: string; ruoli?: Ruoli }) {
+    return this.patch<RiassuntoWorkflow>(`/api/progetti/${progetto}/workflows/${id}`, dati);
+  }
+  eliminaWorkflow(progetto: string, id: string) { return this.del(`/api/progetti/${progetto}/workflows/${id}`); }
+  urlScaricaWorkflow(progetto: string, id: string) { return `/api/progetti/${progetto}/workflows/${id}/scarica`; }
+
+  private ds(progetto: string, pers: string) { return `/api/progetti/${progetto}/personaggi/${pers}/dataset`; }
+  statoDataset(progetto: string, pers: string) {
+    return this.get<{ config: ConfigDataset; riepilogo: RiepilogoDataset }>(this.ds(progetto, pers));
+  }
+  salvaConfig(progetto: string, pers: string, c: ConfigDataset) {
+    return this.chiama(firstValueFrom(this.http.put<ConfigDataset>(`${this.ds(progetto, pers)}/config`, c)));
+  }
+  esempi(progetto: string, pers: string, c: ConfigDataset, n = 4) {
+    return this.post<EsempioPrompt[]>(`${this.ds(progetto, pers)}/esempi`, c, { n: String(n) });
+  }
+  immaginiDataset(progetto: string, pers: string) { return this.get<ImmagineDataset[]>(`${this.ds(progetto, pers)}/immagini`); }
+  urlImmagine(progetto: string, pers: string, file: string, anteprima = false) {
+    return `${this.ds(progetto, pers)}/immagini/${file}${anteprima ? '?anteprima=true' : ''}`;
+  }
+  statoImmagine(progetto: string, pers: string, file: string, stato: StatoImmagine) {
+    return this.patch<ImmagineDataset>(`${this.ds(progetto, pers)}/immagini/${file}`, { stato });
+  }
+  genera(progetto: string, pers: string, quantita: number, sostituisci = false) {
+    return this.post<Lavoro>(`${this.ds(progetto, pers)}/genera`, { quantita, sostituisci });
+  }
+  selezionaAuto(progetto: string, pers: string, quante: number) {
+    return this.post<Lavoro>(`${this.ds(progetto, pers)}/seleziona`, { quante });
+  }
+  eliminaImmagini(progetto: string, pers: string, dati: { file?: string[]; scartate?: boolean }) {
+    return this.post<{ eliminate: number }>(`${this.ds(progetto, pers)}/elimina`, dati);
+  }
+  specNodi(classi: string[]) {
+    return this.get<Record<string, SpecNodo>>('/api/comfy/nodi', { classi: classi.join(',') });
+  }
+
   urlRiferimento(progetto: string, p: Personaggio): string | null {
     return p.riferimento ? `/api/progetti/${progetto}/personaggi/${p.id}/riferimento?v=${p.creato}-${encodeURIComponent(p.riferimento)}` : null;
   }
