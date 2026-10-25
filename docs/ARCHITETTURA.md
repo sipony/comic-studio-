@@ -26,6 +26,8 @@ backend/app/
   dataset.py              Step 1: libreria dei workflow, configurazione, varianti, immagini
   somiglianza.py          CLIP in ONNX (o metodo semplice) e scelta delle immagini
   rotte_dataset.py        API e lavori dello Step 1
+  didascalie.py           Step 2: tagger WD14, composizione delle didascalie, esportazione
+  rotte_didascalie.py     API e lavori dello Step 2
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
   comfy/client.py         client asincrono per l'API di ComfyUI
 backend/tests/            pytest; finto_comfy.py simula ComfyUI (HTTP + WebSocket)
@@ -34,6 +36,8 @@ frontend/src/app/
   shell/console.*         console in basso con avanzamento
   pagine/                 sistema, progetti, progetto (contenitore), personaggi, dataset, in-arrivo
   pagine/dataset/         sezione-workflow, sezione-prompt, sezione-genera, galleria
+  pagine/didascalie/      Step 2
+  shell/scelta-personaggio  selettore del personaggio comune agli step
 docs/                     questa documentazione
 ```
 
@@ -53,7 +57,11 @@ docs/                     questa documentazione
         immagini.json                variante, prompt, seme, stato (tenuta/scartata), punteggio
         generate/0001.png …          immagini generate
         anteprime/0001.jpg …         miniature
-  modelli/                           modello CLIP per la somiglianza (scaricato al primo uso)
+      personaggi/<id>/didascalie/
+        config.json                  fonte dei tag, soglia, tag tolti/aggiunti/sostituiti, massimo
+        tag.json                     tag del tagger con probabilità, per immagine
+        manuali.json                 didascalie scritte a mano
+  modelli/                           CLIP per la somiglianza e tagger WD14 (scaricati al primo uso)
     .cestino/                        progetti e personaggi eliminati
 ```
 
@@ -85,6 +93,11 @@ docs/                     questa documentazione
 | GET / PATCH | `…/dataset/immagini/{file}` | immagine (`?anteprima=true` per la miniatura) / `{stato}` |
 | POST | `…/dataset/seleziona` | `{quante}` selezione automatica (lavoro) |
 | POST | `…/dataset/elimina` | `{file: [...]}` o `{scartate: true}` nel cestino |
+| GET | `…/didascalie` | configurazione, didascalie di ogni immagine, frequenze dei tag |
+| PUT | `…/didascalie/config` | salva la configurazione e restituisce le didascalie ricalcolate |
+| POST | `…/didascalie/analizza` | `{tutte}` tag automatici con WD14 (lavoro) |
+| PUT / DELETE | `…/didascalie/immagini/{file}` | `{testo}` didascalia a mano / torna a quella automatica |
+| GET | `…/didascalie/zip` | dataset con immagini e `.txt` |
 | GET | `/api/comfy/nodi?classi=A,B` | definizioni dei nodi (per l'editor dei parametri) |
 | GET | `/api/lavori` | lavori recenti |
 | POST | `/api/lavori/{id}/annulla` | annulla un lavoro |
@@ -104,6 +117,7 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `installazioni` | installazioni di ComfyUI trovate |
 | `diagnostica` | nuovo rapporto del controllo del sistema |
 | `dataset` | `progetto`, `personaggio`, `azione` (nuova, stato, elenco), `immagine` |
+| `didascalie` | `progetto`, `personaggio`: tag analizzati, da ricaricare |
 
 ## Lavori
 

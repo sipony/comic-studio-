@@ -4,12 +4,13 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
 import { ConfigDataset, ImmagineDataset, RiassuntoWorkflow, RiepilogoDataset } from '../../core/modelli';
 import { ProgettoService } from '../../core/progetto.service';
+import { SceltaPersonaggio } from '../../shell/scelta-personaggio';
 import { Galleria } from './galleria';
 import { SezioneGenera } from './sezione-genera';
 import { SezionePrompt } from './sezione-prompt';
@@ -20,7 +21,7 @@ type StatoSalvataggio = 'salvato' | 'modificato' | 'salvataggio' | 'errore';
 @Component({
   selector: 'app-dataset',
   imports: [MatButtonModule, MatExpansionModule, MatIconModule, MatProgressBarModule, MatTooltipModule, RouterLink,
-    SezioneWorkflow, SezionePrompt, SezioneGenera, Galleria],
+    SceltaPersonaggio, SezioneWorkflow, SezionePrompt, SezioneGenera, Galleria],
   templateUrl: './dataset.html',
   styleUrl: './dataset.scss',
 })
@@ -29,8 +30,6 @@ export class DatasetPage {
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);
   private eventi = inject(EventiService);
-  private route = inject(ActivatedRoute);
-  private router = inject(Router);
 
   protected progetto = computed(() => this.progetti.corrente()!);
   protected personaggi = computed(() => this.progetto().personaggi);
@@ -56,18 +55,6 @@ export class DatasetPage {
   private timer?: ReturnType<typeof setTimeout>;
 
   constructor() {
-    // personaggio dalla query (?p=...), altrimenti il primo
-    effect(() => {
-      const elenco = this.personaggi();
-      const daQuery = this.route.snapshot.queryParamMap.get('p');
-      untracked(() => {
-        if (!elenco.length) return this.sceltoId.set(null);
-        if (!this.sceltoId() || !elenco.some((p) => p.id === this.sceltoId())) {
-          this.sceltoId.set(elenco.some((p) => p.id === daQuery) ? daQuery : elenco[0].id);
-        }
-      });
-    });
-
     effect(() => {
       const id = this.sceltoId();
       if (id) untracked(() => void this.carica(id));
@@ -105,11 +92,10 @@ export class DatasetPage {
     });
   }
 
-  protected scegli(id: string) {
+  protected scegli(id: string | null) {
     if (id === this.sceltoId()) return;
-    void this.salvaSubito();
+    if (this.sceltoId()) void this.salvaSubito();
     this.sceltoId.set(id);
-    void this.router.navigate([], { queryParams: { p: id }, replaceUrl: true });
   }
 
   private async carica(id: string) {

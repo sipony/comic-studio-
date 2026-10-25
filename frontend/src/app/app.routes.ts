@@ -20,6 +20,11 @@ export const routes: Routes = [
         loadComponent: () => import('./pagine/dataset/dataset').then((m) => m.DatasetPage),
       },
       {
+        path: 'didascalie',
+        title: 'Didascalie · Comic Studio',
+        loadComponent: () => import('./pagine/didascalie/didascalie').then((m) => m.DidascaliePage),
+      },
+      {
         path: ':passo',
         loadComponent: () => import('./pagine/in-arrivo/in-arrivo').then((m) => m.InArrivoPage),
       },
