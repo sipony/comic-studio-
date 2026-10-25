@@ -15,14 +15,7 @@ from app.main import crea_app
 from app.projects import Personaggio
 from app.settings import Archivio
 from app.state import App
-from finto_ollama import SCENA, FintoOllama
-
-
-@pytest.fixture
-def finto_ollama():
-    f = FintoOllama().avvia()
-    yield f
-    f.ferma()
+from finto_ollama import SCENA
 
 
 MARA = Personaggio(id="mara", nome="Mara", trigger="mrhunt", descrizione="long wavy auburn hair, green eyes")

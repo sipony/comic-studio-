@@ -18,6 +18,7 @@ from .rotte_didascalie import rotte as rotte_didascalie
 from .rotte_addestramento import rotte as rotte_addestramento, rotte_kohya
 from .rotte_fumetto import rotte as rotte_fumetto
 from .rotte_testo import rotte as rotte_testo, rotte_ia
+from .rotte_proposte import rotte as rotte_proposte
 from .projects import ErroreProgetto, ModificaPersonaggio, NuovoPersonaggio, suggerisci_trigger
 from .settings import Archivio as ArchivioImpostazioni
 from .state import App
@@ -280,6 +281,7 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
     api.include_router(rotte_comfy)
     api.include_router(rotte_ia)
     api.include_router(rotte_testo)
+    api.include_router(rotte_proposte)
 
     @api.get("/api/{resto:path}")
     async def api_sconosciuta(resto: str):

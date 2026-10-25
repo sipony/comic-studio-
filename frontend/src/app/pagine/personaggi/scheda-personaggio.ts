@@ -1,19 +1,21 @@
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
-import { GENERI, Genere, Personaggio, TrattiRicavati } from '../../core/modelli';
+import { GENERI, Genere, InquadraturaProposta, Personaggio, Proposta, TrattiRicavati } from '../../core/modelli';
 
 @Component({
   selector: 'app-scheda-personaggio',
-  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatSelectModule, MatTooltipModule],
+  imports: [FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule,
+    MatTooltipModule],
   templateUrl: './scheda-personaggio.html',
   styleUrl: './scheda-personaggio.scss',
 })
@@ -25,7 +27,7 @@ export class SchedaPersonaggio {
 
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);
-  private eventi = inject(EventiService);
+  protected eventi = inject(EventiService);
   protected generi = GENERI;
 
   protected nome = signal('');
@@ -36,6 +38,20 @@ export class SchedaPersonaggio {
   protected adulto = signal<boolean | null>(null);
   protected ricavando = signal(false);
   protected note = signal('');
+
+  // personaggio dal nulla
+  protected proposteAperte = signal(false);
+  protected proposte = signal<Proposta[]>([]);
+  protected elencoCheckpoint = signal<string[]>([]);
+  protected checkpoint = signal('');
+  protected inquadratura = signal<InquadraturaProposta>('mezzo_busto');
+  protected numero = signal(4);
+  protected stile = signal('');
+  protected proposteRecenti = computed(() => [...this.proposte()].reverse());
+  protected haScelta = computed(() => this.proposte().some((p) => p.scelta));
+  protected lavoroProposte = computed(() =>
+    this.eventi.attivi().find((l) => l.tipo === 'proposte' && l.progetto === this.progetto() &&
+      l.titolo.endsWith(this.personaggio().nome)) ?? null);
   protected trascina = signal(false);
   protected occupato = signal(false);
 
@@ -47,6 +63,12 @@ export class SchedaPersonaggio {
   });
 
   constructor() {
+    effect(() => {
+      const e = this.eventi.proposte();
+      if (e && e.progetto === untracked(this.progetto) && e.personaggio === untracked(this.personaggio).id) {
+        untracked(() => void this.caricaProposte(true));
+      }
+    });
     effect(() => {
       const p = this.personaggio();
       this.nome.set(p.nome);
@@ -109,6 +131,79 @@ export class SchedaPersonaggio {
     } finally {
       this.ricavando.set(false);
     }
+  }
+
+  protected async apriProposte() {
+    this.proposteAperte.set(true);
+    await this.caricaProposte(false);
+    if (!this.elencoCheckpoint().length) {
+      try {
+        const m = await this.api.modelli();
+        const ck = m['checkpoints'] ?? [];
+        this.elencoCheckpoint.set(ck);
+        const prefer = [/illustrious/i, /noob/i, /pony/i, /xl/i];
+        this.checkpoint.set(this.checkpoint() || prefer.map((r) => ck.find((x) => r.test(x))).find(Boolean) || ck[0] || '');
+      } catch (e) {
+        this.avvisi.errore(e);
+      }
+    }
+  }
+
+  private async caricaProposte(aggiornaPersonaggio: boolean) {
+    try {
+      this.proposte.set(await this.api.proposte(this.progetto(), this.personaggio().id));
+      if (aggiornaPersonaggio && !this.modificato()) {
+        // l'IA può aver appena ricavato i tratti dalla descrizione libera
+        const p = (await this.api.progetto(this.progetto())).personaggi.find((x) => x.id === this.personaggio().id);
+        if (p && (p.descrizione !== this.personaggio().descrizione || p.genere !== this.personaggio().genere)) {
+          this.cambiato.emit(p);
+        }
+      }
+    } catch {
+      /* riprova al prossimo evento */
+    }
+  }
+
+  protected async generaProposte(da: string | null) {
+    try {
+      const l = await this.api.generaProposte(this.progetto(), this.personaggio().id, {
+        checkpoint: this.checkpoint(), numero: da ? Math.min(this.numero(), 4) : this.numero(),
+        inquadratura: this.inquadratura(), stile: this.stile().trim(), extra: '', da,
+      });
+      const fine = await this.eventi.attendi(l.id);
+      if (fine.stato === 'errore' && fine.errore) this.avvisi.errore(fine.errore);
+      await this.caricaProposte(true);
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  protected async usa(file: string) {
+    this.occupato.set(true);
+    try {
+      const p = await this.api.scegliProposta(this.progetto(), this.personaggio().id, file);
+      this.cambiato.emit({ ...p, creato: Date.now() / 1000 });
+      this.proposte.update((l) => l.map((x) => ({ ...x, scelta: x.file === file })));
+      this.avvisi.ok(`Immagine di riferimento di ${p.nome} impostata`);
+    } catch (e) {
+      this.avvisi.errore(e);
+    } finally {
+      this.occupato.set(false);
+    }
+  }
+
+  protected async scarta() {
+    if (!confirm('Spostare nel cestino del progetto le proposte non scelte?')) return;
+    try {
+      await this.api.scartaProposte(this.progetto(), this.personaggio().id);
+      await this.caricaProposte(false);
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  protected urlProposta(file: string) {
+    return this.api.urlProposta(this.progetto(), this.personaggio().id, file);
   }
 
   protected async suggerisci() {

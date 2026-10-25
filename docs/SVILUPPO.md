@@ -19,9 +19,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona), balloon, tavole, PDF | ✅ unita |
 | 6 | Avvio di ComfyUI da Comic Studio: aggancio se è già attivo, altrimenti avvio automatico (portable, Desktop, manuale o comando a mano), uscita nella console, Avvia / Riavvia / Ferma | ✅ unita |
 | 7 | Installer per Windows, macOS e Linux: doppio clic, senza terminale, con Python e interfaccia già dentro; chiusura dall'interfaccia | ✅ unita |
-| 8 | Dal testo al prompt: IA locale (Ollama) che legge descrizioni lunghe di personaggi, vignette e storie intere e ne ricava prompt fedeli per il checkpoint; controllo di aderenza con il tagger | ✅ questa PR |
-| 9 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 10 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 8 | Dal testo al prompt: IA locale (Ollama) che legge descrizioni lunghe di personaggi, vignette e storie intere e ne ricava prompt fedeli per il checkpoint; controllo di aderenza con il tagger | ✅ unita |
+| 9 | Personaggio dal nulla: senza immagine, Comic Studio genera dalla descrizione alcune proposte di riferimento, l'utente sceglie (o chiede varianti) e la scelta diventa l'immagine di riferimento | ✅ questa PR |
+| 10 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 11 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -358,4 +359,30 @@ Fatto:
 Non ancora verificato: la qualità delle analisi con Qwen3 8B vero sui testi lunghi in italiano, e quanto spesso
 il tagger riconosce gli elementi chiave.
 
-Prossimo passo: PR 9, pose guidate e costruttore di workflow.
+Prossimo passo: PR 9, personaggio dal nulla.
+
+## PR 9 — Personaggio dal nulla
+
+Richiesta: «se non ho già un'immagine e voglio creare un personaggio dal nulla con un testo in linguaggio
+naturale, come facciamo?».
+
+Prima il dataset (Step 1) partiva sempre da un'immagine di riferimento caricata dall'utente. Ora la si può creare:
+
+- **Crea dal testo** sotto l'immagine del personaggio apre il pannello delle proposte: checkpoint (preferito
+  Illustrious / NoobAI / Pony / XL, come nel dataset), inquadratura (mezzo busto, figura intera, primo piano),
+  quante (2-8), stile facoltativo
+- se il personaggio ha solo la descrizione libera, il lavoro chiede prima all'IA i tratti fissi e li salva nel
+  personaggio (tipo e «adulto» compresi), poi genera
+- prompt: tag di qualità del checkpoint, tipo, `solo, looking at viewer, neutral expression, simple background,
+  white background`, tratti, inquadratura, stile; negativo contro più persone, testo, mani sbagliate
+- ogni proposta ha il suo seme; **Usa questa** la copia come `riferimento.png`; **Varianti** rifà img2img
+  partendo da quella (denoise 0.55); **Togli le non scelte** le sposta nel cestino del progetto
+- lavoro GPU esclusivo con avanzamento; il blocco fisso (minori e contenuti sessuali) vale anche qui
+- `backend/app/proposte.py` (configurazione, prompt, workflow txt2img / img2img, archivio in
+  `personaggi/<id>/proposte/`), `backend/app/rotte_proposte.py`; la lettura dei tratti è in comune con
+  «Ricava i tratti» (`tratti_dal_testo`)
+- Versione 0.9.0
+- **Test**: 97 test backend; dal solo testo a 2 proposte (tratti ricavati e salvati, prompt, workflow), scelta del
+  riferimento, varianti img2img, scarto nel cestino, errori senza descrizione e blocco
+
+Prossimo passo: PR 10, pose guidate e costruttore di workflow.

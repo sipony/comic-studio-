@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from finto_comfy import FintoComfy  # noqa: E402
+from finto_ollama import FintoOllama  # noqa: E402
 
 
 def crea_cartella_comfy(base: Path, nome="ComfyUI", checkpoint=2, lora=3) -> Path:
@@ -46,3 +47,10 @@ def casa(tmp_path, monkeypatch):
     monkeypatch.setattr(discovery, "cartelle_da_processi", lambda: [])
     monkeypatch.setattr(discovery, "PORTE", [])
     return d
+
+
+@pytest.fixture
+def finto_ollama():
+    f = FintoOllama().avvia()
+    yield f
+    f.ferma()

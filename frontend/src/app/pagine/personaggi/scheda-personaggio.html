@@ -19,6 +19,10 @@
     }
     <input type="file" accept="image/png,image/jpeg,image/webp" (change)="scelto($event)" hidden />
   </label>
+  <button mat-stroked-button class="crea" type="button" (click)="apriProposte()"
+    matTooltip="Genera alcune proposte dalla descrizione e scegli quella giusta">
+    <mat-icon>auto_awesome</mat-icon> {{ immagine() ? 'Ricrea dal testo' : 'Crea dal testo' }}
+  </button>
 
   <div class="campi">
     <div class="riga">
@@ -76,4 +80,78 @@
       }
     </div>
   </div>
+
+  @if (proposteAperte()) {
+    <section class="proposte">
+      <div class="testa">
+        <h3><mat-icon>auto_awesome</mat-icon> {{ personaggio().nome }} dal testo</h3>
+        <button mat-icon-button (click)="proposteAperte.set(false)" aria-label="Chiudi"><mat-icon>close</mat-icon></button>
+      </div>
+      <p class="nota">
+        Comic Studio crea alcune immagini dai tratti{{ personaggio().descrizione ? '' : ' (prima l\'IA li ricava dalla descrizione libera)' }}
+        su sfondo bianco. Scegli quella giusta: diventa l'immagine di riferimento per il dataset. Da una proposta puoi
+        chiedere varianti simili.
+      </p>
+      @if (modificato()) {
+        <p class="avviso"><mat-icon>warning</mat-icon> Salva prima le modifiche: le proposte usano i tratti salvati.</p>
+      }
+      <div class="opzioni">
+        <mat-form-field class="ck">
+          <mat-label>Checkpoint</mat-label>
+          <mat-select [value]="checkpoint()" (valueChange)="checkpoint.set($event)">
+            @for (m of elencoCheckpoint(); track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+          </mat-select>
+          <mat-hint>Lo stesso che userai per il dataset e il fumetto</mat-hint>
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Inquadratura</mat-label>
+          <mat-select [value]="inquadratura()" (valueChange)="inquadratura.set($event)">
+            <mat-option value="mezzo_busto">Mezzo busto</mat-option>
+            <mat-option value="figura_intera">Figura intera</mat-option>
+            <mat-option value="primo_piano">Primo piano</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Quante</mat-label>
+          <mat-select [value]="numero()" (valueChange)="numero.set($event)">
+            @for (n of [2, 4, 6, 8]; track n) { <mat-option [value]="n">{{ n }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field class="stile">
+          <mat-label>Stile (facoltativo, in inglese)</mat-label>
+          <input matInput [ngModel]="stile()" (ngModelChange)="stile.set($event)" placeholder="western comics (style), cel shading" />
+        </mat-form-field>
+      </div>
+      <div class="azioni">
+        <button mat-flat-button (click)="generaProposte(null)" [disabled]="!!lavoroProposte() || !checkpoint() || modificato() || !eventi.comfy()?.connesso">
+          <mat-icon>casino</mat-icon> Genera {{ numero() }} proposte
+        </button>
+        @if (!eventi.comfy()?.connesso) { <span class="nota">ComfyUI non è connesso</span> }
+        @if (proposte().length > 1 && haScelta()) {
+          <button mat-button (click)="scarta()" [disabled]="!!lavoroProposte()"><mat-icon>delete_sweep</mat-icon> Togli le non scelte</button>
+        }
+      </div>
+      @if (lavoroProposte(); as l) {
+        <div class="in-corso">
+          <span>{{ l.testo || 'in coda' }}</span>
+          <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
+        </div>
+      }
+      @if (proposte().length) {
+        <div class="galleria">
+          @for (pr of proposteRecenti(); track pr.file) {
+            <figure [class.scelta]="pr.scelta">
+              <img [src]="urlProposta(pr.file)" [alt]="'Proposta ' + pr.file" loading="lazy" />
+              @if (pr.scelta) { <span class="bollino"><mat-icon>check</mat-icon> riferimento</span> }
+              <figcaption>
+                <button mat-flat-button (click)="usa(pr.file)" [disabled]="pr.scelta || occupato()">Usa questa</button>
+                <button mat-button (click)="generaProposte(pr.file)" [disabled]="!!lavoroProposte() || !eventi.comfy()?.connesso"
+                  matTooltip="Altre immagini simili a questa">Varianti</button>
+              </figcaption>
+            </figure>
+          }
+        </div>
+      }
+    </section>
+  }
 </article>

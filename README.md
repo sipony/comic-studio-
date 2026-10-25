@@ -8,7 +8,7 @@ Da un'immagine di riferimento per ogni personaggio arriva alle tavole finite in 
 | **Sistema** | Trova ComfyUI da solo, controlla hardware, componenti, aggiornamenti e dà consigli per la tua GPU | ✅ PR 1 |
 | **Avvio di ComfyUI** | Se ComfyUI è già aperto ci si aggancia, altrimenti lo avvia da solo; Avvia / Riavvia / Ferma | ✅ PR 6 |
 | **Installer** | Windows, macOS e Linux con doppio clic, senza terminale né Python da installare | ✅ PR 7 |
-| **Personaggi** | Nome, trigger word, tratti fissi e immagine di riferimento di ogni personaggio | ✅ PR 1 |
+| **Personaggi** | Nome, trigger word, tratti fissi e immagine di riferimento di ogni personaggio; anche dal nulla, con proposte generate dalla descrizione | ✅ PR 1, PR 9 |
 | **1 · Dataset** | Genera con ComfyUI decine di immagini varie di ogni personaggio, con i workflow che scegli, e tiene le migliori | ✅ PR 2 |
 | **2 · Didascalie** | Tag automatici (WD14 e prompt), trigger word, pulizia dei tratti fissi, zip del dataset | ✅ PR 3 |
 | **3 · Addestramento** | Installa kohya da solo, addestra un LoRA per personaggio con preset per la tua VRAM, loss in diretta, prova e scelta dell'epoca | ✅ PR 4 |
