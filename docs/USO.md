@@ -111,9 +111,22 @@ Per ogni personaggio (scegli in alto quale):
 
 ## 8. L'IA locale
 
-In **Sistema → IA locale** la prima volta premi **Installa**: Comic Studio scarica Ollama (1-2 GB) e il modello
-(Qwen3 8B, circa 5 GB) nella cartella `ComicStudio/strumenti/ollama`, dopo averti chiesto conferma. Tutto gira sul
-tuo computer. Se hai già Ollama o LM Studio, Comic Studio usa quelli. Puoi provare l'IA con una scena di esempio e
+Non serve prepararla prima: la prima volta che usi l'IA (per esempio **Ricava i tratti con l'IA**) e manca
+Ollama o il modello, si apre la finestra **Scegli l'IA locale**:
+
+- in alto vedi la tua scheda video, la VRAM e la RAM
+- l'elenco mostra i modelli ordinati per il tuo computer: in cima **il migliore per te** e due **consigliati**;
+  ogni modello ha le sue quantizzazioni (Q4_K_M, Q8_0, FP16…) con la dimensione e un pallino: verde = tutto sulla
+  GPU, giallo = in parte sulla CPU (più lento), arancione = solo processore, rosso = non entra in memoria
+- **Adatti al mio computer** / **Tutti** e il campo **Cerca**; un nome che non è nell'elenco (es. `deepseek-r1`)
+  si cerca su Ollama con un clic
+- **Aggiorna da Ollama** legge dal registro tutte le versioni e le dimensioni vere (senza rete le dimensioni
+  sono stimate, con il segno ~)
+- **Installa Ollama e scarica** / **Scarica e usa** / **Usa questo**: finito il download la finestra si chiude
+  e l'azione che avevi chiesto riparte da sola
+
+La stessa finestra si apre da **Sistema → IA locale → Scegli il modello adatto al tuo computer**. Ollama e i
+modelli finiscono nella cartella `ComicStudio/strumenti/ollama`. Tutto gira sul tuo computer. Se hai già Ollama o LM Studio, Comic Studio usa quelli. Puoi provare l'IA con una scena di esempio e
 cambiare modello (più leggero o più preciso). Prima di ogni domanda all'IA la memoria della scheda video viene
 liberata, così ComfyUI e l'IA non se la contendono.
 

@@ -22,6 +22,8 @@ export interface Lavoro {
   progresso: number;
   testo: string;
   errore: string | null;
+  /** errore riconoscibile: 'ia_non_pronta' quando manca Ollama, il modello o il server dell'IA */
+  codice?: string | null;
   creato: number;
   iniziato: number | null;
   finito: number | null;
@@ -550,6 +552,48 @@ export interface StatoIA {
   pronta: boolean;
   consigliati?: { nome: string; descrizione: string; gb: number }[];
   impostazioni?: { tipo: string; url: string; modello: string; libera_gpu: boolean; chiave_impostata: boolean };
+}
+
+/** Dove gira un modello su questo computer. */
+export type DoveIA = 'gpu' | 'misto' | 'cpu' | 'troppo';
+
+export interface VarianteIA {
+  nome: string;
+  alias: string[];
+  quant: string;
+  gb: number;
+  memoria_gb: number;
+  stimata: boolean;
+  installato: boolean;
+  attuale: boolean;
+  dove: DoveIA;
+  nota: string;
+  punteggio: number;
+}
+
+export interface RigaCatalogoIA {
+  famiglia: string;
+  dimensione: string;
+  parametri: number;
+  attivi: number | null;
+  descrizione: string;
+  varianti: VarianteIA[];
+  migliore: string;
+  punteggio: number;
+  dove: DoveIA;
+  consigliato?: boolean;
+  migliore_in_assoluto?: boolean;
+}
+
+export interface CatalogoIA {
+  hardware: { gpu: string | null; vram_gb: number; ram_gb: number; apple: boolean; memoria_gpu: number; memoria_ram: number };
+  aggiornato: number | null;
+  online: boolean;
+  da_aggiornare: boolean;
+  famiglie: string[];
+  modelli: RigaCatalogoIA[];
+  attuale: string | null;
+  stato: StatoIA;
 }
 
 export interface ImmaginiVignetta {

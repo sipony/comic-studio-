@@ -22,9 +22,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 8 | Dal testo al prompt: IA locale (Ollama) che legge descrizioni lunghe di personaggi, vignette e storie intere e ne ricava prompt fedeli per il checkpoint; controllo di aderenza con il tagger | ✅ unita |
 | 9 | Personaggio dal nulla: senza immagine, Comic Studio genera dalla descrizione alcune proposte di riferimento, l'utente sceglie (o chiede varianti) e la scelta diventa l'immagine di riferimento | ✅ unita |
 | 10 | Indirizzi cliccabili nella console (ComfyUI si apre nel browser) e pulsanti «Apri ComfyUI» | ✅ unita |
-| 11 | Annullamento in qualsiasi momento con le risorse liberate (coda di ComfyUI, VRAM, processi, IA) e anteprime dal vivo delle immagini in generazione | ✅ questa PR |
-| 12 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 13 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 11 | Annullamento in qualsiasi momento con le risorse liberate (coda di ComfyUI, VRAM, processi, IA) e anteprime dal vivo delle immagini in generazione | ✅ unita |
+| 12 | Scelta del modello dell'IA: finestra che si apre quando manca Ollama o il modello, elenco dal registro di Ollama con le quantizzazioni, ordinato per la VRAM e la RAM del computer | ✅ questa PR |
+| 13 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 14 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -444,4 +445,55 @@ Anteprime:
   un processo figlio; annullamento dall'API con anteprima e nuova generazione subito dopo; IA scaricata
   all'annullamento
 
-Prossimo passo: PR 12, pose guidate e costruttore di workflow.
+Prossimo passo: PR 12, scelta del modello dell'IA.
+
+## PR 12 — Scelta del modello dell'IA
+
+Richiesta: «quando gli do la descrizione libera mi dice che non può generare i tag perché manca Ollama: devi aprire
+un pop-up, fare una chiamata API su quali modelli sono disponibili, soprattutto quantizzati, e mostrare come
+migliori quelli più adatti al sistema; poi li fai vedere tutti comunque».
+
+Prima l'errore arrivava solo come messaggio e bisognava andare in Sistema → IA locale, dove c'erano tre modelli fissi.
+
+Backend:
+
+- `catalogo_ia.py`: elenco di partenza di famiglie adatte all'italiano e al JSON (Qwen3, Gemma 3, Mistral Small
+  3.2, Qwen2.5, Llama 3.1 / 3.2, Mistral Nemo, Phi-4) con dimensioni e quantizzazioni; **Aggiorna da Ollama**
+  (lavoro `ia_catalogo`) chiede al registro `registry.ollama.ai/v2/library/<famiglia>/tags/list` tutti i tag (se
+  non risponde legge la pagina dei tag di ollama.com) e dal manifest di ognuno la dimensione vera; i tag corti
+  (`qwen3:8b`) diventano alias della variante con lo stesso file; esclusi modelli base, `cloud` e `latest`.
+  Il risultato resta in `strumenti/catalogo_ia.json` e va rinfrescato dopo una settimana. Si può aggiungere
+  qualsiasi famiglia di Ollama per nome
+- modelli già scaricati: da `/api/tags` di Ollama, con dimensione, parametri e quantizzazione veri (anche quelli
+  scaricati a mano che non sono nel catalogo)
+- valutazione: memoria che serve = file + contesto da 12k token + margine, confrontata con la VRAM (meno 0,5 GB;
+  ComfyUI viene scaricato prima di ogni domanda), con il 67% della memoria unificata sui Mac e con la RAM.
+  Esito: `gpu` (veloce), `misto` (in parte sulla CPU), `cpu` (nessuna GPU), `troppo`. Punteggio: qualità della
+  famiglia + dimensione (logaritmica; i MoE contano come un modello denso un po' più piccolo) + quantizzazione
+  (Q2/Q3 penalizzate, Q8 un po' meglio di Q4) − la parte che resta sulla CPU (meno per i MoE) − il peso del file
+  quando gira solo sul processore; +0,5 se è già scaricato. I primi tre sono consigliati
+- `POST /api/ia/scegli`: imposta il modello (riattiva Ollama se l'IA era disattivata) e, se serve, installa Ollama
+  o scarica il modello
+- `ErroreIA(non_pronta=True)` quando mancano Ollama, il modello o il server, o l'IA è disattivata: il lavoro ha
+  `codice: "ia_non_pronta"` (anche nelle risposte HTTP 503), così l'interfaccia sa che deve aprire la finestra
+
+Interfaccia:
+
+- `shell/scelta-ia.*`: hardware, filtri **Adatti al mio computer** / **Tutti**, ricerca (e «Cerca su Ollama» per
+  un nome nuovo), una riga per famiglia e dimensione con le quantizzazioni come pulsanti (dimensione, pallino del
+  colore dell'esito, segno di spunta se scaricata), «il migliore per te» e «consigliato», legenda; in fondo il
+  modello scelto con quanto pesa e dove girerà, e **Installa Ollama e scarica** / **Scarica e usa** / **Usa
+  questo** con l'avanzamento e **Ferma**
+- `core/scelta-ia.service.ts`: `pronta(motivo)` prima di Ricava i tratti, proposte del personaggio solo dalla
+  descrizione libera, Trasforma in prompt e Storia → vignette; quando l'IA diventa pronta l'azione riparte. Si
+  apre da sola anche quando un lavoro finisce con `ia_non_pronta` (es. la generazione delle vignette)
+- Sistema → IA locale: «Scegli il modello adatto al tuo computer» e «Scegli e installa» quando l'IA non è pronta;
+  `/sistema?scheda=ia` apre direttamente la scheda
+- Versione 0.12.0
+- **Test**: 110 test backend (tag e quantizzazioni, valutazione per RTX 3060 / 4060 / solo CPU / Mac, ordine del
+  catalogo, alias dei modelli scaricati, registro finto con lista dei tag, manifest e pagina del sito, ricerca
+  di una famiglia nuova, scelta con download, riattivazione dall'IA disattivata, codice `ia_non_pronta`);
+  12 test dell'interfaccia; collaudo con Chromium: da «Ricava i tratti» senza modello → finestra → Scarica e
+  usa → la finestra si chiude e i tratti compaiono
+
+Prossimo passo: PR 13, pose guidate e costruttore di workflow.

@@ -6,6 +6,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from . import catalogo_ia as cat
 from . import fumetto as fm
 from . import testo_prompt as tp
 from .jobs import Lavoro
@@ -79,6 +80,64 @@ async def scarica_modello(dati: Modello, req: Request):
     app = _app(req)
     app.impostazioni.aggiorna(ia_modello=dati.nome.strip())
     return app.ia.scarica_modello(dati.nome.strip()).dict()
+
+
+# ---------------------------------------------------------------- scelta del modello
+
+@rotte_ia.get("/catalogo")
+async def catalogo(req: Request):
+    """Tutti i modelli (scaricati, consigliati e quelli del registro di Ollama) valutati per questo computer."""
+    app = _app(req)
+    stato = await app.ia.aggiorna()
+    installati: list[dict] = []
+    if stato.raggiungibile and stato.tipo == "ollama":
+        try:
+            async with app.ia.client(timeout=10) as c:
+                installati = await c.modelli_dettagli()
+        except Exception:  # noqa: BLE001 - l'elenco resta senza i modelli scaricati
+            pass
+    hw = await asyncio.to_thread(cat.leggi_hardware, app.comfy.dispositivi)
+    return await asyncio.to_thread(cat.costruisci, hw, installati, stato.modello) | {"stato": stato.dict()}
+
+
+class AggiornaCatalogo(BaseModel):
+    famiglia: str | None = Field(default=None, max_length=80, pattern=r"^[a-z0-9][a-z0-9._\-]*$")
+
+
+@rotte_ia.post("/catalogo/aggiorna")
+async def aggiorna_catalogo(dati: AggiornaCatalogo, req: Request):
+    """Scarica dal registro di Ollama i tag (quantizzazioni comprese) e le dimensioni vere dei modelli."""
+    app = _app(req)
+    famiglie = [dati.famiglia] if dati.famiglia else (await catalogo(req))["famiglie"]
+
+    async def lavoro(l: Lavoro):
+        l.log(f"Chiedo a Ollama l'elenco aggiornato dei modelli ({', '.join(famiglie)})")
+        r = await cat.aggiorna_online(famiglie, l.avanza, lambda: l.annullato)
+        for fam, err in r["errori"].items():
+            l.log(f"{fam}: {err}", "avviso")
+        if not r["aggiornate"]:
+            raise ErroreIA("Non riesco a leggere l'elenco dei modelli di Ollama: controlla la connessione. "
+                           "Intanto puoi scegliere tra quelli proposti, con le dimensioni stimate.")
+        l.log(f"Elenco dei modelli aggiornato: {len(r['aggiornate'])} famiglie", "ok")
+        return r
+    titolo = f"Versioni di {dati.famiglia}" if dati.famiglia else "Aggiornamento dell'elenco dei modelli"
+    return app.gestore.avvia("ia_catalogo", titolo, lavoro).dict()
+
+
+@rotte_ia.post("/scegli")
+async def scegli_modello(dati: Modello, req: Request):
+    """Usa questo modello: lo imposta e, se serve, installa Ollama e lo scarica (un lavoro)."""
+    app = _app(req)
+    nome = dati.nome.strip()
+    campi = {"ia_modello": nome}
+    if app.impostazioni.valori.ia_tipo == "nessuna":
+        campi |= {"ia_tipo": "ollama", "ia_url": "http://127.0.0.1:11434"}
+    app.impostazioni.aggiorna(**campi)
+    stato = await app.ia.aggiorna()
+    if stato.pronta or stato.tipo != "ollama":
+        return {"lavoro": None, "stato": stato.dict()}
+    l = app.ia.installa() if not stato.raggiungibile else app.ia.scarica_modello(nome)
+    return {"lavoro": l.dict(), "stato": stato.dict()}
 
 
 class Prova(BaseModel):

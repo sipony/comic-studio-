@@ -151,7 +151,7 @@ async def genera(pid: str, dati: Genera, req: Request):
             except ErroreIA as e:
                 if not v.azione.strip():
                     raise ErroreIA(f"Vignetta {numeri[v.id]}: {e} Senza IA serve almeno il campo «tag» della "
-                                   "vignetta, in inglese.") from None
+                                   "vignetta, in inglese.", non_pronta=e.codice == "ia_non_pronta") from None
                 l.log(f"Vignetta {numeri[v.id]}: {e} Uso solo i tag della vignetta.", "avviso")
                 continue
             if r:

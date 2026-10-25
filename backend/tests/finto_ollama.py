@@ -64,7 +64,9 @@ class FintoOllama:
 
         @app.get("/api/tags")
         async def tags():
-            return {"models": [{"name": m} for m in self.modelli]}
+            return {"models": [{"name": m, "size": 5_225_373_696 if m.startswith("qwen3:8b") else 2_600_000_000,
+                                "details": {"parameter_size": "8.2B" if "8b" in m else "4.0B",
+                                            "quantization_level": "Q4_K_M"}} for m in self.modelli]}
 
         @app.post("/api/pull")
         async def pull(req: Request):
