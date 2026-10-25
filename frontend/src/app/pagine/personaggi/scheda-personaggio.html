@@ -46,10 +46,25 @@
     </mat-form-field>
 
     <mat-form-field>
+      <mat-label>Descrizione libera (anche lunga, in italiano)</mat-label>
+      <textarea matInput rows="4" [ngModel]="storia()" (ngModelChange)="storia.set($event)" maxlength="20000"
+        placeholder="Mara ha trentadue anni, è alta e magra, ha lunghi capelli ramati e mossi, occhi verdi e una cicatrice sulla guancia sinistra. Indossa sempre una giacca di pelle nera consumata…"></textarea>
+      <mat-hint>Scrivi come vuoi: l'IA ne ricava i tratti in inglese qui sotto</mat-hint>
+    </mat-form-field>
+    <div class="ricava">
+      <button mat-stroked-button type="button" (click)="ricava()" [disabled]="!storia().trim() || ricavando()">
+        <mat-icon>auto_awesome</mat-icon> {{ ricavando() ? 'L\'IA sta leggendo…' : 'Ricava i tratti con l\'IA' }}
+      </button>
+      @if (note(); as n) {
+        <span class="note">{{ n }}</span>
+      }
+    </div>
+
+    <mat-form-field>
       <mat-label>Tratti fissi (in inglese)</mat-label>
-      <textarea matInput rows="3" [ngModel]="descrizione()" (ngModelChange)="descrizione.set($event)" maxlength="600"
+      <textarea matInput rows="3" [ngModel]="descrizione()" (ngModelChange)="descrizione.set($event)" maxlength="1500"
         placeholder="young woman, long blonde hair, blue eyes, blue police uniform"></textarea>
-      <mat-hint>Aspetto che non cambia mai: capelli, corporatura, vestiti</mat-hint>
+      <mat-hint>Aspetto che non cambia mai: capelli, corporatura, vestiti. Si usano per creare il dataset</mat-hint>
     </mat-form-field>
 
     <div class="pulsanti">

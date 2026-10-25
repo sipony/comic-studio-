@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
-import { Evento, EventoAddestramento, EventoDataset, EventoDidascalie, EventoFumetto, Installazione, Lavoro, Rapporto, RigaLog, Sistema, StatoComfy } from './modelli';
+import { Evento, EventoAddestramento, EventoDataset, EventoDidascalie, EventoFumetto, Installazione, Lavoro, Rapporto, RigaLog, Sistema, StatoComfy, StatoIA } from './modelli';
 
 const MAX_LOG = 3000;
 
@@ -17,6 +17,7 @@ export class EventiService {
   readonly collegato = signal(false);
   /** Comic Studio è stato chiuso con «Esci». */
   readonly chiuso = signal(false);
+  readonly ia = signal<StatoIA | null>(null);
   readonly log = signal<RigaLog[]>([]);
   readonly lavori = signal<Record<string, Lavoro>>({});
   readonly comfy = signal<StatoComfy | null>(null);
@@ -117,6 +118,9 @@ export class EventiService {
         break;
       case 'kohya':
         this.kohya.update((n) => n + 1);
+        break;
+      case 'ia':
+        this.ia.set(e.dati);
         break;
       case 'chiusura':
         this.chiuso.set(true);

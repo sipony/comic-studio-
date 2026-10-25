@@ -1,18 +1,19 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
-import { Esito, Installazione, VoceControllo, gb } from '../../core/modelli';
+import { Esito, Installazione, PromptScena, StatoIA, VoceControllo, gb } from '../../core/modelli';
 
 const ORDINE_CATEGORIE = ['Hardware', 'Software', 'Custom node', 'Modelli di supporto', 'Aggiornamenti'];
 const PESO: Record<Esito, number> = { errore: 0, avviso: 1, info: 2, ok: 3 };
@@ -20,7 +21,7 @@ const PESO: Record<Esito, number> = { errore: 0, avviso: 1, info: 2, ok: 3 };
 @Component({
   selector: 'app-sistema',
   imports: [DecimalPipe, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule,
-    MatProgressBarModule, MatSlideToggleModule, MatTabsModule, MatTooltipModule],
+    MatProgressBarModule, MatSelectModule, MatSlideToggleModule, MatTabsModule, MatTooltipModule],
   templateUrl: './sistema.html',
   styleUrl: './sistema.scss',
 })
@@ -40,6 +41,19 @@ export class SistemaPage {
   protected comando = signal('');
   protected attesa = signal(300);
   protected mostraAvanzate = signal(false);
+
+  // IA locale
+  protected ia = signal<StatoIA | null>(null);
+  protected iaTipo = signal<'ollama' | 'openai' | 'nessuna'>('ollama');
+  protected iaUrl = signal('');
+  protected iaModello = signal('');
+  protected iaChiave = signal('');
+  protected testoProva = signal('Di notte, in un corridoio d\'ospedale abbandonato, una donna con una giacca di pelle ' +
+    'strappata corre verso di noi brandendo un\'ascia; dietro di lei uno zombie la insegue. Luce al neon che sfarfalla, ' +
+    'sangue sulle pareti, pioggia che entra da una finestra rotta. Inquadratura dal basso.');
+  protected risultatoProva = signal<PromptScena | null>(null);
+  protected lavoroIA = computed(() =>
+    this.eventi.attivi().find((l) => ['ia_installa', 'ia_modello', 'ia_prova'].includes(l.tipo)) ?? null);
 
   protected rapporto = this.eventi.rapporto;
   protected inControllo = computed(() =>
@@ -73,6 +87,82 @@ export class SistemaPage {
     this.comando.set(imp?.comando_comfy ?? '');
     this.attesa.set(imp?.attesa_avvio ?? 300);
     this.mostraAvanzate.set(!!imp?.comando_comfy);
+    void this.caricaIA();
+    effect(() => {
+      const e = this.eventi.ia();
+      if (e) untracked(() => this.ia.update((s) => ({ ...(s ?? {}), ...e })));
+    });
+  }
+
+  protected async caricaIA() {
+    try {
+      const s = await this.api.statoIA();
+      this.ia.set(s);
+      this.iaTipo.set((s.impostazioni?.tipo as 'ollama' | 'openai' | 'nessuna') ?? 'ollama');
+      this.iaUrl.set(s.impostazioni?.url ?? '');
+      this.iaModello.set(s.impostazioni?.modello ?? '');
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  protected async salvaIA(campi: { tipo?: string; url?: string; modello?: string; chiave?: string; libera_gpu?: boolean }) {
+    try {
+      const s = await this.api.impostaIA(campi);
+      this.ia.set(s);
+      this.iaTipo.set((s.impostazioni?.tipo as 'ollama' | 'openai' | 'nessuna') ?? 'ollama');
+      this.iaUrl.set(s.impostazioni?.url ?? '');
+      this.iaModello.set(s.impostazioni?.modello ?? '');
+      this.iaChiave.set('');
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  protected async installaIA() {
+    const m = this.ia()?.consigliati?.find((x) => x.nome === this.iaModello());
+    const gb = m ? ` + circa ${m.gb} GB per il modello ${m.nome}` : '';
+    if (!confirm(`Scaricare Ollama (circa 1-2 GB)${gb} nella cartella ComicStudio/strumenti/ollama? ` +
+      'Si fa una volta sola; gira sul tuo computer, senza internet dopo il download.')) return;
+    await this.lavoroConEsito(this.api.installaIA(), 'IA locale pronta');
+  }
+
+  protected async scaricaModello(nome: string) {
+    const m = this.ia()?.consigliati?.find((x) => x.nome === nome);
+    if (!confirm(`Scaricare il modello ${nome}${m ? ` (circa ${m.gb} GB)` : ''}?`)) return;
+    this.iaModello.set(nome);
+    await this.lavoroConEsito(this.api.scaricaModelloIA(nome), `Modello ${nome} pronto`);
+  }
+
+  protected async usaModello(nome: string) {
+    await this.salvaIA({ modello: nome });
+  }
+
+  protected async prova() {
+    this.risultatoProva.set(null);
+    try {
+      const l = await this.api.provaIA(this.testoProva(), null);
+      const fine = await this.eventi.attendi(l.id);
+      if (fine.stato !== 'completato') {
+        if (fine.errore) this.avvisi.errore(fine.errore);
+        return;
+      }
+      const r = await this.api.lavoro<{ prompt: PromptScena }>(l.id);
+      this.risultatoProva.set(r.risultato?.prompt ?? null);
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  private async lavoroConEsito(p: Promise<{ id: string }>, ok: string) {
+    try {
+      const fine = await this.eventi.attendi((await p).id);
+      if (fine.stato === 'completato') this.avvisi.ok(ok);
+      else if (fine.errore) this.avvisi.errore(fine.errore);
+      await this.caricaIA();
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
   }
 
   protected async avviaComfy() {

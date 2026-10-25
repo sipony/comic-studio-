@@ -14,7 +14,8 @@ import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
 import {
-  Dialogo, FormatoVignetta, Fumetto, ImmaginiVignetta, ImpostazioniFumetto, Pagina, Personaggio, PosizioneBalloon, Vignetta,
+  Dialogo, FormatoVignetta, Fumetto, ImmaginiVignetta, ImpostazioniFumetto, Pagina, Personaggio, PosizioneBalloon, PromptScena,
+  Vignetta,
 } from '../../core/modelli';
 import { ProgettoService } from '../../core/progetto.service';
 
@@ -56,6 +57,9 @@ export class FumettoPage {
   protected impostazioniAperte = signal(false);
   protected importaAperto = signal(false);
   protected testoStoria = signal('');
+  protected testoLibero = signal('');
+  protected modoStoria = signal<'libera' | 'righe'>('libera');
+  protected promptScelta = signal<{ aggiornata: boolean; prompt: PromptScena | null } | null>(null);
   protected checkpoint = signal<string[]>([]);
   protected loraElenco = signal<string[]>([]);
   protected salvataggio = signal<'salvato' | 'modificato' | 'errore'>('salvato');
@@ -65,7 +69,8 @@ export class FumettoPage {
   protected numero = computed(() => Object.fromEntries(this.tutte().map((x, i) => [x.v.id, i + 1])) as Record<string, number>);
   protected mancanti = computed(() => this.tutte().filter((x) => !this.immagini()[x.v.id]?.versioni.length).length);
   protected lavoro = computed(() =>
-    this.eventi.attivi().find((l) => l.tipo === 'fumetto_genera' && l.progetto === this.progetto().id) ?? null);
+    this.eventi.attivi().find((l) => ['fumetto_genera', 'fumetto_analisi', 'fumetto_storia'].includes(l.tipo) &&
+      l.progetto === this.progetto().id) ?? null);
   protected senzaLora = computed(() => this.personaggi().filter((p) => !this.lora()[p.id]));
 
   private timer?: ReturnType<typeof setTimeout>;
@@ -79,7 +84,14 @@ export class FumettoPage {
     }).catch(() => undefined);
     effect(() => {
       const e = this.eventi.fumetto();
-      if (e && e.progetto === untracked(this.progetto).id) untracked(() => void this.caricaImmagini());
+      if (!e || e.progetto !== untracked(this.progetto).id) return;
+      // senza modifiche in sospeso si ricarica tutto (l'IA può aver scelto i personaggi o creato vignette)
+      untracked(() => void (this.salvataggio() === 'salvato' ? this.carica() : this.caricaImmagini()));
+    });
+    effect(() => {
+      const id = this.sceltaId();
+      const testo = this.scelta()?.v.descrizione ?? '';
+      untracked(() => void this.caricaPrompt(id, testo));
     });
   }
 
@@ -92,6 +104,55 @@ export class FumettoPage {
       this.lora.set(s.lora);
       if (!this.sceltaId()) this.sceltaId.set(this.tutte()[0]?.v.id ?? null);
       this.versioneAnteprima.update((n) => n + 1);
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  private async caricaPrompt(id: string | null, testo: string) {
+    if (!id || !testo.trim()) {
+      this.promptScelta.set(null);
+      return;
+    }
+    try {
+      this.promptScelta.set(await this.api.promptVignetta(this.progetto().id, id));
+    } catch {
+      this.promptScelta.set(null);
+    }
+  }
+
+  protected async analizza(id: string) {
+    if (!(await this.salva())) return;
+    try {
+      const fine = await this.eventi.attendi((await this.api.analizzaVignetta(this.progetto().id, id)).id);
+      if (fine.stato !== 'completato' && fine.errore) this.avvisi.errore(fine.errore);
+      await this.carica();
+      await this.caricaPrompt(id, this.scelta()?.v.descrizione ?? '');
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  protected async rafforza(id: string, mancanti: string[]) {
+    this.cambiaVignetta((v) => (v.rafforza = [...new Set([...(v.rafforza ?? []), ...mancanti])]));
+    await this.genera(id, true);
+  }
+
+  protected togliRafforzo(t: string) {
+    this.cambiaVignetta((v) => (v.rafforza = (v.rafforza ?? []).filter((x) => x !== t)));
+  }
+
+  protected async storiaIA(sostituisci: boolean) {
+    if (sostituisci && !confirm('Sostituire tutte le pagine attuali con questa storia?')) return;
+    try {
+      clearTimeout(this.timer);
+      await this.salva();
+      const l = await this.api.storiaIA(this.progetto().id, this.testoLibero(), sostituisci);
+      this.importaAperto.set(false);
+      const fine = await this.eventi.attendi(l.id);
+      if (fine.stato !== 'completato' && fine.errore) this.avvisi.errore(fine.errore);
+      await this.carica();
+      this.sceltaId.set(this.tutte()[0]?.v.id ?? null);
     } catch (e) {
       this.avvisi.errore(e);
     }
@@ -209,14 +270,14 @@ export class FumettoPage {
   // ------------------------------------------------------------ pagine e vignette
 
   protected aggiungiPagina() {
-    const v: Vignetta = { id: nuovoId(), formato: 'larga', personaggi: [], azione: '', dialoghi: [], seme: null };
+    const v: Vignetta = { id: nuovoId(), formato: 'larga', personaggi: [], azione: '', descrizione: '', rafforza: [], dialoghi: [], seme: null };
     this.modifica((f) => f.pagine.push({ id: nuovoId(), vignette: [v] }));
     this.sceltaId.set(v.id);
     this.paginaAnteprima.set((this.fumetto()?.pagine.length ?? 1) - 1);
   }
 
   protected aggiungiVignetta(pi: number) {
-    const v: Vignetta = { id: nuovoId(), formato: 'alta', personaggi: [], azione: '', dialoghi: [], seme: null };
+    const v: Vignetta = { id: nuovoId(), formato: 'alta', personaggi: [], azione: '', descrizione: '', rafforza: [], dialoghi: [], seme: null };
     this.modifica((f) => f.pagine[pi].vignette.push(v));
     this.sceltaId.set(v.id);
     this.paginaAnteprima.set(pi);

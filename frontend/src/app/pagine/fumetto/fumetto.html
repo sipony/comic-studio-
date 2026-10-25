@@ -41,13 +41,31 @@
   @if (importaAperto()) {
     <section class="scheda">
       <h2>Storia da testo</h2>
-      <p class="nota">Scrivi o incolla la storia: una vignetta per riga, <code>---</code> per una nuova pagina.</p>
-      <textarea class="storia" rows="10" [ngModel]="testoStoria()" (ngModelChange)="testoStoria.set($event)"></textarea>
-      <div class="pulsanti">
-        <button mat-button (click)="importaAperto.set(false)">Annulla</button>
-        <button mat-stroked-button (click)="importa(true)">Sostituisci tutto</button>
-        <button mat-flat-button (click)="importa(false)">Aggiungi in fondo</button>
-      </div>
+      <mat-button-toggle-group [value]="modoStoria()" (change)="modoStoria.set($event.value)" aria-label="Tipo di testo">
+        <mat-button-toggle value="libera">Racconto libero (lo divide l'IA)</mat-button-toggle>
+        <mat-button-toggle value="righe">Una vignetta per riga</mat-button-toggle>
+      </mat-button-toggle-group>
+      @if (modoStoria() === 'libera') {
+        <p class="nota">
+          Incolla la storia così com'è, lunga quanto vuoi e in qualsiasi lingua. L'IA la divide in pagine e vignette,
+          sceglie i personaggi e copia i dialoghi; le descrizioni diventano prompt quando generi.
+        </p>
+        <textarea class="storia" rows="12" [ngModel]="testoLibero()" (ngModelChange)="testoLibero.set($event)"
+          placeholder="Era quasi mezzanotte quando Mara spinse la porta dell'ospedale abbandonato…"></textarea>
+        <div class="pulsanti">
+          <button mat-button (click)="importaAperto.set(false)">Annulla</button>
+          <button mat-stroked-button (click)="storiaIA(true)" [disabled]="!testoLibero().trim() || !!lavoro()">Sostituisci tutto</button>
+          <button mat-flat-button (click)="storiaIA(false)" [disabled]="!testoLibero().trim() || !!lavoro()">Aggiungi in fondo</button>
+        </div>
+      } @else {
+        <p class="nota">Scrivi o incolla la storia: una vignetta per riga, <code>---</code> per una nuova pagina.</p>
+        <textarea class="storia" rows="10" [ngModel]="testoStoria()" (ngModelChange)="testoStoria.set($event)"></textarea>
+        <div class="pulsanti">
+          <button mat-button (click)="importaAperto.set(false)">Annulla</button>
+          <button mat-stroked-button (click)="importa(true)">Sostituisci tutto</button>
+          <button mat-flat-button (click)="importa(false)">Aggiungi in fondo</button>
+        </div>
+      }
     </section>
   }
 
@@ -146,7 +164,7 @@
                 <div class="testo">
                   <strong>{{ numero()[v.id] }} · {{ v.formato }}</strong>
                   <span>{{ v.personaggi.length ? v.personaggi.map(id => nomi()[id] ?? id).join(' + ') : 'ambiente' }}</span>
-                  <small>{{ v.azione || 'da descrivere' }}</small>
+                  <small>{{ v.descrizione || v.azione || 'da descrivere' }}</small>
                 </div>
                 <div class="sposta">
                   <button (click)="spostaVignetta(pi, vi, -1); $event.stopPropagation()" aria-label="Su"><mat-icon>arrow_upward</mat-icon></button>
@@ -203,10 +221,47 @@
           </div>
 
           <mat-form-field>
-            <mat-label>Cosa succede (in inglese, a tag)</mat-label>
-            <textarea matInput rows="3" [ngModel]="s.v.azione" (ngModelChange)="cambiaVignetta(x => x.azione = $event)"
-              placeholder="police office, dim lighting, the woman standing with a folder, medium shot"></textarea>
-            <mat-hint>Luogo, luce, inquadratura, cosa fanno. I personaggi li aggiunge il programma.</mat-hint>
+            <mat-label>Descrizione della scena (come vuoi, anche lunga)</mat-label>
+            <textarea matInput rows="5" [ngModel]="s.v.descrizione ?? ''" (ngModelChange)="cambiaVignetta(x => x.descrizione = $event)" maxlength="20000"
+              placeholder="Notte. Nel corridoio dell'ospedale Mara, con la giacca strappata e sporca di sangue, corre brandendo l'ascia contro lo zombie che le sbarra la strada. Neon che sfarfalla, pioggia dalla finestra rotta. Inquadratura dal basso."></textarea>
+            <mat-hint>L'IA la trasforma in un prompt fedele: chi c'è, cosa fa ciascuno, luogo, luce, inquadratura</mat-hint>
+          </mat-form-field>
+          @if (s.v.descrizione?.trim()) {
+            <div class="prompt-scena">
+              <div class="titolo-prompt">
+                <strong>Prompt ricavato</strong>
+                @if (promptScelta(); as ps) {
+                  @if (!ps.aggiornata) { <span class="nota">il testo è cambiato: verrà riletto quando generi</span> }
+                }
+                <span class="spazio"></span>
+                <button mat-stroked-button (click)="analizza(s.v.id)" [disabled]="!!lavoro()"><mat-icon>auto_awesome</mat-icon> {{ promptScelta()?.prompt ? 'Rileggi' : 'Trasforma in prompt' }}</button>
+              </div>
+              @if (promptScelta()?.prompt; as p) {
+                <code>{{ p.globale }}</code>
+                @for (id of s.v.personaggi; track id) {
+                  @if (p.per_personaggio[id]) { <div><span class="chi">{{ nomi()[id] }}</span> <code>{{ p.per_personaggio[id] }}</code></div> }
+                }
+                @if (p.negativo) { <div><span class="chi">da evitare</span> <code>{{ p.negativo }}</code></div> }
+                @if (p.non_rappresentabile.length) { <div class="nota">Non disegnabile: {{ p.non_rappresentabile.join('; ') }}</div> }
+              } @else {
+                <span class="nota">Premi «Trasforma in prompt» per vederlo prima di generare (si fa comunque da solo quando generi).</span>
+              }
+              @if (s.v.rafforza?.length) {
+                <div class="rafforzati">
+                  <span class="chi">rafforzati</span>
+                  @for (t of s.v.rafforza; track t) {
+                    <button class="chip" (click)="togliRafforzo(t)" [attr.aria-label]="'Togli ' + t">{{ t }} <mat-icon>close</mat-icon></button>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <mat-form-field>
+            <mat-label>Tag in più (in inglese, facoltativi)</mat-label>
+            <textarea matInput rows="2" [ngModel]="s.v.azione" (ngModelChange)="cambiaVignetta(x => x.azione = $event)"
+              placeholder="police office, dim lighting, medium shot"></textarea>
+            <mat-hint>Si aggiungono a quanto ricavato dalla descrizione. Senza descrizione sono loro la scena.</mat-hint>
           </mat-form-field>
 
           <div class="blocco">
@@ -249,6 +304,20 @@
           @if (corrente(s.v.id); as c) {
             <img class="grande" [src]="url(c.file)" alt="Vignetta generata" />
             <p class="nota mono">seme {{ c.seme }}</p>
+            @if (c.aderenza; as a) {
+              @if (a.punteggio !== null) {
+                <div class="aderenza">
+                  <strong>Aderenza {{ a.trovati.length }}/{{ a.trovati.length + a.mancanti.length }}</strong>
+                  @for (t of a.trovati; track t) { <span class="chip ok"><mat-icon>check</mat-icon>{{ t }}</span> }
+                  @for (t of a.mancanti; track t) { <span class="chip manca"><mat-icon>close</mat-icon>{{ t }}</span> }
+                  @if (a.mancanti.length) {
+                    <button mat-stroked-button (click)="rafforza(s.v.id, a.mancanti)" [disabled]="!!lavoro() || !eventi.comfy()?.connesso">
+                      <mat-icon>bolt</mat-icon> Rafforza i mancanti e rigenera
+                    </button>
+                  }
+                </div>
+              }
+            }
           }
           @if ((immagini()[s.v.id]?.versioni?.length ?? 0) > 1) {
             <div class="versioni">

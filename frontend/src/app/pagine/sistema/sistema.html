@@ -135,6 +135,126 @@
       }
     </mat-tab>
 
+    <!-- ======================= IA LOCALE ======================= -->
+    <mat-tab label="IA locale">
+      @let s = ia();
+      <section class="stato-connessione" [class.ok]="s?.pronta" [class.attesa]="!!lavoroIA()">
+        <mat-icon>{{ s?.pronta ? 'psychology' : 'psychology_alt' }}</mat-icon>
+        <div class="testo-stato">
+          @if (s?.pronta) {
+            <div class="valore">IA pronta · {{ s?.modello }}</div>
+            <div class="nota">{{ s?.tipo === 'ollama' ? 'Ollama ' + (s?.versione ?? '') : s?.url }}{{ s?.portatile ? ' · installato da Comic Studio' : '' }}</div>
+          } @else {
+            <div class="valore">{{ s?.tipo === 'nessuna' ? 'IA disattivata' : 'IA non pronta' }}</div>
+            <div class="nota">{{ s?.errore }}</div>
+          }
+        </div>
+        <div class="azioni-stato">
+          @if (s && s.tipo === 'ollama' && !s.raggiungibile && !s.eseguibile) {
+            <button mat-flat-button (click)="installaIA()" [disabled]="!!lavoroIA()"><mat-icon>download</mat-icon> Installa</button>
+          } @else if (s && s.tipo === 'ollama' && !s.modello_presente) {
+            <button mat-flat-button (click)="scaricaModello(s.modello ?? 'qwen3:8b')" [disabled]="!!lavoroIA()"><mat-icon>download</mat-icon> Scarica {{ s.modello }}</button>
+          }
+          <button mat-stroked-button (click)="caricaIA()"><mat-icon>refresh</mat-icon> Ricontrolla</button>
+        </div>
+      </section>
+
+      <p class="nota-fine">
+        L'IA legge le descrizioni lunghe dei personaggi e delle scene, anche in italiano, e le trasforma in prompt
+        fedeli per il checkpoint che usi. Gira sul tuo computer. Prima di ogni generazione libera la memoria della
+        scheda video, così ComfyUI la trova tutta per sé.
+      </p>
+
+      <section class="categoria">
+        <h2><mat-icon>tune</mat-icon> Motore</h2>
+        <div class="modulo">
+          <mat-form-field>
+            <mat-label>Tipo</mat-label>
+            <mat-select [value]="iaTipo()" (valueChange)="salvaIA({ tipo: $event })">
+              <mat-option value="ollama">Ollama (consigliato)</mat-option>
+              <mat-option value="openai">Server compatibile OpenAI (LM Studio, llama.cpp…)</mat-option>
+              <mat-option value="nessuna">Nessuna: uso solo i tag scritti a mano</mat-option>
+            </mat-select>
+          </mat-form-field>
+          @if (iaTipo() !== 'nessuna') {
+            <mat-form-field class="largo">
+              <mat-label>Indirizzo</mat-label>
+              <input matInput [ngModel]="iaUrl()" (ngModelChange)="iaUrl.set($event)" (change)="salvaIA({ url: iaUrl() })" />
+            </mat-form-field>
+          }
+          @if (iaTipo() === 'openai') {
+            <mat-form-field>
+              <mat-label>Modello</mat-label>
+              <input matInput [ngModel]="iaModello()" (ngModelChange)="iaModello.set($event)" (change)="salvaIA({ modello: iaModello() })" />
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>Chiave (se serve)</mat-label>
+              <input matInput type="password" [ngModel]="iaChiave()" (ngModelChange)="iaChiave.set($event)" (change)="salvaIA({ chiave: iaChiave() })"
+                [placeholder]="s?.impostazioni?.chiave_impostata ? 'impostata' : ''" />
+            </mat-form-field>
+          }
+        </div>
+        @if (iaTipo() !== 'nessuna') {
+          <mat-slide-toggle [checked]="s?.impostazioni?.libera_gpu ?? true" (change)="salvaIA({ libera_gpu: $event.checked })">
+            Libera la memoria della GPU di ComfyUI prima di chiedere all'IA (consigliato con 8 GB di VRAM)
+          </mat-slide-toggle>
+        }
+      </section>
+
+      @if (iaTipo() === 'ollama') {
+        <section class="categoria">
+          <h2><mat-icon>deployed_code</mat-icon> Modello</h2>
+          @for (m of s?.consigliati ?? []; track m.nome) {
+            <div class="installazione" [class.in-uso]="m.nome === s?.modello">
+              <mat-icon>{{ s?.modelli?.includes(m.nome) ? 'check_circle' : 'cloud_download' }}</mat-icon>
+              <div class="testo">
+                <div class="nome">{{ m.nome }} <span class="dettaglio">· circa {{ m.gb }} GB</span></div>
+                <div class="dettaglio">{{ m.descrizione }}</div>
+              </div>
+              @if (m.nome === s?.modello) {
+                <span class="tag">in uso</span>
+              } @else if (s?.modelli?.includes(m.nome)) {
+                <button mat-button (click)="usaModello(m.nome)">Usa questo</button>
+              } @else {
+                <button mat-button (click)="scaricaModello(m.nome)" [disabled]="!!lavoroIA() || !s?.raggiungibile">Scarica e usa</button>
+              }
+            </div>
+          }
+          @if (s?.modelli?.length) {
+            <p class="nota-fine">Già scaricati: {{ s?.modelli?.join(', ') }}</p>
+          }
+          <div class="modulo">
+            <mat-form-field class="largo">
+              <mat-label>Altro modello di Ollama</mat-label>
+              <input matInput [ngModel]="iaModello()" (ngModelChange)="iaModello.set($event)" placeholder="es. mistral-small3.2" />
+            </mat-form-field>
+            <button mat-stroked-button (click)="s?.modelli?.includes(iaModello()) ? usaModello(iaModello()) : scaricaModello(iaModello())" [disabled]="!iaModello().trim() || !!lavoroIA()">
+              <mat-icon>save</mat-icon> Usa
+            </button>
+          </div>
+        </section>
+      }
+
+      @if (iaTipo() !== 'nessuna') {
+        <section class="categoria">
+          <h2><mat-icon>science</mat-icon> Prova</h2>
+          <mat-form-field class="pieno">
+            <mat-label>Descrivi una scena come vuoi, anche lunga</mat-label>
+            <textarea matInput rows="4" [ngModel]="testoProva()" (ngModelChange)="testoProva.set($event)"></textarea>
+          </mat-form-field>
+          <button mat-flat-button (click)="prova()" [disabled]="!!lavoroIA() || !s?.pronta"><mat-icon>auto_awesome</mat-icon> Trasforma in prompt</button>
+          @if (risultatoProva(); as r) {
+            <div class="prompt-prova">
+              <div><strong>Prompt della scena</strong><code>{{ r.globale }}</code></div>
+              @if (r.negativo) { <div><strong>Negativo</strong><code>{{ r.negativo }}</code></div> }
+              <div><strong>Elementi chiave</strong> {{ r.chiave.join(' · ') }}</div>
+              @if (r.non_rappresentabile.length) { <div><strong>Non disegnabile</strong> {{ r.non_rappresentabile.join('; ') }}</div> }
+            </div>
+          }
+        </section>
+      }
+    </mat-tab>
+
     <!-- ======================= CONNESSIONE ======================= -->
     <mat-tab label="Connessione a ComfyUI">
       @let c = eventi.comfy();

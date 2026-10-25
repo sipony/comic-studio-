@@ -25,6 +25,12 @@ class Impostazioni(BaseModel):
     argomenti_comfy: str = ""              # argomenti in più, es. "--lowvram --preview-method auto"
     comando_comfy: str | None = None       # comando completo scritto a mano (sostituisce quello automatico)
     attesa_avvio: int = 300                # secondi massimi per aspettare che ComfyUI sia pronto
+    # IA locale che legge i testi (descrizioni lunghe → prompt)
+    ia_tipo: str = "ollama"                # ollama, openai (server compatibile: LM Studio, llama.cpp…), nessuna
+    ia_url: str = "http://127.0.0.1:11434"
+    ia_modello: str = "qwen3:8b"
+    ia_chiave: str | None = None           # solo per i server compatibili OpenAI che la chiedono
+    ia_libera_gpu: bool = True             # svuota la VRAM di ComfyUI prima di chiedere all'IA
 
 
 class Archivio:

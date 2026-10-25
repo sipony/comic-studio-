@@ -13,6 +13,7 @@ Da un'immagine di riferimento per ogni personaggio arriva alle tavole finite in 
 | **2 · Didascalie** | Tag automatici (WD14 e prompt), trigger word, pulizia dei tratti fissi, zip del dataset | ✅ PR 3 |
 | **3 · Addestramento** | Installa kohya da solo, addestra un LoRA per personaggio con preset per la tua VRAM, loss in diretta, prova e scelta dell'epoca | ✅ PR 4 |
 | **4 · Fumetto** | Storia da testo, scene con più personaggi (un LoRA ciascuno), balloon, tavole, PDF | ✅ PR 5 |
+| **Dal testo al prompt** | Descrizioni lunghe in italiano di personaggi, scene e storie intere trasformate in prompt fedeli da un'IA locale (Ollama), con controllo di aderenza | ✅ PR 8 |
 
 Funziona su **Windows, macOS e Linux**. L'interfaccia si apre nel browser.
 

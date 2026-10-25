@@ -8,7 +8,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
-import { GENERI, Genere, Personaggio } from '../../core/modelli';
+import { EventiService } from '../../core/eventi.service';
+import { GENERI, Genere, Personaggio, TrattiRicavati } from '../../core/modelli';
 
 @Component({
   selector: 'app-scheda-personaggio',
@@ -24,12 +25,17 @@ export class SchedaPersonaggio {
 
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);
+  private eventi = inject(EventiService);
   protected generi = GENERI;
 
   protected nome = signal('');
   protected trigger = signal('');
   protected genere = signal<Genere>('1girl');
   protected descrizione = signal('');
+  protected storia = signal('');
+  protected adulto = signal<boolean | null>(null);
+  protected ricavando = signal(false);
+  protected note = signal('');
   protected trascina = signal(false);
   protected occupato = signal(false);
 
@@ -37,7 +43,7 @@ export class SchedaPersonaggio {
   protected modificato = computed(() => {
     const p = this.personaggio();
     return this.nome() !== p.nome || this.trigger() !== p.trigger || this.genere() !== p.genere ||
-      this.descrizione() !== p.descrizione;
+      this.descrizione() !== p.descrizione || this.storia() !== (p.storia ?? '');
   });
 
   constructor() {
@@ -47,6 +53,8 @@ export class SchedaPersonaggio {
       this.trigger.set(p.trigger);
       this.genere.set(p.genere);
       this.descrizione.set(p.descrizione);
+      this.storia.set(p.storia ?? '');
+      this.adulto.set(p.adulto ?? null);
     });
   }
 
@@ -55,6 +63,7 @@ export class SchedaPersonaggio {
     try {
       const p = await this.api.modificaPersonaggio(this.progetto(), this.personaggio().id, {
         nome: this.nome().trim(), trigger: this.trigger().trim(), genere: this.genere(), descrizione: this.descrizione().trim(),
+        storia: this.storia().trim(), ...(this.adulto() !== null ? { adulto: this.adulto() } : {}),
       });
       this.cambiato.emit(p);
       this.avvisi.ok(`${p.nome} salvato`);
@@ -71,6 +80,35 @@ export class SchedaPersonaggio {
     this.trigger.set(p.trigger);
     this.genere.set(p.genere);
     this.descrizione.set(p.descrizione);
+    this.storia.set(p.storia ?? '');
+    this.adulto.set(p.adulto ?? null);
+    this.note.set('');
+  }
+
+  protected async ricava() {
+    this.ricavando.set(true);
+    this.note.set('');
+    try {
+      const l = await this.api.ricavaTratti(this.progetto(), this.personaggio().id, this.storia());
+      const fine = await this.eventi.attendi(l.id);
+      if (fine.stato !== 'completato') {
+        if (fine.errore) this.avvisi.errore(fine.errore);
+        return;
+      }
+      const r = (await this.api.lavoro<TrattiRicavati>(l.id)).risultato;
+      if (!r) return;
+      this.descrizione.set(r.descrizione);
+      if (r.genere) this.genere.set(r.genere);
+      this.adulto.set(r.adulto);
+      const parti = [r.eta_apparente ? `età apparente: ${r.eta_apparente}` : '',
+        r.non_rappresentabile.length ? `non disegnabile: ${r.non_rappresentabile.join('; ')}` : ''].filter(Boolean);
+      this.note.set(parti.join(' · '));
+      this.avvisi.ok('Tratti ricavati: controllali e premi Salva');
+    } catch (e) {
+      this.avvisi.errore(e);
+    } finally {
+      this.ricavando.set(false);
+    }
   }
 
   protected async suggerisci() {

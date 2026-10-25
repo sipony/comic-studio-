@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, Preset, RiassuntoAddestramento,
+  ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -45,6 +45,28 @@ export class ApiService {
     return this.post<StatoComfy>('/api/comfy/usa', { url, cartella });
   }
   esci(comfy: boolean) { return this.post<{ ok: boolean }>('/api/esci', { comfy }); }
+  // ------------------------------------------------------------ IA locale e testo → prompt
+  lavoro<T = unknown>(id: string) { return this.get<Lavoro & { risultato: T | null }>(`/api/lavori/${id}`); }
+  statoIA() { return this.get<StatoIA>('/api/ia'); }
+  impostaIA(dati: { tipo?: string; url?: string; modello?: string; chiave?: string; libera_gpu?: boolean }) {
+    return this.post<StatoIA>('/api/ia/impostazioni', dati);
+  }
+  installaIA() { return this.post<Lavoro>('/api/ia/installa'); }
+  scaricaModelloIA(nome: string) { return this.post<Lavoro>('/api/ia/modello', { nome }); }
+  provaIA(testo: string, checkpoint: string | null) { return this.post<Lavoro>('/api/ia/prova', { testo, checkpoint }); }
+  ricavaTratti(progetto: string, id: string, storia: string) {
+    return this.post<Lavoro>(`/api/progetti/${progetto}/personaggi/${id}/tratti`, { storia });
+  }
+  analizzaVignetta(progetto: string, id: string) {
+    return this.post<Lavoro>(`/api/progetti/${progetto}/fumetto/vignette/${id}/analizza`);
+  }
+  promptVignetta(progetto: string, id: string) {
+    return this.get<{ aggiornata: boolean; prompt: PromptScena | null }>(`/api/progetti/${progetto}/fumetto/vignette/${id}/prompt`);
+  }
+  storiaIA(progetto: string, testo: string, sostituisci: boolean) {
+    return this.post<Lavoro>(`/api/progetti/${progetto}/fumetto/storia`, { testo, sostituisci });
+  }
+
   avviaComfy() { return this.post<Lavoro>('/api/comfy/avvia'); }
   fermaComfy() { return this.post<Lavoro>('/api/comfy/ferma'); }
   riavviaComfy() { return this.post<Lavoro>('/api/comfy/riavvia'); }
@@ -73,7 +95,7 @@ export class ApiService {
     if (progetto) p['progetto'] = progetto;
     return this.get<{ trigger: string }>('/api/trigger/suggerisci', p);
   }
-  aggiungiPersonaggio(progetto: string, dati: { nome: string; trigger?: string | null; genere: Genere; descrizione: string }) {
+  aggiungiPersonaggio(progetto: string, dati: { nome: string; trigger?: string | null; genere: Genere; descrizione: string; storia?: string }) {
     return this.post<Personaggio>(`/api/progetti/${progetto}/personaggi`, dati);
   }
   modificaPersonaggio(progetto: string, id: string, dati: Partial<Omit<Personaggio, 'id' | 'creato' | 'riferimento'>>) {

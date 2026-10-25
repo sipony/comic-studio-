@@ -129,6 +129,8 @@ export interface Personaggio {
   trigger: string;
   genere: Genere;
   descrizione: string;
+  storia: string;
+  adulto: boolean | null;
   riferimento: string | null;
   creato: number;
 }
@@ -155,7 +157,8 @@ export type Evento =
   | EventoAddestramento
   | EventoFumetto
   | { tipo: 'kohya'; dati: StatoKohya; ts: number }
-  | { tipo: 'chiusura'; ts: number };
+  | { tipo: 'chiusura'; ts: number }
+  | { tipo: 'ia'; dati: StatoIA; ts: number };
 
 export const GENERI: { valore: Genere; etichetta: string }[] = [
   { valore: '1girl', etichetta: 'Donna (1girl)' },
@@ -456,6 +459,9 @@ export interface Vignetta {
   formato: FormatoVignetta;
   personaggi: string[];
   azione: string;
+  descrizione?: string;
+  analisi?: { chiave: string; dati: Record<string, unknown> } | null;
+  rafforza?: string[];
   dialoghi: Dialogo[];
   seme: number | null;
 }
@@ -495,6 +501,50 @@ export interface VersioneVignetta {
   seme: number;
   creato: number;
   prompt: string;
+  aderenza?: Aderenza | null;
+}
+
+export interface Aderenza {
+  trovati: string[];
+  mancanti: string[];
+  non_verificabili: string[];
+  punteggio: number | null;
+}
+
+export interface PromptScena {
+  globale: string;
+  per_personaggio: Record<string, string>;
+  negativo: string;
+  chiave: string[];
+  personaggi: string[];
+  altri_soggetti: number;
+  non_rappresentabile: string[];
+  sessuale: boolean;
+}
+
+export interface TrattiRicavati {
+  descrizione: string;
+  genere: Genere | null;
+  adulto: boolean | null;
+  eta_apparente: string;
+  frase: string;
+  non_rappresentabile: string[];
+}
+
+export interface StatoIA {
+  tipo: 'ollama' | 'openai' | 'nessuna';
+  url: string | null;
+  modello: string | null;
+  raggiungibile: boolean;
+  versione: string | null;
+  modelli: string[];
+  modello_presente: boolean;
+  eseguibile: string | null;
+  portatile: boolean;
+  errore: string | null;
+  pronta: boolean;
+  consigliati?: { nome: string; descrizione: string; gb: number }[];
+  impostazioni?: { tipo: string; url: string; modello: string; libera_gpu: boolean; chiave_impostata: boolean };
 }
 
 export interface ImmaginiVignetta {

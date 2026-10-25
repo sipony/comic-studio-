@@ -12,10 +12,12 @@ from pydantic import BaseModel
 
 from . import __version__
 from .comfy.client import ComfyErrore
+from .llm import ErroreIA
 from .rotte_dataset import rotte as rotte_dataset, rotte_comfy
 from .rotte_didascalie import rotte as rotte_didascalie
 from .rotte_addestramento import rotte as rotte_addestramento, rotte_kohya
 from .rotte_fumetto import rotte as rotte_fumetto
+from .rotte_testo import rotte as rotte_testo, rotte_ia
 from .projects import ErroreProgetto, ModificaPersonaggio, NuovoPersonaggio, suggerisci_trigger
 from .settings import Archivio as ArchivioImpostazioni
 from .state import App
@@ -75,6 +77,10 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
     async def _errore_progetto(_: Request, e: ErroreProgetto):
         return JSONResponse({"detail": str(e)}, status_code=e.codice)
 
+    @api.exception_handler(ErroreIA)
+    async def _errore_ia(_: Request, e: ErroreIA):
+        return JSONResponse({"detail": str(e)}, status_code=503)
+
     @api.exception_handler(ComfyErrore)
     async def _errore_comfy(_: Request, e: ComfyErrore):
         return JSONResponse({"detail": str(e)}, status_code=502)
@@ -118,6 +124,7 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
             await asyncio.to_thread(avvio_comfy.ferma, pid)
             stato.file_pid_comfy.unlink(missing_ok=True)
             stato.bus.log("ComfyUI chiuso", "ok")
+        await stato.ia.ferma_ollama()          # solo se l'ha avviato Comic Studio
         stato.bus.log("Comic Studio si chiude", "info")
         stato.bus.pubblica({"tipo": "chiusura"})
         asyncio.get_running_loop().call_later(0.5, spegni)
@@ -234,6 +241,13 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
     async def lavori():
         return [l.dict() for l in sorted(stato.gestore.lavori.values(), key=lambda x: -x.creato)]
 
+    @api.get("/api/lavori/{lid}")
+    async def lavoro(lid: str):
+        l = stato.gestore.lavori.get(lid)
+        if not l:
+            raise HTTPException(404, "Lavoro inesistente")
+        return l.dict() | {"risultato": l.risultato if l.stato == "completato" else None}
+
     @api.post("/api/lavori/{lid}/annulla")
     async def annulla(lid: str):
         if not stato.gestore.annulla(lid):
@@ -264,6 +278,8 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
     api.include_router(rotte_kohya)
     api.include_router(rotte_fumetto)
     api.include_router(rotte_comfy)
+    api.include_router(rotte_ia)
+    api.include_router(rotte_testo)
 
     @api.get("/api/{resto:path}")
     async def api_sconosciuta(resto: str):

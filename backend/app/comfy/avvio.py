@@ -104,7 +104,7 @@ def comando(cartella: str | None, codice: str | None, tipo: str, url: str | None
     return Comando([str(py), "main.py", "--port", str(porta), *argomenti_extra], sorgente, descrizione, porta)
 
 
-def avvia(c: Comando, log: Path) -> int:
+def avvia(c: Comando, log: Path, ambiente: dict[str, str] | None = None) -> int:
     """Avvia ComfyUI staccato da Comic Studio; restituisce il PID."""
     log.parent.mkdir(parents=True, exist_ok=True)
     uscita = open(log, "ab", buffering=0)
@@ -114,7 +114,7 @@ def avvia(c: Comando, log: Path) -> int:
         opzioni["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "CREATE_NO_WINDOW", 0)
     else:
         opzioni["start_new_session"] = True
-    env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
+    env = {**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8", **(ambiente or {})}
     try:
         p = subprocess.Popen(c.argomenti, cwd=str(c.cartella) if c.cartella else None, stdout=uscita,
                              stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env, **opzioni)
