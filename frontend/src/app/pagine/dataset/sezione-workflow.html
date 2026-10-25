@@ -1,0 +1,187 @@
+<div class="riga">
+  <mat-form-field class="largo">
+    <mat-label>Workflow per questo personaggio</mat-label>
+    <mat-select [value]="config()?.workflow ?? null" (valueChange)="scegli($event)">
+      <mat-option [value]="null">— nessuno —</mat-option>
+      @for (w of libreria(); track w.id) {
+        <mat-option [value]="w.id">{{ w.nome }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  @if (scelto()) {
+    <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Azioni sul workflow"><mat-icon>more_vert</mat-icon></button>
+    <mat-menu #menu="matMenu">
+      <button mat-menu-item (click)="rinomina()"><mat-icon>edit</mat-icon> Rinomina</button>
+      <a mat-menu-item [href]="urlScarica()" download><mat-icon>download</mat-icon> Scarica (formato API)</a>
+      <button mat-menu-item (click)="elimina()"><mat-icon>delete</mat-icon> Elimina dalla libreria</button>
+    </mat-menu>
+  }
+</div>
+
+<div class="pulsanti">
+  <label mat-stroked-button class="carica" [class.disattivo]="caricando()">
+    <mat-icon>upload_file</mat-icon> Carica un workflow
+    <input type="file" accept=".json,application/json" (change)="caricaFile($event)" hidden />
+  </label>
+  <button mat-stroked-button (click)="apriIntegrato()"><mat-icon>auto_fix_high</mat-icon> Crea quello integrato</button>
+</div>
+<p class="nota">
+  Va bene il file salvato normalmente da ComfyUI (serve ComfyUI avviato) o quello esportato con «Export (API)».
+  Ogni personaggio può usare un workflow diverso; la libreria è comune a tutto il progetto.
+</p>
+
+@if (integratoAperto()) {
+  <section class="integrato">
+    <h3>Workflow integrato: SDXL + IPAdapter</h3>
+    <p class="nota">Genera il personaggio dal testo, usando l'immagine di riferimento per la somiglianza.</p>
+    <mat-form-field>
+      <mat-label>Checkpoint</mat-label>
+      <mat-select [value]="integrato().checkpoint" (valueChange)="impostaIntegrato('checkpoint', $event)">
+        @for (m of modelli()['checkpoints'] ?? []; track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>LoRA di stile (facoltativo)</mat-label>
+      <mat-select [value]="integrato().lora_stile" (valueChange)="impostaIntegrato('lora_stile', $event)">
+        <mat-option [value]="null">— nessuno —</mat-option>
+        @for (m of modelli()['loras'] ?? []; track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+    <div class="due">
+      <mat-form-field>
+        <mat-label>IPAdapter</mat-label>
+        <mat-select [value]="integrato().ipadapter" (valueChange)="impostaIntegrato('ipadapter', $event)">
+          @for (m of modelli()['ipadapter'] ?? []; track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>CLIP Vision</mat-label>
+        <mat-select [value]="integrato().clip_vision" (valueChange)="impostaIntegrato('clip_vision', $event)">
+          @for (m of modelli()['clip_vision'] ?? []; track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+    </div>
+    <div class="cursore">
+      <span>Somiglianza al riferimento <strong>{{ integrato().peso_ipadapter }}</strong></span>
+      <mat-slider min="0.3" max="1.2" step="0.05" discrete>
+        <input matSliderThumb [value]="integrato().peso_ipadapter" (valueChange)="impostaIntegrato('peso_ipadapter', $event)" />
+      </mat-slider>
+      <small>Troppo alta copia anche colori e posa del riferimento; troppo bassa perde il personaggio.</small>
+    </div>
+    @if (integrato().lora_stile) {
+      <div class="cursore">
+        <span>Forza della LoRA di stile <strong>{{ integrato().forza_stile }}</strong></span>
+        <mat-slider min="0" max="1.5" step="0.05" discrete>
+          <input matSliderThumb [value]="integrato().forza_stile" (valueChange)="impostaIntegrato('forza_stile', $event)" />
+        </mat-slider>
+      </div>
+    }
+    <div class="tre">
+      <mat-form-field>
+        <mat-label>Passi</mat-label>
+        <input matInput type="number" min="1" max="150" [ngModel]="integrato().passi" (ngModelChange)="impostaIntegrato('passi', +$event)" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>CFG</mat-label>
+        <input matInput type="number" step="0.5" min="1" max="30" [ngModel]="integrato().cfg" (ngModelChange)="impostaIntegrato('cfg', +$event)" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Sampler</mat-label>
+        <input matInput [ngModel]="integrato().sampler" (ngModelChange)="impostaIntegrato('sampler', $event)" />
+      </mat-form-field>
+    </div>
+    @if (!(modelli()['ipadapter'] ?? []).length) {
+      <p class="avviso"><mat-icon>warning</mat-icon> Nessun modello IPAdapter trovato in ComfyUI: guarda la pagina Sistema.</p>
+    }
+    <div class="azioni">
+      <button mat-button (click)="integratoAperto.set(false)">Annulla</button>
+      <button mat-flat-button (click)="creaIntegrato()"
+        [disabled]="!integrato().checkpoint || !integrato().ipadapter || !integrato().clip_vision">Crea e usa</button>
+    </div>
+  </section>
+}
+
+@if (scelto(); as w) {
+  <section class="info">
+    <div class="meta">
+      <span><mat-icon>account_tree</mat-icon> {{ w.nodi }} nodi</span>
+      @if (w.checkpoint) { <span [matTooltip]="w.checkpoint"><mat-icon>deployed_code</mat-icon> {{ w.checkpoint }}</span> }
+      @for (l of w.lora; track l) { <span><mat-icon>layers</mat-icon> {{ l }}</span> }
+    </div>
+    @for (a of w.avvisi; track $index) {
+      <p class="avviso"><mat-icon>warning</mat-icon> {{ a }}</p>
+    }
+  </section>
+
+  <section class="ruoli">
+    <div class="titolo">
+      <h3>Nodi riconosciuti</h3>
+      @if (config()?.ruoli) {
+        <button mat-button (click)="ripristinaRuoli()"><mat-icon>restart_alt</mat-icon> Automatici</button>
+      }
+    </div>
+    <p class="nota">Il programma li ha trovati da solo: cambiali solo se ha sbagliato.</p>
+    @for (r of ruoliElenco; track r.chiave) {
+      <mat-form-field>
+        <mat-label>{{ r.etichetta }}</mat-label>
+        <mat-select [value]="ruoli()?.[r.chiave] ?? null" (valueChange)="impostaRuolo(r.chiave, $event)">
+          <mat-option [value]="null">— nessuno —</mat-option>
+          @for (o of opzioniRuolo()[r.chiave] ?? []; track o.id) {
+            <mat-option [value]="o.id">{{ o.etichetta }}</mat-option>
+          }
+        </mat-select>
+        <mat-hint>{{ r.aiuto }}</mat-hint>
+      </mat-form-field>
+    }
+  </section>
+
+  <section class="parametri">
+    <button class="apri" (click)="parametriAperti.set(!parametriAperti())" [attr.aria-expanded]="parametriAperti()">
+      <mat-icon>{{ parametriAperti() ? 'expand_less' : 'expand_more' }}</mat-icon>
+      Parametri dei nodi
+      @if (numeroModifiche()) { <span class="conta">{{ numeroModifiche() }} modificati</span> }
+    </button>
+    @if (parametriAperti()) {
+      <p class="nota">
+        Modifica qualunque valore del workflow solo per questo personaggio (il file originale non cambia).
+        Prompt, seme, dimensioni e riferimento li gestisce il programma.
+      </p>
+      <div class="riga">
+        <mat-form-field class="largo">
+          <mat-label>Filtra i nodi</mat-label>
+          <input matInput [ngModel]="filtroNodi()" (ngModelChange)="filtroNodi.set($event)" placeholder="KSampler, LoRA, 11…" />
+        </mat-form-field>
+        @if (numeroModifiche()) {
+          <button mat-button (click)="azzeraModifiche()">Azzera</button>
+        }
+      </div>
+      @for (g of campi(); track g.nodo.id) {
+        <div class="nodo">
+          <div class="nome-nodo">#{{ g.nodo.id }} · {{ g.nodo.titolo }} <small>{{ g.nodo.classe }}</small></div>
+          @for (c of g.campi; track c.nome) {
+            <div class="campo" [class.mod]="c.modificato">
+              <label>{{ c.nome }}</label>
+              @switch (c.tipo) {
+                @case ('scelta') {
+                  <select [ngModel]="c.valore" (ngModelChange)="impostaCampo(c, $event)">
+                    @if (!c.opzioni.includes($any(c.valore))) { <option [ngValue]="c.valore">{{ testo(c.valore) }}</option> }
+                    @for (o of c.opzioni; track o) { <option [ngValue]="o">{{ o }}</option> }
+                  </select>
+                }
+                @case ('numero') {
+                  <input type="number" step="any" [ngModel]="c.valore" (change)="impostaCampo(c, $any($event.target).value)" />
+                }
+                @case ('si_no') {
+                  <input type="checkbox" [ngModel]="c.valore" (ngModelChange)="impostaCampo(c, $event)" />
+                }
+                @default {
+                  <input type="text" [ngModel]="testo(c.valore)" (change)="impostaCampo(c, $any($event.target).value)" />
+                }
+              }
+            </div>
+          }
+        </div>
+      }
+    }
+  </section>
+}

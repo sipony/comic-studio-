@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from . import __version__
 from .comfy.client import ComfyErrore
+from .rotte_dataset import rotte as rotte_dataset, rotte_comfy
 from .projects import ErroreProgetto, ModificaPersonaggio, NuovoPersonaggio, suggerisci_trigger
 from .settings import Archivio as ArchivioImpostazioni
 from .state import App
@@ -196,6 +197,9 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
             pass
         finally:
             stato.bus.disiscrivi(q)
+
+    api.include_router(rotte_dataset)
+    api.include_router(rotte_comfy)
 
     @api.get("/api/{resto:path}")
     async def api_sconosciuta(resto: str):

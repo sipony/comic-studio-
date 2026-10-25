@@ -1,0 +1,165 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {"title": "Modello SDXL (cambia con il tuo)"},
+    "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}
+  },
+  "2": {
+    "class_type": "LoadImage",
+    "_meta": {"title": "Immagine di riferimento del personaggio"},
+    "inputs": {"image": "personaggio.png"}
+  },
+  "3": {
+    "class_type": "PrepImageForClipVision",
+    "_meta": {"title": "Prepara riferimento"},
+    "inputs": {
+      "image": ["2", 0],
+      "interpolation": "LANCZOS",
+      "crop_position": "top",
+      "sharpening": 0.0
+    }
+  },
+  "4": {
+    "class_type": "IPAdapterUnifiedLoader",
+    "_meta": {"title": "IPAdapter loader"},
+    "inputs": {
+      "model": ["1", 0],
+      "preset": "PLUS (high strength)"
+    }
+  },
+  "5": {
+    "class_type": "IPAdapterAdvanced",
+    "_meta": {"title": "Coerenza personaggio (weight 0.6-0.85)"},
+    "inputs": {
+      "model": ["4", 0],
+      "ipadapter": ["4", 1],
+      "image": ["3", 0],
+      "weight": 0.75,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0.0,
+      "end_at": 1.0,
+      "embeds_scaling": "V only"
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "Prompt negativo (comune)"},
+    "inputs": {
+      "clip": ["1", 1],
+      "text": "nsfw, nude, lowres, blurry, bad anatomy, bad hands, extra fingers, deformed, watermark, signature, text, speech bubble, multiple panels, frame, border, jpeg artifacts"
+    }
+  },
+  "7": {
+    "class_type": "EmptyLatentImage",
+    "_meta": {"title": "Formato vignetta"},
+    "inputs": {"width": 832, "height": 1216, "batch_size": 1}
+  },
+
+  "10": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "VIGNETTA 1 - prompt"},
+    "inputs": {
+      "clip": ["1", 1],
+      "text": "comic book panel, clean ink lines, flat colors, cel shading, a young woman with short red hair and a green jacket, walking alone down a rainy city street at night, neon reflections on wet asphalt, wide shot"
+    }
+  },
+  "11": {
+    "class_type": "KSampler",
+    "_meta": {"title": "VIGNETTA 1 - sampler"},
+    "inputs": {
+      "model": ["5", 0], "positive": ["10", 0], "negative": ["6", 0], "latent_image": ["7", 0],
+      "seed": 1001, "steps": 28, "cfg": 6.0, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0
+    }
+  },
+  "12": {"class_type": "VAEDecode", "inputs": {"samples": ["11", 0], "vae": ["1", 2]}},
+  "13": {"class_type": "SaveImage", "inputs": {"images": ["12", 0], "filename_prefix": "fumetto/vignetta_01"}},
+
+  "20": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "VIGNETTA 2 - prompt"},
+    "inputs": {
+      "clip": ["1", 1],
+      "text": "comic book panel, clean ink lines, flat colors, cel shading, a young woman with short red hair and a green jacket, pushing open the door of a dusty old bookshop, warm lamp light inside, medium shot"
+    }
+  },
+  "21": {
+    "class_type": "KSampler",
+    "_meta": {"title": "VIGNETTA 2 - sampler"},
+    "inputs": {
+      "model": ["5", 0], "positive": ["20", 0], "negative": ["6", 0], "latent_image": ["7", 0],
+      "seed": 1002, "steps": 28, "cfg": 6.0, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0
+    }
+  },
+  "22": {"class_type": "VAEDecode", "inputs": {"samples": ["21", 0], "vae": ["1", 2]}},
+  "23": {"class_type": "SaveImage", "inputs": {"images": ["22", 0], "filename_prefix": "fumetto/vignetta_02"}},
+
+  "30": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "VIGNETTA 3 - prompt"},
+    "inputs": {
+      "clip": ["1", 1],
+      "text": "comic book panel, clean ink lines, flat colors, cel shading, a young woman with short red hair and a green jacket, holding an ancient map that glows with blue light, over the shoulder shot, dramatic lighting"
+    }
+  },
+  "31": {
+    "class_type": "KSampler",
+    "_meta": {"title": "VIGNETTA 3 - sampler"},
+    "inputs": {
+      "model": ["5", 0], "positive": ["30", 0], "negative": ["6", 0], "latent_image": ["7", 0],
+      "seed": 1003, "steps": 28, "cfg": 6.0, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0
+    }
+  },
+  "32": {"class_type": "VAEDecode", "inputs": {"samples": ["31", 0], "vae": ["1", 2]}},
+  "33": {"class_type": "SaveImage", "inputs": {"images": ["32", 0], "filename_prefix": "fumetto/vignetta_03"}},
+
+  "40": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "VIGNETTA 4 - prompt"},
+    "inputs": {
+      "clip": ["1", 1],
+      "text": "comic book panel, clean ink lines, flat colors, cel shading, close-up of a young woman with short red hair, shocked expression, wide eyes, blue light on her face, speed lines background"
+    }
+  },
+  "41": {
+    "class_type": "KSampler",
+    "_meta": {"title": "VIGNETTA 4 - sampler"},
+    "inputs": {
+      "model": ["5", 0], "positive": ["40", 0], "negative": ["6", 0], "latent_image": ["7", 0],
+      "seed": 1004, "steps": 28, "cfg": 6.0, "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0
+    }
+  },
+  "42": {"class_type": "VAEDecode", "inputs": {"samples": ["41", 0], "vae": ["1", 2]}},
+  "43": {"class_type": "SaveImage", "inputs": {"images": ["42", 0], "filename_prefix": "fumetto/vignetta_04"}},
+
+  "50": {
+    "class_type": "EmptyImage",
+    "_meta": {"title": "Tavola bianca 2x2"},
+    "inputs": {"width": 1736, "height": 2504, "batch_size": 1, "color": 16777215}
+  },
+  "51": {
+    "class_type": "ImageCompositeMasked",
+    "_meta": {"title": "Posiziona vignetta 1"},
+    "inputs": {"destination": ["50", 0], "source": ["12", 0], "x": 24, "y": 24, "resize_source": false}
+  },
+  "52": {
+    "class_type": "ImageCompositeMasked",
+    "_meta": {"title": "Posiziona vignetta 2"},
+    "inputs": {"destination": ["51", 0], "source": ["22", 0], "x": 880, "y": 24, "resize_source": false}
+  },
+  "53": {
+    "class_type": "ImageCompositeMasked",
+    "_meta": {"title": "Posiziona vignetta 3"},
+    "inputs": {"destination": ["52", 0], "source": ["32", 0], "x": 24, "y": 1264, "resize_source": false}
+  },
+  "54": {
+    "class_type": "ImageCompositeMasked",
+    "_meta": {"title": "Posiziona vignetta 4"},
+    "inputs": {"destination": ["53", 0], "source": ["42", 0], "x": 880, "y": 1264, "resize_source": false}
+  },
+  "55": {
+    "class_type": "SaveImage",
+    "_meta": {"title": "Salva tavola"},
+    "inputs": {"images": ["54", 0], "filename_prefix": "fumetto/tavola"}
+  }
+}

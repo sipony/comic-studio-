@@ -1,0 +1,123 @@
+.larga {
+  max-width: 1600px;
+}
+.salvataggio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--mat-sys-on-surface-variant);
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+  &.errore {
+    color: var(--cs-errore-testo);
+  }
+  &.salvataggio mat-icon {
+    animation: gira 1s linear infinite;
+  }
+}
+@keyframes gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.personaggi {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px 0 4px;
+  border-radius: 20px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container);
+  color: var(--mat-sys-on-surface);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  img,
+  mat-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: top;
+    background: #fff;
+  }
+  mat-icon {
+    display: grid;
+    place-items: center;
+    background: var(--mat-sys-surface-container-highest);
+    font-size: 20px;
+  }
+  &.attivo {
+    border-color: var(--mat-sys-primary);
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+}
+
+.griglia {
+  display: grid;
+  grid-template-columns: minmax(380px, 480px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.colonna {
+  min-width: 0;
+}
+mat-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+mat-expansion-panel {
+  border-radius: 14px !important;
+  border: 1px solid var(--mat-sys-outline-variant);
+  --mat-expansion-container-background-color: var(--mat-sys-surface-container);
+}
+mat-panel-title {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+mat-panel-description {
+  justify-content: flex-end;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.n {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 10px;
+  border-radius: 50%;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.vuoto {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 48px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@media (max-width: 1100px) {
+  .griglia {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -15,6 +15,11 @@ export const routes: Routes = [
         loadComponent: () => import('./pagine/personaggi/personaggi').then((m) => m.PersonaggiPage),
       },
       {
+        path: 'dataset',
+        title: 'Dataset · Comic Studio',
+        loadComponent: () => import('./pagine/dataset/dataset').then((m) => m.DatasetPage),
+      },
+      {
         path: ':passo',
         loadComponent: () => import('./pagine/in-arrivo/in-arrivo').then((m) => m.InArrivoPage),
       },

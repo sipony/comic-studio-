@@ -1,0 +1,97 @@
+<section class="galleria">
+  <header>
+    <div class="conteggi">
+      <h2>Immagini</h2>
+      @if (riepilogo(); as r) {
+        <span class="tag tenuta" [class.raggiunto]="r.tenute >= daTenere()">{{ r.tenute }} / {{ daTenere() }} tenute</span>
+        <span class="tag">{{ r.totale }} totali</span>
+        @if (r.scartate) { <span class="tag scartata">{{ r.scartate }} scartate</span> }
+      }
+    </div>
+    <div class="azioni">
+      <button mat-flat-button (click)="selezioneAutomatica()" [disabled]="!immagini().length || !!lavoro()"
+        matTooltip="Tiene le immagini più somiglianti al riferimento, varie e senza doppioni. Le tue scelte manuali restano.">
+        <mat-icon>auto_awesome</mat-icon> Tieni le {{ daTenere() }} migliori
+      </button>
+      <button mat-icon-button [matMenuTriggerFor]="altro" aria-label="Altre azioni"><mat-icon>more_vert</mat-icon></button>
+      <mat-menu #altro="matMenu">
+        <button mat-menu-item (click)="eliminaScartate()" [disabled]="!riepilogo()?.scartate"><mat-icon>delete_sweep</mat-icon> Butta le scartate</button>
+        <button mat-menu-item (click)="ricarica.emit()"><mat-icon>refresh</mat-icon> Ricarica</button>
+      </mat-menu>
+    </div>
+  </header>
+
+  <div class="barra">
+    <div class="filtri" role="group" aria-label="Filtro">
+      <button [class.attivo]="filtro() === 'tutte'" (click)="filtro.set('tutte')">Tutte</button>
+      <button [class.attivo]="filtro() === 'tenuta'" (click)="filtro.set('tenuta')">Tenute</button>
+      <button [class.attivo]="filtro() === 'da_decidere'" (click)="filtro.set('da_decidere')">Da decidere</button>
+      <button [class.attivo]="filtro() === 'scartata'" (click)="filtro.set('scartata')">Scartate</button>
+    </div>
+    <div class="filtri" role="group" aria-label="Ordine">
+      <button [class.attivo]="ordine() === 'numero'" (click)="ordine.set('numero')">Più recenti</button>
+      <button [class.attivo]="ordine() === 'punteggio'" (click)="ordine.set('punteggio')" [disabled]="!haPunteggi()">Più somiglianti</button>
+    </div>
+    <button mat-icon-button (click)="grandi.set(!grandi())" [matTooltip]="grandi() ? 'Anteprime piccole' : 'Anteprime grandi'">
+      <mat-icon>{{ grandi() ? 'grid_view' : 'view_module' }}</mat-icon>
+    </button>
+  </div>
+
+  @if (visibili().length) {
+    <div class="griglia" [class.grandi]="grandi()">
+      @for (i of visibili(); track i.file) {
+        <figure class="foto" [class]="i.stato ?? 'nessuno'" (click)="aperta.set(i.file)">
+          <img [src]="url(i)" [alt]="i.variante" loading="lazy" />
+          <span class="numero">{{ i.numero }}</span>
+          @if (i.punteggio !== null) {
+            <span class="punti" matTooltip="Somiglianza al riferimento">{{ i.punteggio | number: '1.2-2' }}</span>
+          }
+          @if (i.manuale) { <span class="mano" matTooltip="Scelta a mano"><mat-icon>pan_tool</mat-icon></span> }
+          <div class="pulsanti">
+            <button (click)="stato(i, 'tenuta', $event)" [class.on]="i.stato === 'tenuta'" aria-label="Tieni"><mat-icon>check</mat-icon></button>
+            <button (click)="stato(i, 'scartata', $event)" [class.on]="i.stato === 'scartata'" aria-label="Scarta"><mat-icon>close</mat-icon></button>
+          </div>
+        </figure>
+      }
+    </div>
+  } @else {
+    <div class="vuoto">
+      <mat-icon>photo_library</mat-icon>
+      @if (immagini().length) {
+        <p>Nessuna immagine con questo filtro.</p>
+      } @else {
+        <p>Le immagini compariranno qui mentre vengono generate.</p>
+      }
+    </div>
+  }
+</section>
+
+@if (corrente(); as c) {
+  <div class="lightbox" (click)="aperta.set(null)" role="dialog" aria-modal="true">
+    <div class="contenuto" (click)="$event.stopPropagation()">
+      <img [src]="url(c, false)" [alt]="c.variante" />
+      <aside>
+        <div class="testa">
+          <h3>Immagine {{ c.numero }}</h3>
+          <button mat-icon-button (click)="aperta.set(null)" aria-label="Chiudi"><mat-icon>close</mat-icon></button>
+        </div>
+        <dl>
+          <dt>Inquadratura</dt><dd>{{ c.inquadratura || '—' }}</dd>
+          <dt>Dimensioni</dt><dd>{{ c.larghezza }}×{{ c.altezza }}</dd>
+          <dt>Seme</dt><dd class="mono">{{ c.seme }}</dd>
+          @if (c.punteggio !== null) { <dt>Somiglianza</dt><dd>{{ c.punteggio | number: '1.3-3' }}</dd> }
+          <dt>Prompt</dt><dd class="prompt">{{ c.prompt }}</dd>
+        </dl>
+        <div class="scelta">
+          <button mat-flat-button [class.tenuta]="c.stato === 'tenuta'" (click)="stato(c, 'tenuta')"><mat-icon>check</mat-icon> Tieni (T)</button>
+          <button mat-stroked-button [class.scartata]="c.stato === 'scartata'" (click)="stato(c, 'scartata')"><mat-icon>close</mat-icon> Scarta (S)</button>
+        </div>
+        <div class="naviga">
+          <button mat-icon-button (click)="sposta(-1)" aria-label="Precedente"><mat-icon>chevron_left</mat-icon></button>
+          <span>← → per scorrere</span>
+          <button mat-icon-button (click)="sposta(1)" aria-label="Successiva"><mat-icon>chevron_right</mat-icon></button>
+        </div>
+      </aside>
+    </div>
+  </div>
+}
