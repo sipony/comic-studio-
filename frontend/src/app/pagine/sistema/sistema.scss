@@ -230,10 +230,30 @@ h2 {
   border-radius: 14px;
   background: color-mix(in srgb, var(--cs-errore) 10%, var(--mat-sys-surface-container));
   border: 1px solid color-mix(in srgb, var(--cs-errore) 35%, transparent);
+  flex-wrap: wrap;
   &.ok {
     background: color-mix(in srgb, var(--cs-ok) 10%, var(--mat-sys-surface-container));
     border-color: color-mix(in srgb, var(--cs-ok) 35%, transparent);
   }
+  &.attesa {
+    background: color-mix(in srgb, var(--cs-avviso) 10%, var(--mat-sys-surface-container));
+    border-color: color-mix(in srgb, var(--cs-avviso) 35%, transparent);
+  }
+  .testo-stato {
+    flex: 1 1 260px;
+    min-width: 0;
+    .nota {
+      overflow-wrap: anywhere;
+    }
+  }
+  .azioni-stato {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+}
+.avanzate {
+  align-self: flex-start;
 }
 
 .modulo {
@@ -246,6 +266,9 @@ h2 {
   }
   .largo {
     flex: 3 1 360px;
+  }
+  .corto {
+    flex: 0 1 170px;
   }
   button {
     margin-top: 8px;

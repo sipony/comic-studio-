@@ -2,10 +2,16 @@
 
 ## 1. Primo avvio
 
-1. Avvia ComfyUI come fai di solito.
-2. Avvia Comic Studio (`avvia.bat`, `avvia.command` o `./avvia.sh`). Si apre il browser.
-3. Il programma cerca ComfyUI da solo e controlla il sistema. In alto a destra vedi lo stato:
-   pallino verde = connesso, con il nome della GPU e la VRAM.
+1. Avvia Comic Studio (`avvia.bat`, `avvia.command` o `./avvia.sh`). Si apre il browser.
+2. Il programma cerca ComfyUI da solo: se è già aperto ci si aggancia, altrimenti **lo avvia lui** e aspetta
+   che sia pronto (la prima volta può volerci qualche minuto; in console vedi cosa scrive ComfyUI).
+3. Poi controlla il sistema. In alto a destra vedi lo stato: pallino giallo = in avvio, verde = connesso,
+   con il nome della GPU e la VRAM.
+
+In **Sistema → Connessione a ComfyUI** trovi i pulsanti **Avvia**, **Riavvia** (utile dopo aver installato custom
+node o modelli) e **Ferma**, l'interruttore dell'avvio automatico e gli **argomenti in più** (es. `--lowvram`).
+ComfyUI resta acceso anche se chiudi Comic Studio. Se usi un tuo file di avvio (es. `run_nvidia_gpu.bat`),
+scrivilo in **Opzioni avanzate → Comando di avvio personalizzato**.
 
 Se ComfyUI non viene trovato: pagina **Sistema → Connessione a ComfyUI**, inserisci l'indirizzo
 (di solito `http://127.0.0.1:8188`, oppure `:8000` per l'app Desktop) e la cartella che contiene

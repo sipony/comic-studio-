@@ -36,6 +36,10 @@ export interface StatoComfy {
   vram_totale: number | null;
   vram_libera: number | null;
   errore: string | null;
+  in_avvio: boolean;
+  avviato_da_noi: boolean;
+  pid: number | null;
+  avvio_automatico: boolean;
 }
 
 export interface Installazione {
@@ -53,7 +57,14 @@ export interface Impostazioni {
   comfy_dir: string | null;
   cartella_progetti: string;
   ultimo_progetto: string | null;
+  avvio_automatico: boolean;
+  argomenti_comfy: string;
+  comando_comfy: string | null;
+  attesa_avvio: number;
 }
+
+export type ImpostazioniAvvio = Partial<Pick<Impostazioni,
+  'avvio_automatico' | 'argomenti_comfy' | 'comando_comfy' | 'attesa_avvio'>>;
 
 export interface VoceControllo {
   categoria: string;

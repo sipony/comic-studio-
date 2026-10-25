@@ -33,6 +33,7 @@ backend/app/
   fumetto.py              Step 4: pagine e vignette, workflow delle scene, balloon, tavole, PDF, storia da testo
   rotte_fumetto.py        API e lavori dello Step 4
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
+  comfy/avvio.py          avvio e arresto di ComfyUI (comando per tipo di installazione, registro, PID)
   comfy/client.py         client asincrono per l'API di ComfyUI
 backend/tests/            pytest; finto_comfy.py simula ComfyUI (HTTP + WebSocket)
 frontend/src/app/
@@ -51,7 +52,10 @@ docs/                     questa documentazione
 
 ```
 ~/ComicStudio/                       (COMIC_STUDIO_HOME)
-  impostazioni.json                  comfy_url, comfy_dir, cartella_progetti, ultimo_progetto
+  impostazioni.json                  comfy_url, comfy_dir, cartella_progetti, ultimo_progetto,
+                                     avvio_automatico, argomenti_comfy, comando_comfy, attesa_avvio
+  comfyui.log                        uscita del ComfyUI avviato da Comic Studio
+  comfyui.pid                        PID (e ora di creazione) del ComfyUI avviato da Comic Studio
   strumenti/sd-scripts/              kohya sd-scripts con il suo venv
   progetti/
     <id-progetto>/
@@ -89,7 +93,11 @@ docs/                     questa documentazione
 | GET | `/api/sistema` | versione, impostazioni, stato ComfyUI, installazioni trovate, ultimo controllo |
 | POST | `/api/comfy/cerca` | avvia la ricerca di ComfyUI (lavoro) |
 | POST | `/api/comfy/usa` | `{url, cartella}` imposta l'installazione da usare |
-| GET | `/api/comfy/stato` | ricontrolla la connessione |
+| GET | `/api/comfy/stato` | ricontrolla la connessione (con `in_avvio`, `avviato_da_noi`, `pid`) |
+| POST | `/api/comfy/avvia` | si aggancia se è attivo, altrimenti avvia ComfyUI e aspetta che sia pronto (lavoro) |
+| POST | `/api/comfy/riavvia` | ferma e riavvia il ComfyUI avviato da Comic Studio (lavoro) |
+| POST | `/api/comfy/ferma` | ferma il ComfyUI avviato da Comic Studio (lavoro; 409 se l'ha aperto l'utente) |
+| POST | `/api/comfy/avvio` | `{avvio_automatico, argomenti_comfy, comando_comfy, attesa_avvio}` |
 | GET | `/api/comfy/modelli` | checkpoint, LoRA, VAE, ControlNet, CLIP Vision, IPAdapter, upscaler |
 | GET / POST | `/api/diagnostica` | ultimo controllo del sistema / avvia un controllo (`?rete=false` senza aggiornamenti) |
 | GET / POST | `/api/progetti` | elenco / crea `{nome, descrizione}` |

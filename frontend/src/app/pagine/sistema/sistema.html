@@ -14,7 +14,7 @@
     </div>
   </div>
 
-  @if (inControllo(); as l) {
+  @if (inCorso(); as l) {
     <div class="in-corso">
       <span>{{ l.titolo }} — {{ l.testo || 'avvio' }}</span>
       <mat-progress-bar mode="determinate" [value]="l.progresso * 100" />
@@ -137,17 +137,75 @@
 
     <!-- ======================= CONNESSIONE ======================= -->
     <mat-tab label="Connessione a ComfyUI">
-      <section class="stato-connessione" [class.ok]="eventi.comfy()?.connesso">
-        <mat-icon>{{ eventi.comfy()?.connesso ? 'link' : 'link_off' }}</mat-icon>
-        <div>
-          @if (eventi.comfy()?.connesso) {
-            <div class="valore">Connesso a ComfyUI {{ eventi.comfy()?.versione }}</div>
-            <div class="nota">{{ eventi.comfy()?.url }} · {{ eventi.comfy()?.cartella }}</div>
+      @let c = eventi.comfy();
+      <section class="stato-connessione" [class.ok]="c?.connesso" [class.attesa]="c?.in_avvio || !!lavoroComfy()">
+        <mat-icon>{{ c?.connesso ? 'link' : (c?.in_avvio ? 'hourglass_top' : 'link_off') }}</mat-icon>
+        <div class="testo-stato">
+          @if (c?.connesso) {
+            <div class="valore">Connesso a ComfyUI {{ c?.versione }}</div>
+            <div class="nota">
+              {{ c?.url }} · {{ c?.cartella }} ·
+              {{ c?.avviato_da_noi ? 'avviato da Comic Studio' : 'aperto da te, Comic Studio ci si è agganciato' }}
+            </div>
+          } @else if (c?.in_avvio) {
+            <div class="valore">ComfyUI si sta avviando…</div>
+            <div class="nota">La prima volta può volerci qualche minuto. L'uscita di ComfyUI compare nella console.</div>
           } @else {
             <div class="valore">Non connesso</div>
-            <div class="nota">{{ eventi.comfy()?.errore }}</div>
+            <div class="nota">{{ c?.errore }}</div>
           }
         </div>
+        <div class="azioni-stato">
+          @if (!c?.connesso && !c?.in_avvio) {
+            <button mat-flat-button (click)="avviaComfy()" [disabled]="!!lavoroComfy()">
+              <mat-icon>play_arrow</mat-icon> Avvia ComfyUI
+            </button>
+          }
+          @if (c?.avviato_da_noi && !c?.in_avvio) {
+            <button mat-stroked-button (click)="riavviaComfy()" [disabled]="!!lavoroComfy()"
+              matTooltip="Utile dopo aver installato custom node o modelli nuovi">
+              <mat-icon>restart_alt</mat-icon> Riavvia
+            </button>
+            <button mat-stroked-button (click)="fermaComfy()" [disabled]="!!lavoroComfy()">
+              <mat-icon>stop</mat-icon> Ferma
+            </button>
+          }
+        </div>
+      </section>
+
+      <section class="categoria">
+        <h2><mat-icon>rocket_launch</mat-icon> Avvio di ComfyUI</h2>
+        <mat-slide-toggle [checked]="avvioAutomatico()" (change)="salvaAvvio({ avvio_automatico: $event.checked })">
+          Avvia ComfyUI da solo quando apro Comic Studio (se è già aperto, ci si aggancia)
+        </mat-slide-toggle>
+        <p class="nota-fine">
+          ComfyUI gira per conto suo: chiudere Comic Studio non lo chiude, e alla riapertura ci si riaggancia.
+        </p>
+        <div class="modulo">
+          <mat-form-field class="largo">
+            <mat-label>Argomenti in più</mat-label>
+            <input matInput [ngModel]="argomenti()" (ngModelChange)="argomenti.set($event)" placeholder="--lowvram --preview-method auto" />
+            <mat-hint>Facoltativi. Con poca VRAM prova --lowvram; senza scheda NVIDIA --cpu</mat-hint>
+          </mat-form-field>
+          <button mat-stroked-button (click)="salvaAvvio()"><mat-icon>save</mat-icon> Salva</button>
+        </div>
+        <button mat-button class="avanzate" (click)="mostraAvanzate.set(!mostraAvanzate())">
+          <mat-icon>{{ mostraAvanzate() ? 'expand_less' : 'expand_more' }}</mat-icon> Opzioni avanzate
+        </button>
+        @if (mostraAvanzate()) {
+          <div class="modulo">
+            <mat-form-field class="largo">
+              <mat-label>Comando di avvio personalizzato</mat-label>
+              <input matInput [ngModel]="comando()" (ngModelChange)="comando.set($event)" placeholder="C:\ComfyUI\run_nvidia_gpu.bat" />
+              <mat-hint>Vuoto = Comic Studio sceglie da solo il comando giusto per la tua installazione</mat-hint>
+            </mat-form-field>
+            <mat-form-field class="corto">
+              <mat-label>Attesa massima (s)</mat-label>
+              <input matInput type="number" min="30" max="1800" [ngModel]="attesa()" (ngModelChange)="attesa.set($event)" />
+            </mat-form-field>
+            <button mat-stroked-button (click)="salvaAvvio()"><mat-icon>save</mat-icon> Salva</button>
+          </div>
+        }
       </section>
 
       <section class="categoria">

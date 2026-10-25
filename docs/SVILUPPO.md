@@ -16,9 +16,11 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 2 | Step 1 Dataset: caricamento e analisi dei workflow (formato UI e API), associazione dei nodi, varianti, generazione con avanzamento, galleria, selezione automatica per somiglianza | ✅ unita |
 | 3 | Step 2 Didascalie: tagger WD14, trigger word, tabella delle frequenze dei tag, modifica per immagine | ✅ unita |
 | 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | ✅ unita |
-| 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona), balloon, tavole, PDF | ✅ questa PR |
-| 6 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 7 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona), balloon, tavole, PDF | ✅ unita |
+| 6 | Avvio di ComfyUI da Comic Studio: aggancio se è già attivo, altrimenti avvio automatico (portable, Desktop, manuale o comando a mano), uscita nella console, Avvia / Riavvia / Ferma | ✅ questa PR |
+| 7 | Installer per Windows, macOS e Linux: doppio clic, senza terminale, con Python e interfaccia già dentro | da fare |
+| 8 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 9 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -224,5 +226,37 @@ Fatto:
 
 Non ancora verificato: la resa delle scene di gruppo su un ComfyUI vero (dipende dal checkpoint e dai LoRA).
 
-Prossimo passo: PR 6, pose guidate e costruttore di workflow.
+Prossimo passo: PR 6, avvio di ComfyUI da Comic Studio.
+
+## PR 6 — Avvio di ComfyUI
+
+Richiesta: «voglio che sia il mio programma ad avviare ComfyUI, e se è già attivo che vi si agganci».
+
+Fatto:
+
+- **All'apertura** (`App.avvio` in `backend/app/state.py`): trova ComfyUI come prima; se risponde ci si aggancia,
+  altrimenti, con l'avvio automatico attivo (predefinito), lo avvia e aspetta che sia pronto, poi fa il controllo
+  del sistema. Se è aperto su un'altra porta lo riconosce dalla cartella (argv di `/system_stats`) e si aggancia lì
+- **Comando giusto per ogni installazione** (`backend/app/comfy/avvio.py`):
+  - portable: `python_embeded/python.exe -s ComfyUI/main.py --windows-standalone-build --port N`
+  - manuale: il Python del suo `venv`/`.venv` (o quello di sistema) con `main.py --port N`
+  - Desktop: l'app ComfyUI (Windows `%LOCALAPPDATA%\Programs\@comfyorgcomfyui-electron\ComfyUI.exe`, macOS `open -a ComfyUI`)
+  - oppure un comando scritto a mano (es. il proprio `run_nvidia_gpu.bat`), più argomenti extra (`--lowvram`, …)
+- **Processo staccato**: chiudere Comic Studio non chiude ComfyUI; il PID (con l'ora di creazione, contro il riuso
+  dei PID) è salvato in `comfyui.pid`, così alla riapertura Comic Studio lo riconosce come suo e può ancora fermarlo
+- **Uscita di ComfyUI nella console**: va in `~/ComicStudio/comfyui.log` e compare con il prefisso `ComfyUI ›`;
+  avvisi e traceback colorati, il resto nei «Dettagli»
+- **Errori spiegati**: se ComfyUI si chiude durante l'avvio, il messaggio dice perché (pacchetto mancante, porta
+  occupata, PyTorch senza CUDA, memoria esaurita) leggendo le ultime righe; attesa massima regolabile (300 s)
+- **Interfaccia**: Sistema → Connessione ha Avvia / Riavvia / Ferma, l'interruttore dell'avvio automatico,
+  gli argomenti in più e, nelle opzioni avanzate, il comando personalizzato; il chip in alto mostra «in avvio…».
+  Si può fermare solo un ComfyUI avviato da Comic Studio (quello aperto a mano si chiude dalla sua finestra)
+- **API**: `POST /api/comfy/avvia`, `/ferma`, `/riavvia` (lavori), `POST /api/comfy/avvio` (impostazioni)
+- **Test**: 77 test backend; un finto `main.py` vero e proprio (server HTTP) viene avviato, seguito nel registro,
+  riavviato e fermato; aggancio a un ComfyUI già attivo; avvio automatico all'apertura e con l'opzione spenta;
+  errore chiaro se ComfyUI si chiude subito; comandi per portable, manuale, Desktop e personalizzato
+
+Non ancora verificato: l'avvio della portable e dell'app Desktop su un Windows vero.
+
+Prossimo passo: PR 7, installer per Windows, macOS e Linux.
 
