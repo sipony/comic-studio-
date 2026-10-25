@@ -13,6 +13,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
+import { apribile } from '../../core/link';
 import { Esito, Installazione, PromptScena, StatoIA, VoceControllo, gb } from '../../core/modelli';
 
 const ORDINE_CATEGORIE = ['Hardware', 'Software', 'Custom node', 'Modelli di supporto', 'Aggiornamenti'];
@@ -256,6 +257,10 @@ export class SistemaPage {
 
   protected inUso(i: Installazione): boolean {
     return i.cartella === this.eventi.comfy()?.cartella;
+  }
+
+  protected apri(url: string): string {
+    return apribile(url);
   }
 
   protected icona(e: Esito): string {

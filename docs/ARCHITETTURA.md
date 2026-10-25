@@ -44,7 +44,8 @@ backend/app/
   comfy/client.py         client asincrono per l'API di ComfyUI
 backend/tests/            pytest; finto_comfy.py simula ComfyUI (HTTP + WebSocket)
 frontend/src/app/
-  core/                   servizi: api, eventi (WebSocket), progetto, avvisi; tipi condivisi
+  core/                   servizi: api, eventi (WebSocket), progetto, avvisi; tipi condivisi;
+                          link.ts: indirizzi cliccabili nella console
   shell/console.*         console in basso con avanzamento
   pagine/                 sistema, progetti, progetto (contenitore), personaggi, dataset, in-arrivo
   pagine/dataset/         sezione-workflow, sezione-prompt, sezione-genera, galleria

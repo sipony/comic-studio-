@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../core/api.service';
 import { AvvisiService } from '../core/avvisi.service';
 import { EventiService } from '../core/eventi.service';
+import { eComfy, Parte, spezzaLink } from '../core/link';
 import { Livello } from '../core/modelli';
 
 type Filtro = 'normale' | 'problemi' | 'tutto';
@@ -45,6 +46,23 @@ export class ConsoleComponent {
   protected filtro = signal<Filtro>((leggi('console.filtro', 'normale') as Filtro));
   protected cerca = signal('');
   protected segui = signal(true);
+
+  private cacheLink = new Map<string, Parte[]>();
+
+  /** Il messaggio diviso in testo e indirizzi cliccabili (in memoria: le righe non cambiano). */
+  protected parti(msg: string): Parte[] {
+    let p = this.cacheLink.get(msg);
+    if (!p) {
+      if (this.cacheLink.size > 3000) this.cacheLink.clear();
+      p = spezzaLink(msg);
+      this.cacheLink.set(msg, p);
+    }
+    return p;
+  }
+
+  protected eComfy(href: string): boolean {
+    return eComfy(href, this.eventi.comfy()?.url);
+  }
 
   protected lavoro = computed(() => this.eventi.attivi()[0] ?? null);
   protected altriAttivi = computed(() => Math.max(0, this.eventi.attivi().length - 1));

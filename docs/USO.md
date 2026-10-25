@@ -128,6 +128,8 @@ quello. Riaprendo l'icona la pagina si riattiva da sola. Se qualcosa va storto a
 
 In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, in futuro, dell'addestramento.
 
+- gli **indirizzi** nei messaggi sono cliccabili: quello di ComfyUI (es. `http://127.0.0.1:8188`) apre ComfyUI
+  nel browser; c'è anche il pulsante ↗ accanto allo stato di ComfyUI in alto
 - **Normale / Problemi / Dettagli** filtra i messaggi (Dettagli mostra anche i dati tecnici degli errori)
 - la barra mostra il lavoro in corso con la percentuale; il pulsante ⏹ lo annulla
 - trascina il bordo superiore per ingrandirla, fai clic su *Console* per chiuderla

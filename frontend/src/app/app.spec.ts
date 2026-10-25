@@ -25,3 +25,32 @@ describe('gb', () => {
     expect(gb(null)).toBe('—');
   });
 });
+
+import { apribile, eComfy, spezzaLink } from './core/link';
+
+describe('indirizzi cliccabili nella console', () => {
+  it('trova gli indirizzi di ComfyUI nei messaggi', () => {
+    const p = spezzaLink('Connesso a ComfyUI 0.9.9 su http://127.0.0.1:8188 — GPU RTX 4070', 'localhost');
+    expect(p.map((x) => x.testo)).toEqual(['Connesso a ComfyUI 0.9.9 su ', 'http://127.0.0.1:8188', ' — GPU RTX 4070']);
+    expect(p[1].href).toBe('http://127.0.0.1:8188/');
+  });
+
+  it('accetta ip:porta senza schema e toglie la punteggiatura finale', () => {
+    const p = spezzaLink('ComfyUI › To see the GUI go to: 0.0.0.0:8188.', 'localhost');
+    expect(p[1]).toEqual({ testo: '0.0.0.0:8188', href: 'http://127.0.0.1:8188/' });
+    expect(p[2].testo).toBe('.');
+  });
+
+  it('lascia stare il testo senza indirizzi', () => {
+    expect(spezzaLink('Nessun indirizzo qui, solo 12:30')).toEqual([{ testo: 'Nessun indirizzo qui, solo 12:30' }]);
+  });
+
+  it('da un altro computer della rete punta all\'host di Comic Studio', () => {
+    expect(apribile('http://127.0.0.1:8188', '192.168.1.20')).toBe('http://192.168.1.20:8188/');
+  });
+
+  it('riconosce ComfyUI', () => {
+    expect(eComfy('http://127.0.0.1:8188/', 'http://127.0.0.1:8188')).toBe(true);
+    expect(eComfy('http://127.0.0.1:8765/', 'http://127.0.0.1:8188')).toBe(false);
+  });
+});
