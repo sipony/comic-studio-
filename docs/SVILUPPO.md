@@ -14,8 +14,8 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | --- | --- | --- |
 | 1 | Base: backend, interfaccia, progetti e personaggi, ricerca automatica di ComfyUI, controllo del sistema, console e avanzamento, avvio multipiattaforma, CI | ✅ unita |
 | 2 | Step 1 Dataset: caricamento e analisi dei workflow (formato UI e API), associazione dei nodi, varianti, generazione con avanzamento, galleria, selezione automatica per somiglianza | ✅ unita |
-| 3 | Step 2 Didascalie: tagger WD14, trigger word, tabella delle frequenze dei tag, modifica per immagine | ✅ questa PR |
-| 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | da fare |
+| 3 | Step 2 Didascalie: tagger WD14, trigger word, tabella delle frequenze dei tag, modifica per immagine | ✅ unita |
+| 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | ✅ questa PR |
 | 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona + pose), balloon, tavole | da fare |
 | 6 | Costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
 | 7 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
@@ -61,6 +61,15 @@ salvano con la loro probabilità, così cambiare la soglia non richiede di riana
 nell'immagine viene assorbito dalla trigger word: per questo i tratti della descrizione del personaggio
 (capelli, divisa…) vengono tolti in automatico e quelli dell'aspetto presenti in quasi tutte le immagini
 vengono segnalati come «fisso?».
+
+**kohya con un ambiente Python suo.** kohya vuole versioni precise di PyTorch e delle sue librerie (Python
+3.10 consigliato, `torch==2.6.0` con CUDA 12.4): vive in `<cartella dati>/strumenti/sd-scripts` con il suo
+`venv`, separato da quello del programma e da quello di ComfyUI, così nessuno rompe l'altro. Si lancia
+`sdxl_train_network.py` direttamente (niente `accelerate config`), leggendo l'uscita riga per riga.
+
+**La scelta dell'epoca si fa guardando, aiutati dal punteggio.** Il programma prova alcune epoche con gli stessi
+prompt e semi e calcola la somiglianza al riferimento; consiglia la prima epoca quasi buona quanto la migliore,
+perché le ultime tendono a «cuocere» il LoRA. La decisione finale resta a te.
 
 **Eliminazioni nel cestino.** Progetti e personaggi eliminati vengono spostati in `progetti/.cestino`.
 
@@ -158,5 +167,31 @@ Fatto:
 
 Non ancora verificato: il tagger vero (da qui non si può scaricare).
 
-Prossimo passo: PR 4, Step 3 Addestramento.
+## PR 4 — Step 3 Addestramento
+
+Fatto:
+
+- **Installazione di kohya sd-scripts con un clic** (`backend/app/addestramento.py`, `rotte_addestramento.py`):
+  clona il repository (o scarica lo zip se Git manca), crea l'ambiente con un Python 3.10-3.12, installa
+  PyTorch 2.6 adatto alla macchina (CUDA 12.4 con NVIDIA, MPS su Mac, CPU altrimenti) e le librerie; verifica
+  che PyTorch veda la GPU. Pulsanti per aggiornare e reinstallare
+- **Parametri** con preset scelto in base alla VRAM: «8 GB sicuro» (fp8, rank 16, Adafactor, solo UNet, cache del
+  text encoder), «Equilibrato», «Qualità»; tutti i parametri avanzati (alpha, learning rate, ottimizzatore,
+  scheduler, warmup, risoluzione, batch, ripetizioni, min SNR, noise offset, text encoder, mescola tag, argomenti
+  extra); conto dei passi immagini × ripetizioni × epoche
+- **Addestramento** come lavoro GPU: esporta il dataset con le didascalie, fa liberare la memoria a ComfyUI, lancia
+  kohya e legge in diretta passo, epoca, velocità, tempo rimanente e loss (anche le righe di tqdm con `\r`);
+  grafico della loss; si ferma terminando anche i processi figli; errori spiegati (memoria esaurita, librerie
+  mancanti, GPU non vista, checkpoint rovinato); le epoche precedenti vanno nel cestino
+- **Prova delle epoche** con ComfyUI: copia le epoche scelte in `models/loras/comic_studio`, genera i prompt di prova
+  (modificabili) con gli stessi semi, punteggio di somiglianza e epoca consigliata; confronto affiancato
+- **Scelta del LoRA finale**: copiato come `comic_studio/<trigger>.safetensors`, pronto per lo Step 4; oppure
+  si usa un LoRA già esistente (per esempio addestrato online con lo zip dello Step 2)
+- **Test**: 62 test backend (comando di kohya e preset, lettura dell'uscita reale di kohya, epoche, comandi di
+  installazione, lettura dei processi anche nel modo di riserva per Windows, flusso completo con un kohya simulato: addestramento, errore di memoria, prova e scelta);
+  collaudo dell'interfaccia con Playwright
+
+Non ancora verificato: l'installazione e l'addestramento veri su Windows con la GPU dell'utente.
+
+Prossimo passo: PR 5, Step 4 Fumetto.
 

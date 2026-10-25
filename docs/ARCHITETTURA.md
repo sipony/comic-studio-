@@ -28,6 +28,8 @@ backend/app/
   rotte_dataset.py        API e lavori dello Step 1
   didascalie.py           Step 2: tagger WD14, composizione delle didascalie, esportazione
   rotte_didascalie.py     API e lavori dello Step 2
+  addestramento.py        Step 3: kohya (installazione, comando, lettura dell'uscita), parametri, epoche
+  rotte_addestramento.py  API e lavori dello Step 3
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
   comfy/client.py         client asincrono per l'API di ComfyUI
 backend/tests/            pytest; finto_comfy.py simula ComfyUI (HTTP + WebSocket)
@@ -38,6 +40,7 @@ frontend/src/app/
   pagine/dataset/         sezione-workflow, sezione-prompt, sezione-genera, galleria
   pagine/didascalie/      Step 2
   shell/scelta-personaggio  selettore del personaggio comune agli step
+  pagine/addestramento/   Step 3 e grafico della loss
 docs/                     questa documentazione
 ```
 
@@ -46,7 +49,7 @@ docs/                     questa documentazione
 ```
 ~/ComicStudio/                       (COMIC_STUDIO_HOME)
   impostazioni.json                  comfy_url, comfy_dir, cartella_progetti, ultimo_progetto
-  strumenti/sd-scripts/              kohya (PR 4)
+  strumenti/sd-scripts/              kohya sd-scripts con il suo venv
   progetti/
     <id-progetto>/
       progetto.json                  nome, descrizione, personaggi[]
@@ -61,6 +64,13 @@ docs/                     questa documentazione
         config.json                  fonte dei tag, soglia, tag tolti/aggiunti/sostituiti, massimo
         tag.json                     tag del tagger con probabilità, per immagine
         manuali.json                 didascalie scritte a mano
+      personaggi/<id>/addestramento/
+        config.json  stato.json      parametri / LoRA scelto, esito, test delle epoche
+        loss.json                    punti [passo, loss]
+        dataset/  dataset.toml       immagini + .txt esportati per kohya
+        uscita/                      epoche: <trigger>-000001.safetensors … <trigger>.safetensors
+        test/                        immagini di prova delle epoche
+        comando.txt                  il comando di kohya usato
   modelli/                           CLIP per la somiglianza e tagger WD14 (scaricati al primo uso)
     .cestino/                        progetti e personaggi eliminati
 ```
@@ -98,6 +108,14 @@ docs/                     questa documentazione
 | POST | `…/didascalie/analizza` | `{tutte}` tag automatici con WD14 (lavoro) |
 | PUT / DELETE | `…/didascalie/immagini/{file}` | `{testo}` didascalia a mano / torna a quella automatica |
 | GET | `…/didascalie/zip` | dataset con immagini e `.txt` |
+| GET / POST | `/api/kohya` / `/api/kohya/installa` | stato del trainer / installa o aggiorna (`{reinstalla}`) |
+| GET / PUT | `…/addestramento` / `…/addestramento/config` | parametri, epoche, loss, stato / salva i parametri |
+| POST | `…/addestramento/preset` | `{preset}` applica un preset |
+| POST | `…/addestramento/avvia` | avvia l'addestramento (lavoro GPU) |
+| PUT | `…/addestramento/prompt-test` | prompt di prova delle epoche |
+| POST | `…/addestramento/prova` | `{epoche}` prova le epoche con ComfyUI (lavoro GPU) |
+| GET | `…/addestramento/test/{file}` | immagine di prova |
+| POST | `…/addestramento/scegli` / `…/addestramento/esistente` | `{epoca}` LoRA finale / `{lora}` LoRA già esistente |
 | GET | `/api/comfy/nodi?classi=A,B` | definizioni dei nodi (per l'editor dei parametri) |
 | GET | `/api/lavori` | lavori recenti |
 | POST | `/api/lavori/{id}/annulla` | annulla un lavoro |
@@ -118,6 +136,8 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `diagnostica` | nuovo rapporto del controllo del sistema |
 | `dataset` | `progetto`, `personaggio`, `azione` (nuova, stato, elenco), `immagine` |
 | `didascalie` | `progetto`, `personaggio`: tag analizzati, da ricaricare |
+| `addestramento` | `punto` [passo, loss], `passo`, `totale`, `epoca`, `velocita`, `rimanente`; `epoche_cambiate`, `test` |
+| `kohya` | trainer installato o aggiornato |
 
 ## Lavori
 

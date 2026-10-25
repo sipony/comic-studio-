@@ -1,0 +1,291 @@
+<div class="pagina larga">
+  <div class="intestazione">
+    <div>
+      <h1>Step 3 · Addestramento</h1>
+      <p class="sotto">
+        Con il dataset e le didascalie si addestra un LoRA per ogni personaggio. Poi si provano le epoche salvate
+        e si sceglie quella che somiglia di più senza copiare sempre le stesse pose.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================== TRAINER ============================== -->
+  <section class="scheda trainer" [class.ok]="kohya()?.installato && !kohya()?.errore">
+    <mat-icon class="icona">{{ kohya()?.installato ? 'check_circle' : 'download' }}</mat-icon>
+    <div class="testo">
+      <h2>Trainer: kohya sd-scripts</h2>
+      @if (kohya(); as k) {
+        @if (k.installato) {
+          <p>
+            PyTorch {{ k.torch ?? '?' }} ·
+            @if (k.cuda) { {{ k.gpu || 'GPU NVIDIA' }} pronta } @else if (k.mps) { Apple MPS } @else { <span class="avviso">GPU non vista</span> }
+            @if (k.commit) { · versione {{ k.commit }} }
+          </p>
+          @if (k.errore) { <p class="avviso">{{ k.errore }}</p> }
+        } @else {
+          <p>Non installato. L'installazione è automatica: scarica kohya, PyTorch e le librerie (circa 3 GB, 10-20 minuti).
+            Servono Python 3.10-3.12 e preferibilmente Git.</p>
+        }
+      }
+      @if (lavoroKohya(); as l) {
+        <div class="in-corso">
+          <span>{{ l.testo || 'avvio' }}</span>
+          <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
+          <button mat-icon-button (click)="ferma(l.id)" aria-label="Ferma"><mat-icon>stop</mat-icon></button>
+        </div>
+      }
+    </div>
+    @if (!lavoroKohya()) {
+      <div class="azioni">
+        @if (kohya()?.installato) {
+          <button mat-stroked-button (click)="installa(false)" matTooltip="Scarica l'ultima versione di kohya e aggiorna le librerie">
+            <mat-icon>update</mat-icon> Aggiorna
+          </button>
+          <button mat-button (click)="installa(true)">Reinstalla</button>
+        } @else {
+          <button mat-flat-button (click)="installa(false)"><mat-icon>download</mat-icon> Installa</button>
+        }
+      </div>
+    }
+  </section>
+
+  @if (!personaggi().length) {
+    <div class="vuoto"><p>Prima aggiungi i personaggi del progetto.</p></div>
+  } @else {
+    <app-scelta-personaggio [progetto]="progetto().id" [personaggi]="personaggi()" [(scelto)]="sceltoId" />
+
+    @if (dati(); as d) {
+      @if (config(); as c) {
+        <div class="griglia">
+          <!-- ============================== PARAMETRI ============================== -->
+          <section class="scheda">
+            <h2>Parametri</h2>
+            <mat-form-field>
+              <mat-label>Checkpoint di base</mat-label>
+              <mat-select [value]="c.checkpoint" (valueChange)="cambia('checkpoint', $event)">
+                @for (m of checkpoint(); track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+              </mat-select>
+              <mat-hint>Lo stesso che userai per il fumetto (SDXL, Pony o Illustrious)</mat-hint>
+            </mat-form-field>
+
+            <div class="preset">
+              @for (p of preset; track p.valore) {
+                <button [class.attivo]="c.preset === p.valore" (click)="scegliPreset(p.valore)">
+                  <strong>{{ p.etichetta }}</strong>
+                  <small>{{ p.descrizione }}</small>
+                  @if (d.preset_consigliato === p.valore) { <span class="consigliato">consigliato</span> }
+                </button>
+              }
+            </div>
+
+            <div class="tre">
+              <mat-form-field>
+                <mat-label>Epoche</mat-label>
+                <input matInput type="number" min="1" max="100" [value]="c.epoche" (change)="numero('epoche', $any($event.target).value)" />
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Passi obiettivo</mat-label>
+                <input matInput type="number" min="100" step="100" [value]="c.passi_obiettivo" (change)="numero('passi_obiettivo', $any($event.target).value)" />
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Rank</mat-label>
+                <mat-select [value]="c.rank" (valueChange)="cambia('rank', $event)">
+                  @for (r of [4, 8, 16, 32, 64, 128]; track r) { <mat-option [value]="r">{{ r }}</mat-option> }
+                </mat-select>
+              </mat-form-field>
+            </div>
+            <p class="conto">
+              <mat-icon>calculate</mat-icon>
+              {{ d.immagini }} immagini × {{ d.ripetizioni ?? '?' }} ripetizioni × {{ c.epoche }} epoche
+              ≈ <strong>{{ d.passi_totali }} passi</strong>
+            </p>
+
+            <button class="apri" (click)="avanzate.set(!avanzate())" [attr.aria-expanded]="avanzate()">
+              <mat-icon>{{ avanzate() ? 'expand_less' : 'expand_more' }}</mat-icon> Parametri avanzati
+            </button>
+            @if (avanzate()) {
+              <div class="due">
+                <mat-form-field>
+                  <mat-label>Alpha</mat-label>
+                  <input matInput type="number" [value]="c.alpha" (change)="numero('alpha', $any($event.target).value)" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Learning rate</mat-label>
+                  <input matInput [value]="c.learning_rate" (change)="numero('learning_rate', $any($event.target).value)" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Ottimizzatore</mat-label>
+                  <mat-select [value]="c.ottimizzatore" (valueChange)="cambia('ottimizzatore', $event)">
+                    @for (o of ['Adafactor', 'AdamW8bit', 'AdamW', 'Prodigy']; track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Scheduler</mat-label>
+                  <mat-select [value]="c.scheduler" (valueChange)="cambia('scheduler', $event)">
+                    @for (o of ['constant_with_warmup', 'cosine', 'cosine_with_restarts', 'linear', 'constant']; track o) {
+                      <mat-option [value]="o">{{ o }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Passi di warmup</mat-label>
+                  <input matInput type="number" [value]="c.warmup" (change)="numero('warmup', $any($event.target).value)" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Risoluzione</mat-label>
+                  <mat-select [value]="c.risoluzione" (valueChange)="cambia('risoluzione', $event)">
+                    @for (r of [768, 896, 1024, 1152]; track r) { <mat-option [value]="r">{{ r }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Batch</mat-label>
+                  <input matInput type="number" min="1" max="16" [value]="c.batch" (change)="numero('batch', $any($event.target).value)" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Ripetizioni (vuoto = automatiche)</mat-label>
+                  <input matInput type="number" min="1" [value]="c.ripetizioni ?? ''"
+                    (change)="cambia('ripetizioni', $any($event.target).value ? +$any($event.target).value : null)" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Min SNR gamma</mat-label>
+                  <input matInput type="number" step="0.5" [value]="c.min_snr_gamma ?? ''"
+                    (change)="cambia('min_snr_gamma', $any($event.target).value ? +$any($event.target).value : null)" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Noise offset</mat-label>
+                  <input matInput type="number" step="0.01" [value]="c.noise_offset" (change)="numero('noise_offset', $any($event.target).value)" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Seme</mat-label>
+                  <input matInput type="number" [value]="c.seme" (change)="numero('seme', $any($event.target).value)" />
+                </mat-form-field>
+                @if (c.allena_text_encoder) {
+                  <mat-form-field>
+                    <mat-label>Learning rate text encoder</mat-label>
+                    <input matInput [value]="c.learning_rate_te" (change)="numero('learning_rate_te', $any($event.target).value)" />
+                  </mat-form-field>
+                }
+              </div>
+              <div class="interruttori">
+                <mat-slide-toggle [checked]="c.fp8" (change)="cambia('fp8', $event.checked)">fp8 sul modello base (meno VRAM)</mat-slide-toggle>
+                <mat-slide-toggle [checked]="c.gradient_checkpointing" (change)="cambia('gradient_checkpointing', $event.checked)">Gradient checkpointing</mat-slide-toggle>
+                <mat-slide-toggle [checked]="c.allena_text_encoder" (change)="cambia('allena_text_encoder', $event.checked)">Addestra anche il text encoder</mat-slide-toggle>
+                <mat-slide-toggle [checked]="c.mescola_didascalie" (change)="cambia('mescola_didascalie', $event.checked)"
+                  matTooltip="Mescola i tag (la trigger resta prima). Disattiva la cache del text encoder: più VRAM.">Mescola i tag delle didascalie</mat-slide-toggle>
+              </div>
+              <mat-form-field>
+                <mat-label>Argomenti extra per kohya</mat-label>
+                <input matInput class="mono" [value]="c.argomenti_extra" (change)="cambia('argomenti_extra', $any($event.target).value)" placeholder="--max_grad_norm 1.0" />
+              </mat-form-field>
+            }
+          </section>
+
+          <!-- ============================== AVVIO ============================== -->
+          <section class="scheda">
+            <h2>Addestramento</h2>
+            @for (p of problemi(); track p) {
+              <p class="problema"><mat-icon>error</mat-icon> {{ p }}</p>
+            }
+            @if (lavoro(); as l) {
+              <div class="corsa">
+                <div class="riga"><strong>{{ l.titolo }}</strong><span>{{ l.progresso * 100 | number: '1.0-0' }}%</span></div>
+                <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
+                @if (dal_vivo(); as v) {
+                  <div class="numeri">
+                    <span>passo <strong>{{ v.passo }}</strong>/{{ v.totale }}</span>
+                    @if (v.epoca) { <span>epoca <strong>{{ v.epoca }}</strong>/{{ v.epoche }}</span> }
+                    @if (v.velocita) { <span>{{ v.velocita }}</span> }
+                    @if (v.rimanente) { <span>mancano <strong>{{ v.rimanente }}</strong></span> }
+                  </div>
+                } @else {
+                  <p class="nota">{{ l.testo || 'in coda' }}</p>
+                }
+                <button mat-stroked-button (click)="ferma(l.id)"><mat-icon>stop</mat-icon> Ferma</button>
+              </div>
+            } @else {
+              <div class="pulsanti">
+                <button mat-flat-button (click)="avvia()" [disabled]="!!problemi().length || altroInCorso()">
+                  <mat-icon>play_arrow</mat-icon> Addestra il LoRA di {{ personaggio()?.nome }}
+                </button>
+              </div>
+              <p class="nota">
+                ComfyUI può restare aperto: il programma gli fa liberare la memoria della GPU prima di iniziare.
+                Su una GPU da 8 GB conta 1-3 ore. Puoi fermarlo: le epoche già salvate restano.
+                @if (d.stato.ultima_durata) { L'ultimo addestramento è durato {{ durata(d.stato.ultima_durata) }}. }
+              </p>
+            }
+            <app-grafico-loss [punti]="loss()" [totale]="dal_vivo()?.totale || d.passi_totali" />
+          </section>
+        </div>
+
+        <!-- ============================== EPOCHE ============================== -->
+        <section class="scheda epoche">
+          <div class="titolo">
+            <h2>Epoche e scelta del LoRA</h2>
+            @if (d.stato.lora_finale) {
+              <span class="finale"><mat-icon>verified</mat-icon> In uso nel fumetto: <code>{{ d.stato.lora_finale }}</code>
+                @if (d.stato.epoca_finale) { (epoca {{ d.stato.epoca_finale }}) }</span>
+            }
+          </div>
+
+          @if (d.epoche.length) {
+            <p class="nota">Scegli le epoche da provare: ognuna genera le immagini di prova qui sotto, con lo stesso seme, così il confronto è alla pari.</p>
+            <div class="chip-epoche">
+              @for (e of d.epoche; track e.epoca) {
+                <button [class.attivo]="daProvare().has(e.epoca)" (click)="alternaProva(e.epoca)">
+                  {{ e.epoca }}@if (e.ultima) { <small>ultima</small> }
+                  <small>{{ mb(e.dimensione) }} MB</small>
+                </button>
+              }
+            </div>
+            <mat-form-field class="prompt-test">
+              <mat-label>Prompt di prova (uno per riga)</mat-label>
+              <textarea matInput rows="3" [ngModel]="promptTest()" (ngModelChange)="promptTest.set($event)"></textarea>
+              <mat-hint>{{ '{trigger}' }} e {{ '{genere}' }} vengono sostituiti; i tag di qualità si aggiungono da soli</mat-hint>
+            </mat-form-field>
+            <div class="pulsanti">
+              <button mat-flat-button (click)="prova()" [disabled]="!daProvare().size || !!lavoro() || !eventi.comfy()?.connesso">
+                <mat-icon>science</mat-icon> Prova {{ daProvare().size }} epoche
+              </button>
+              @if (!eventi.comfy()?.connesso) { <span class="avviso">Serve ComfyUI avviato</span> }
+            </div>
+          } @else {
+            <p class="nota">Le epoche compariranno qui durante l'addestramento.</p>
+          }
+
+          @if (colonneTest().voci.length) {
+            <div class="confronto" [style.--colonne]="colonneTest().voci.length">
+              @for (v of colonneTest().voci; track v.epoca) {
+                <div class="colonna" [class.consigliata]="v.epoca === colonneTest().consigliata" [class.scelta]="v.epoca === d.stato.epoca_finale">
+                  <div class="testa">
+                    <strong>Epoca {{ v.epoca }}</strong>
+                    @if (v.punteggio !== null) { <span matTooltip="Somiglianza media al riferimento">{{ v.punteggio | number: '1.3-3' }}</span> }
+                    @if (v.epoca === colonneTest().consigliata) { <span class="badge">consigliata</span> }
+                  </div>
+                  @for (f of v.immagini; track f) {
+                    <a [href]="urlTest(f)" target="_blank" rel="noopener"><img [src]="urlTest(f)" [alt]="'Epoca ' + v.epoca" loading="lazy" /></a>
+                  }
+                  <button mat-stroked-button (click)="usa(v.epoca)" [disabled]="v.epoca === d.stato.epoca_finale && d.stato.origine === 'addestrato'">
+                    {{ v.epoca === d.stato.epoca_finale && d.stato.origine === 'addestrato' ? 'In uso' : 'Usa questa' }}
+                  </button>
+                </div>
+              }
+            </div>
+            <p class="nota">La consigliata è la prima epoca che somiglia quasi quanto la migliore: le ultime tendono a «cuocere» il LoRA, che poi rifà sempre le stesse pose e gli stessi sfondi.</p>
+          }
+
+          <div class="esistente">
+            <mat-form-field>
+              <mat-label>Oppure usa un LoRA già addestrato</mat-label>
+              <mat-select [value]="d.stato.origine === 'esistente' ? d.stato.lora_finale : null" (valueChange)="usaEsistente($event)">
+                <mat-option [value]="null">— nessuno —</mat-option>
+                @for (l of lora(); track l) { <mat-option [value]="l">{{ l }}</mat-option> }
+              </mat-select>
+              <mat-hint>Per esempio uno addestrato online con lo zip dello Step 2</mat-hint>
+            </mat-form-field>
+          </div>
+        </section>
+      }
+    }
+  }
+</div>

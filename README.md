@@ -9,7 +9,7 @@ Da un'immagine di riferimento per ogni personaggio arriva alle tavole finite in 
 | **Personaggi** | Nome, trigger word, tratti fissi e immagine di riferimento di ogni personaggio | ✅ PR 1 |
 | **1 · Dataset** | Genera con ComfyUI decine di immagini varie di ogni personaggio, con i workflow che scegli, e tiene le migliori | ✅ PR 2 |
 | **2 · Didascalie** | Tag automatici (WD14 e prompt), trigger word, pulizia dei tratti fissi, zip del dataset | ✅ PR 3 |
-| **3 · Addestramento** | Addestra un LoRA per personaggio con kohya sd-scripts, con log e grafico della loss | PR 4 |
+| **3 · Addestramento** | Installa kohya da solo, addestra un LoRA per personaggio con preset per la tua VRAM, loss in diretta, prova e scelta dell'epoca | ✅ PR 4 |
 | **4 · Fumetto** | Scene con più personaggi (un LoRA ciascuno), balloon e tavole | PR 5 |
 
 Funziona su **Windows, macOS e Linux**. L'interfaccia si apre nel browser.

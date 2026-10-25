@@ -62,7 +62,20 @@ Per ogni personaggio (scegli in alto quale):
 4. Se una didascalia non va, correggila a mano nel suo riquadro (torna a quella automatica con **Automatica**).
 5. **Scarica il dataset** ti dà uno zip con immagini e `.txt`, utile per addestrare anche altrove.
 
-## 6. La console
+## 6. Step 3 · Addestramento
+
+1. **Trainer**: la prima volta premi **Installa**. Scarica kohya, PyTorch e le librerie (circa 3 GB, 10-20 minuti);
+   servono Python 3.10, 3.11 o 3.12 (meglio il 3.10) e preferibilmente Git.
+2. Scegli il personaggio e il **checkpoint di base**: lo stesso che userai per il fumetto.
+3. Scegli il **preset**: quello «consigliato» va bene per la tua scheda (con 8 GB: «8 GB sicuro»). Nei
+   **parametri avanzati** puoi cambiare tutto; il conto ti dice quanti passi farà.
+4. **Addestra**: segui passi, epoche, tempo rimanente e il grafico della loss. Con 8 GB conta 1-3 ore. ComfyUI può
+   restare aperto.
+5. **Prova le epoche**: scegli quali (di solito sono già selezionate 4) e premi **Prova**. Confronta le immagini
+   affiancate e premi **Usa questa** sull'epoca migliore: quella «consigliata» è un buon punto di partenza.
+6. Hai già un LoRA addestrato altrove? Sceglilo in **Oppure usa un LoRA già addestrato**.
+
+## 7. La console
 
 In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, in futuro, dell'addestramento.
 
@@ -73,4 +86,4 @@ In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, i
 
 ## Prossimi step
 
-Addestramento e Fumetto arrivano con le prossime versioni (vedi [SVILUPPO.md](SVILUPPO.md)).
+Il Fumetto arriva con le prossime versioni (vedi [SVILUPPO.md](SVILUPPO.md)).

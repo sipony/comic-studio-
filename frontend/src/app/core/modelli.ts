@@ -140,7 +140,9 @@ export type Evento =
   | { tipo: 'diagnostica'; dati: Rapporto; ts: number }
   | { tipo: 'benvenuto'; comfy: StatoComfy; lavori: Lavoro[]; ts?: number }
   | EventoDataset
-  | EventoDidascalie;
+  | EventoDidascalie
+  | EventoAddestramento
+  | { tipo: 'kohya'; dati: StatoKohya; ts: number };
 
 export const GENERI: { valore: Genere; etichetta: string }[] = [
   { valore: '1girl', etichetta: 'Donna (1girl)' },
@@ -333,5 +335,94 @@ export interface EventoDidascalie {
   tipo: 'didascalie';
   progetto: string;
   personaggio: string;
+  ts: number;
+}
+
+// ------------------------------------------------------------ Step 3: addestramento
+
+export type Preset = '8gb' | 'equilibrato' | 'qualita' | 'personalizzato';
+
+export interface ConfigAddestramento {
+  preset: Preset;
+  checkpoint: string | null;
+  rank: number;
+  alpha: number;
+  learning_rate: number;
+  allena_text_encoder: boolean;
+  learning_rate_te: number;
+  ottimizzatore: 'Adafactor' | 'AdamW8bit' | 'AdamW' | 'Prodigy';
+  scheduler: 'constant_with_warmup' | 'cosine' | 'cosine_with_restarts' | 'linear' | 'constant';
+  warmup: number;
+  epoche: number;
+  passi_obiettivo: number;
+  ripetizioni: number | null;
+  risoluzione: number;
+  batch: number;
+  fp8: boolean;
+  gradient_checkpointing: boolean;
+  mescola_didascalie: boolean;
+  noise_offset: number;
+  min_snr_gamma: number | null;
+  seme: number;
+  argomenti_extra: string;
+}
+
+export interface EpocaLora {
+  epoca: number;
+  file: string;
+  dimensione: number;
+  creato: number;
+  ultima?: boolean;
+}
+
+export interface StatoAddestramento {
+  lora_finale: string | null;
+  epoca_finale: number | null;
+  origine: 'addestrato' | 'esistente' | null;
+  ultimo_avvio: number | null;
+  ultima_durata: number | null;
+  ultimo_esito: string | null;
+  test: Record<string, { immagini: string[]; punteggio: number | null }>;
+  prompt_test: string[];
+}
+
+export interface RiassuntoAddestramento {
+  config: ConfigAddestramento;
+  stato: StatoAddestramento;
+  epoche: EpocaLora[];
+  loss: [number, number][];
+  immagini: number;
+  ripetizioni: number | null;
+  passi_totali: number;
+  preset_consigliato: Preset;
+  checkpoint_suggerito: string | null;
+  trigger: string;
+}
+
+export interface StatoKohya {
+  installato: boolean;
+  cartella: string;
+  piattaforma: 'cuda' | 'mps' | 'cpu';
+  gpu?: string | null;
+  torch?: string;
+  cuda?: boolean;
+  mps?: boolean;
+  commit?: string | null;
+  errore?: string;
+}
+
+export interface EventoAddestramento {
+  tipo: 'addestramento';
+  progetto: string;
+  personaggio: string;
+  punto?: [number, number];
+  passo?: number;
+  totale?: number;
+  epoca?: number;
+  epoche?: number;
+  velocita?: string;
+  rimanente?: string;
+  epoche_cambiate?: boolean;
+  test?: boolean;
   ts: number;
 }

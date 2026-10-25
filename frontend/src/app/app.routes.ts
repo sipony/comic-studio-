@@ -25,6 +25,11 @@ export const routes: Routes = [
         loadComponent: () => import('./pagine/didascalie/didascalie').then((m) => m.DidascaliePage),
       },
       {
+        path: 'addestramento',
+        title: 'Addestramento · Comic Studio',
+        loadComponent: () => import('./pagine/addestramento/addestramento').then((m) => m.AddestramentoPage),
+      },
+      {
         path: ':passo',
         loadComponent: () => import('./pagine/in-arrivo/in-arrivo').then((m) => m.InArrivoPage),
       },

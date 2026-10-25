@@ -14,6 +14,7 @@ from . import __version__
 from .comfy.client import ComfyErrore
 from .rotte_dataset import rotte as rotte_dataset, rotte_comfy
 from .rotte_didascalie import rotte as rotte_didascalie
+from .rotte_addestramento import rotte as rotte_addestramento, rotte_kohya
 from .projects import ErroreProgetto, ModificaPersonaggio, NuovoPersonaggio, suggerisci_trigger
 from .settings import Archivio as ArchivioImpostazioni
 from .state import App
@@ -201,6 +202,8 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
 
     api.include_router(rotte_dataset)
     api.include_router(rotte_didascalie)
+    api.include_router(rotte_addestramento)
+    api.include_router(rotte_kohya)
     api.include_router(rotte_comfy)
 
     @api.get("/api/{resto:path}")
