@@ -13,8 +13,8 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | PR | Contenuto | Stato |
 | --- | --- | --- |
 | 1 | Base: backend, interfaccia, progetti e personaggi, ricerca automatica di ComfyUI, controllo del sistema, console e avanzamento, avvio multipiattaforma, CI | ✅ unita |
-| 2 | Step 1 Dataset: caricamento e analisi dei workflow (formato UI e API), associazione dei nodi, varianti, generazione con avanzamento, galleria, selezione automatica per somiglianza | ✅ questa PR |
-| 3 | Step 2 Didascalie: tagger WD14, trigger word, tabella delle frequenze dei tag, modifica per immagine | da fare |
+| 2 | Step 1 Dataset: caricamento e analisi dei workflow (formato UI e API), associazione dei nodi, varianti, generazione con avanzamento, galleria, selezione automatica per somiglianza | ✅ unita |
+| 3 | Step 2 Didascalie: tagger WD14, trigger word, tabella delle frequenze dei tag, modifica per immagine | ✅ questa PR |
 | 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | da fare |
 | 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona + pose), balloon, tavole | da fare |
 | 6 | Costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
@@ -51,6 +51,16 @@ WD14 dello Step 2.
 **Il programma gestisce prompt, seme, dimensioni e riferimento; il resto del workflow resta tuo.** Ogni workflow
 viene analizzato per trovare i nodi con questi ruoli (si possono correggere a mano). Tutti gli altri valori di
 ogni nodo si possono cambiare per singolo personaggio senza toccare il file originale.
+
+**Didascalie da due fonti.** Le immagini del dataset sono generate da noi, quindi conosciamo già il prompt di
+ognuna: è una fonte di tag sempre disponibile e senza download. Il tagger WD14 aggiunge ciò che il modello ha
+davvero disegnato (che non sempre coincide con il prompt). Per default si usano entrambe; i tag del tagger si
+salvano con la loro probabilità, così cambiare la soglia non richiede di rianalizzare.
+
+**I tratti fissi si tolgono dalle didascalie.** Ciò che non compare nella didascalia ma è sempre presente
+nell'immagine viene assorbito dalla trigger word: per questo i tratti della descrizione del personaggio
+(capelli, divisa…) vengono tolti in automatico e quelli dell'aspetto presenti in quasi tutte le immagini
+vengono segnalati come «fisso?».
 
 **Eliminazioni nel cestino.** Progetti e personaggi eliminati vengono spostati in `progetti/.cestino`.
 
@@ -126,5 +136,27 @@ Fatto:
 Non ancora verificato: la qualità della selezione con il modello CLIP vero (qui non si può scaricare) e la
 generazione su un ComfyUI reale.
 
-Prossimo passo: PR 3, Step 2 Didascalie.
+## PR 3 — Step 2 Didascalie
+
+Fatto:
+
+- **Tagger WD14** in ONNX (`backend/app/didascalie.py`): `wd-vit-tagger-v3` scaricato al primo uso, stessa
+  preparazione dell'immagine dell'originale (quadrato bianco, 448 px, BGR); salva i tag con probabilità ≥ 0,2
+- **Didascalie automatiche**: `trigger, 1girl/1boy, solo, [tag sempre presenti], tag dell'immagine, [tag di stile]`
+  - fonti: tagger, prompt di generazione o entrambe; soglia di sicurezza regolabile
+  - tolti in automatico i tratti fissi della descrizione; tag da togliere, sostituzioni, numero massimo di tag
+  - usa le immagini tenute nello Step 1 (se non ne hai scelta nessuna, tutte tranne le scartate, con avviso)
+- **Tabella dei tag del dataset**: quante immagini hanno ogni tag, clic per toglierlo o rimetterlo in tutte,
+  sostituzione, filtro «suggeriti» (tratti dell'aspetto presenti in almeno il 70% delle immagini) e
+  «Togli i suggeriti» con un clic
+- **Modifica a mano** di ogni didascalia accanto alla sua immagine, con ritorno a quella automatica
+- **Scarica il dataset**: zip con immagini e `.txt`, utilizzabile con qualunque trainer (anche online);
+  `esporta()` prepara la stessa cartella per lo Step 3
+- Il selettore del personaggio è ora un componente comune (Dataset e Didascalie)
+- **Test**: 54 test backend (tagger ONNX con un modello di prova, composizione, frequenze e suggerimenti,
+  scritte a mano, esportazione e zip, flusso via API); collaudo dell'interfaccia con Playwright
+
+Non ancora verificato: il tagger vero (da qui non si può scaricare).
+
+Prossimo passo: PR 4, Step 3 Addestramento.
 

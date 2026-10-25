@@ -25,47 +25,6 @@
   }
 }
 
-.personaggi {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-.chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 16px 0 4px;
-  border-radius: 20px;
-  border: 1px solid var(--mat-sys-outline-variant);
-  background: var(--mat-sys-surface-container);
-  color: var(--mat-sys-on-surface);
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-  img,
-  mat-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    object-position: top;
-    background: #fff;
-  }
-  mat-icon {
-    display: grid;
-    place-items: center;
-    background: var(--mat-sys-surface-container-highest);
-    font-size: 20px;
-  }
-  &.attivo {
-    border-color: var(--mat-sys-primary);
-    background: var(--mat-sys-secondary-container);
-    color: var(--mat-sys-on-secondary-container);
-  }
-}
-
 .griglia {
   display: grid;
   grid-template-columns: minmax(380px, 480px) minmax(0, 1fr);

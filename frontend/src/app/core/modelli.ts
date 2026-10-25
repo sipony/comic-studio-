@@ -139,7 +139,8 @@ export type Evento =
   | { tipo: 'installazioni'; dati: Installazione[]; ts: number }
   | { tipo: 'diagnostica'; dati: Rapporto; ts: number }
   | { tipo: 'benvenuto'; comfy: StatoComfy; lavori: Lavoro[]; ts?: number }
-  | EventoDataset;
+  | EventoDataset
+  | EventoDidascalie;
 
 export const GENERI: { valore: Genere; etichetta: string }[] = [
   { valore: '1girl', etichetta: 'Donna (1girl)' },
@@ -278,5 +279,59 @@ export interface EventoDataset {
   personaggio: string;
   azione: 'nuova' | 'stato' | 'elenco';
   immagine?: ImmagineDataset;
+  ts: number;
+}
+
+// ------------------------------------------------------------ Step 2: didascalie
+
+export type ModalitaDidascalie = 'tagger' | 'prompt' | 'entrambi';
+
+export interface ConfigDidascalie {
+  modalita: ModalitaDidascalie;
+  modello: string;
+  soglia: number;
+  togli_tratti_fissi: boolean;
+  rimossi: string[];
+  aggiunti: string[];
+  sostituzioni: Record<string, string>;
+  massimo_tag: number;
+  tag_stile: string;
+}
+
+export interface RigaDidascalia {
+  file: string;
+  numero: number;
+  auto: string;
+  testo: string;
+  manuale: boolean;
+  analizzata: boolean;
+  creato: number;
+}
+
+export interface FrequenzaTag {
+  tag: string;
+  conteggio: number;
+  quota: number;
+  probabilita: number;
+  rimosso: boolean;
+  fisso: boolean;
+  suggerito: boolean;
+  sostituito: string | null;
+}
+
+export interface StatoDidascalie {
+  config: ConfigDidascalie;
+  immagini: RigaDidascalia[];
+  frequenze: FrequenzaTag[];
+  totale: number;
+  analizzate: number;
+  da_selezione: boolean;
+  trigger: string;
+}
+
+export interface EventoDidascalie {
+  tipo: 'didascalie';
+  progetto: string;
+  personaggio: string;
   ts: number;
 }

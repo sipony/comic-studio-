@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
-import { Evento, EventoDataset, Installazione, Lavoro, Rapporto, RigaLog, Sistema, StatoComfy } from './modelli';
+import { Evento, EventoDataset, EventoDidascalie, Installazione, Lavoro, Rapporto, RigaLog, Sistema, StatoComfy } from './modelli';
 
 const MAX_LOG = 3000;
 
@@ -23,6 +23,8 @@ export class EventiService {
   readonly sistema = signal<Sistema | null>(null);
   /** Ultimo evento del dataset (nuova immagine, cambio di stato, elenco da ricaricare). */
   readonly dataset = signal<EventoDataset | null>(null, { equal: () => false });
+  /** Ultimo aggiornamento delle didascalie (tag analizzati). */
+  readonly didascalie = signal<EventoDidascalie | null>(null, { equal: () => false });
 
   /** Lavori in coda o in corso, il più recente per primo. */
   readonly attivi = computed(() =>
@@ -94,6 +96,9 @@ export class EventiService {
         break;
       case 'dataset':
         this.dataset.set(e);
+        break;
+      case 'didascalie':
+        this.didascalie.set(e);
         break;
       case 'benvenuto':
         this.comfy.set(e.comfy);

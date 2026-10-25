@@ -24,18 +24,8 @@
       <a mat-flat-button [routerLink]="['/progetto', progetto().id, 'personaggi']">Vai ai personaggi</a>
     </div>
   } @else {
-    <nav class="personaggi" aria-label="Personaggio">
-      @for (p of personaggi(); track p.id) {
-        <button class="chip" [class.attivo]="p.id === sceltoId()" (click)="scegli(p.id)">
-          @if (p.riferimento) {
-            <img [src]="'/api/progetti/' + progetto().id + '/personaggi/' + p.id + '/riferimento'" alt="" />
-          } @else {
-            <mat-icon>person</mat-icon>
-          }
-          <span>{{ p.nome }}</span>
-        </button>
-      }
-    </nav>
+    <app-scelta-personaggio [progetto]="progetto().id" [personaggi]="personaggi()" [scelto]="sceltoId()"
+      (sceltoChange)="scegli($event)" />
 
     @if (personaggio(); as pers) {
       @if (config(); as cfg) {

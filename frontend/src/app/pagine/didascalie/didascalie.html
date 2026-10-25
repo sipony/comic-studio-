@@ -1,0 +1,171 @@
+<div class="pagina larga">
+  <div class="intestazione">
+    <div>
+      <h1>Step 2 · Didascalie</h1>
+      <p class="sotto">
+        Ogni immagine riceve una didascalia che inizia con la trigger word. I tratti che non cambiano mai
+        (capelli, divisa…) vanno tolti: così il LoRA li lega alla trigger word e basterà quella per avere il personaggio.
+      </p>
+    </div>
+  </div>
+
+  @if (!personaggi().length) {
+    <div class="vuoto">
+      <mat-icon>group_add</mat-icon>
+      <p>Prima aggiungi i personaggi del progetto.</p>
+      <a mat-flat-button [routerLink]="['/progetto', progetto().id, 'personaggi']">Vai ai personaggi</a>
+    </div>
+  } @else {
+    <app-scelta-personaggio [progetto]="progetto().id" [personaggi]="personaggi()" [(scelto)]="sceltoId" />
+
+    @if (stato(); as s) {
+      @if (!s.totale) {
+        <div class="vuoto">
+          <mat-icon>photo_library</mat-icon>
+          <p>Il dataset di {{ personaggio()?.nome }} è vuoto: generalo e scegli le immagini nello Step 1.</p>
+          <a mat-flat-button [routerLink]="['/progetto', progetto().id, 'dataset']" [queryParams]="{ p: sceltoId() }">Vai al Dataset</a>
+        </div>
+      } @else {
+        <section class="sommario">
+          <div class="numeri">
+            <span><strong>{{ s.totale }}</strong> immagini nel dataset</span>
+            @if (!s.da_selezione) {
+              <span class="avviso" matTooltip="Nello Step 1 non hai ancora tenuto nessuna immagine: uso tutte quelle non scartate">
+                <mat-icon>warning</mat-icon> nessuna scelta nello Step 1
+              </span>
+            }
+            @if (usaTagger()) {
+              <span><strong>{{ s.analizzate }}</strong> analizzate dal tagger</span>
+            }
+            <span class="trigger">trigger <code>{{ s.trigger }}</code></span>
+          </div>
+          <div class="azioni">
+            @if (lavoro(); as l) {
+              <div class="in-corso">
+                <span>{{ l.testo || 'avvio' }}</span>
+                <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
+                <button mat-icon-button (click)="annulla(l.id)" aria-label="Ferma"><mat-icon>stop</mat-icon></button>
+              </div>
+            } @else if (usaTagger()) {
+              <button mat-flat-button (click)="analizza(false)" [disabled]="!daAnalizzare()"
+                [matTooltip]="daAnalizzare() ? '' : 'Tutte già analizzate'">
+                <mat-icon>auto_awesome</mat-icon> {{ daAnalizzare() ? 'Analizza ' + daAnalizzare() + ' immagini' : 'Analizzate' }}
+              </button>
+              @if (s.analizzate) {
+                <button mat-button (click)="analizza(true)">Rianalizza tutte</button>
+              }
+            }
+            <a mat-stroked-button [href]="urlZip()" download matTooltip="Immagini + file .txt, pronti per qualunque trainer (anche online)">
+              <mat-icon>download</mat-icon> Scarica il dataset
+            </a>
+          </div>
+        </section>
+
+        <div class="griglia">
+          <aside class="colonna">
+            @if (config(); as c) {
+              <section class="scheda">
+                <h2>Da dove prendere i tag</h2>
+                <mat-button-toggle-group [value]="c.modalita" (change)="imposta('modalita', $event.value)" aria-label="Fonte dei tag">
+                  <mat-button-toggle value="entrambi">Tagger + prompt</mat-button-toggle>
+                  <mat-button-toggle value="tagger">Solo tagger</mat-button-toggle>
+                  <mat-button-toggle value="prompt">Solo prompt</mat-button-toggle>
+                </mat-button-toggle-group>
+                <p class="nota">
+                  Il tagger (WD14) guarda l'immagine vera; il prompt è quello usato per generarla. Insieme danno il
+                  risultato migliore. Il tagger si scarica la prima volta (circa 400 MB).
+                </p>
+                @if (usaTagger()) {
+                  <div class="cursore">
+                    <span>Sicurezza minima dei tag <strong>{{ c.soglia | percent }}</strong></span>
+                    <mat-slider min="0.2" max="0.9" step="0.05" discrete>
+                      <input matSliderThumb [value]="c.soglia" (valueChange)="imposta('soglia', $event)" />
+                    </mat-slider>
+                    <small>Più alta = meno tag ma più sicuri.</small>
+                  </div>
+                }
+              </section>
+
+              <section class="scheda">
+                <h2>Composizione</h2>
+                <mat-slide-toggle [checked]="c.togli_tratti_fissi" (change)="imposta('togli_tratti_fissi', $event.checked)">
+                  Togli i tratti fissi della descrizione
+                </mat-slide-toggle>
+                <p class="nota">«{{ personaggio()?.descrizione || 'descrizione vuota' }}»</p>
+                <mat-form-field>
+                  <mat-label>Tag sempre presenti (dopo la trigger)</mat-label>
+                  <input matInput [ngModel]="elenco(c.aggiunti)" (change)="impostaElenco('aggiunti', $any($event.target).value)" placeholder="es. police" />
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Tag di stile (in fondo)</mat-label>
+                  <input matInput [ngModel]="c.tag_stile" (change)="imposta('tag_stile', $any($event.target).value)" placeholder="western comics (style)" />
+                  <mat-hint>Lascialo vuoto se vuoi che lo stile faccia parte del personaggio</mat-hint>
+                </mat-form-field>
+                <mat-form-field>
+                  <mat-label>Numero massimo di tag</mat-label>
+                  <input matInput type="number" min="5" max="150" [ngModel]="c.massimo_tag" (change)="imposta('massimo_tag', +$any($event.target).value)" />
+                </mat-form-field>
+              </section>
+
+              <section class="scheda tag">
+                <div class="titolo">
+                  <h2>Tag del dataset</h2>
+                  @if (suggeriti().length) {
+                    <button mat-button (click)="togliSuggeriti()" matTooltip="Tratti dell'aspetto presenti in quasi tutte le immagini">
+                      <mat-icon>cleaning_services</mat-icon> Togli i {{ suggeriti().length }} suggeriti
+                    </button>
+                  }
+                </div>
+                <div class="filtri-tag">
+                  <div class="filtri" role="group" aria-label="Filtro dei tag">
+                    <button [class.attivo]="filtroTag() === 'tutti'" (click)="filtroTag.set('tutti')">Tutti</button>
+                    <button [class.attivo]="filtroTag() === 'suggeriti'" (click)="filtroTag.set('suggeriti')">Suggeriti</button>
+                    <button [class.attivo]="filtroTag() === 'rimossi'" (click)="filtroTag.set('rimossi')">Tolti</button>
+                  </div>
+                  <input class="cerca" type="search" placeholder="Cerca…" [ngModel]="cercaTag()" (ngModelChange)="cercaTag.set($event)" />
+                </div>
+                <p class="nota">Clic su un tag per toglierlo (o rimetterlo) in tutte le didascalie.</p>
+                <ul class="elenco-tag">
+                  @for (t of tag(); track t.tag) {
+                    <li [class.rimosso]="t.rimosso" [class.suggerito]="t.suggerito">
+                      <button class="nome" (click)="alterna(t)" [matTooltip]="t.fisso ? 'Tratto fisso della descrizione' : (t.rimosso ? 'Rimettilo' : 'Toglilo')">
+                        <span class="testo">{{ t.tag }}@if (t.sostituito) { <em> → {{ t.sostituito }}</em> }</span>
+                        <span class="barra"><span [style.width.%]="t.quota * 100"></span></span>
+                        <span class="quota">{{ t.conteggio }}</span>
+                      </button>
+                      <button class="mini" (click)="sostituisci(t)" matTooltip="Sostituisci con un altro tag" aria-label="Sostituisci">
+                        <mat-icon>swap_horiz</mat-icon>
+                      </button>
+                    </li>
+                  } @empty {
+                    <li class="niente">Nessun tag.</li>
+                  }
+                </ul>
+              </section>
+            }
+          </aside>
+
+          <section class="colonna didascalie">
+            @for (r of s.immagini; track r.file) {
+              <article class="riga" [class.manuale]="r.manuale">
+                <img [src]="url(r)" [alt]="'Immagine ' + r.numero" loading="lazy" />
+                <div class="campo">
+                  <div class="testa">
+                    <span>#{{ r.numero }}</span>
+                    @if (r.manuale) {
+                      <span class="badge">scritta a mano</span>
+                      <button mat-button (click)="ripristina(r)"><mat-icon>restart_alt</mat-icon> Automatica</button>
+                    } @else if (usaTagger() && !r.analizzata) {
+                      <span class="badge chiaro">non ancora analizzata</span>
+                    }
+                  </div>
+                  <textarea rows="3" [value]="r.testo" (change)="scrivi(r, $any($event.target).value)" [attr.aria-label]="'Didascalia ' + r.numero"></textarea>
+                </div>
+              </article>
+            }
+          </section>
+        </div>
+      }
+    }
+  }
+</div>

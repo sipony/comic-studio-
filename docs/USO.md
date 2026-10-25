@@ -51,7 +51,18 @@ Per ogni personaggio (scegli in alto quale):
    Poi rifinisci a mano: passa sopra un'immagine e premi ✓ o ✕, oppure aprila e usa **T** (tieni), **S** (scarta)
    e le frecce. Le tue scelte manuali non vengono più toccate dalla selezione automatica.
 
-## 5. La console
+## 5. Step 2 · Didascalie
+
+1. Scegli il personaggio. Vengono usate le immagini che hai tenuto nello Step 1.
+2. **Analizza** fa guardare le immagini al tagger WD14 (la prima volta lo scarica, circa 400 MB). Se sei offline
+   scegli **Solo prompt**: i tag vengono dal prompt con cui ogni immagine è stata generata.
+3. Ogni didascalia inizia con la trigger word. I **tratti fissi** della descrizione vengono tolti da soli; nella
+   tabella **Tag del dataset** i tag segnati «fisso?» sono tratti dell'aspetto presenti in quasi tutte le immagini:
+   **Togli i suggeriti** li toglie tutti, oppure fai clic su un tag per toglierlo o rimetterlo.
+4. Se una didascalia non va, correggila a mano nel suo riquadro (torna a quella automatica con **Automatica**).
+5. **Scarica il dataset** ti dà uno zip con immagini e `.txt`, utile per addestrare anche altrove.
+
+## 6. La console
 
 In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, in futuro, dell'addestramento.
 
@@ -62,4 +73,4 @@ In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, i
 
 ## Prossimi step
 
-Didascalie, Addestramento e Fumetto arrivano con le prossime versioni (vedi [SVILUPPO.md](SVILUPPO.md)).
+Addestramento e Fumetto arrivano con le prossime versioni (vedi [SVILUPPO.md](SVILUPPO.md)).

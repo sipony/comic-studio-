@@ -2,8 +2,8 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ConfigDataset, DettaglioWorkflow, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
-  Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoImmagine,
+  ConfigDataset, ConfigDidascalie, DettaglioWorkflow, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
+  Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
 
 /** Accesso alle API REST del backend. Tutti i metodi restituiscono Promise e lanciano un Error leggibile. */
@@ -124,6 +124,23 @@ export class ApiService {
   eliminaImmagini(progetto: string, pers: string, dati: { file?: string[]; scartate?: boolean }) {
     return this.post<{ eliminate: number }>(`${this.ds(progetto, pers)}/elimina`, dati);
   }
+  // ------------------------------------------------------------ Step 2: didascalie
+  private dd(progetto: string, pers: string) { return `/api/progetti/${progetto}/personaggi/${pers}/didascalie`; }
+  statoDidascalie(progetto: string, pers: string) { return this.get<StatoDidascalie>(this.dd(progetto, pers)); }
+  salvaConfigDidascalie(progetto: string, pers: string, c: ConfigDidascalie) {
+    return this.chiama(firstValueFrom(this.http.put<StatoDidascalie>(`${this.dd(progetto, pers)}/config`, c)));
+  }
+  scriviDidascalia(progetto: string, pers: string, file: string, testo: string) {
+    return this.chiama(firstValueFrom(this.http.put(`${this.dd(progetto, pers)}/immagini/${file}`, { testo })));
+  }
+  ripristinaDidascalia(progetto: string, pers: string, file: string) {
+    return this.del(`${this.dd(progetto, pers)}/immagini/${file}`);
+  }
+  analizzaTag(progetto: string, pers: string, tutte = false) {
+    return this.post<Lavoro>(`${this.dd(progetto, pers)}/analizza`, { tutte });
+  }
+  urlZipDataset(progetto: string, pers: string) { return `${this.dd(progetto, pers)}/zip`; }
+
   specNodi(classi: string[]) {
     return this.get<Record<string, SpecNodo>>('/api/comfy/nodi', { classi: classi.join(',') });
   }
