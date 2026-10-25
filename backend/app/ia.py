@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import time
+
+import httpx
 from typing import TYPE_CHECKING
 
 from .comfy import avvio as avvio_proc
@@ -131,10 +133,10 @@ class ServizioIA:
         """Una risposta JSON dall'IA; avvia Ollama se serve e libera la GPU di ComfyUI se richiesto."""
         i = self.imp
         if i.ia_tipo == "nessuna":
-            raise ErroreIA("L'IA locale è disattivata: attivala in Sistema → IA locale.")
+            raise ErroreIA("L'IA locale è disattivata: attivala in Sistema → IA locale.", non_pronta=True)
         async with self._lock:
             if i.ia_tipo == "ollama" and not await self.avvia_ollama(l):
-                raise ErroreIA("Ollama non è installato: vai in Sistema → IA locale e premi «Installa».")
+                raise ErroreIA("Ollama non è installato: scegli un modello e installalo con un clic.", non_pronta=True)
             if i.ia_libera_gpu and self.app.comfy.connesso:
                 try:
                     async with self.app.client() as c:
@@ -145,6 +147,8 @@ class ServizioIA:
             async with self.client() as c:
                 try:
                     r = await c.chat_json(sistema, utente, schema, contesto)
+                except httpx.ConnectError:
+                    raise ErroreIA(f"L'IA non risponde su {c.url}.", non_pronta=True) from None
                 except asyncio.CancelledError:
                     # annullato: il modello esce subito dalla memoria della GPU
                     await asyncio.shield(c.scarica_dalla_memoria())

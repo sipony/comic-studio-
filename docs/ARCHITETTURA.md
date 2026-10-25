@@ -35,6 +35,8 @@ backend/app/
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
   llm.py                  client dell'IA locale (Ollama / compatibile OpenAI), Ollama portatile
   ia.py                   servizio dell'IA: stato, installazione, avvio, modelli, domande
+  catalogo_ia.py          catalogo dei modelli (registro di Ollama, quantizzazioni, dimensioni) valutato
+                          per la VRAM e la RAM di questo computer
   testo_prompt.py         dal testo in linguaggio naturale al prompt: schemi, composizione, blocco, aderenza
   proposte.py             personaggio dal nulla: proposte d'immagine di riferimento dal testo
   rotte_proposte.py       API delle proposte
@@ -51,6 +53,8 @@ frontend/src/app/
   pagine/dataset/         sezione-workflow, sezione-prompt, sezione-genera, galleria
   pagine/didascalie/      Step 2
   shell/scelta-personaggio  selettore del personaggio comune agli step
+  shell/scelta-ia.*       finestra per scegliere e installare il modello dell'IA (core/scelta-ia.service.ts la
+                          apre prima delle azioni con l'IA e quando un lavoro finisce con codice ia_non_pronta)
   pagine/addestramento/   Step 3 e grafico della loss
   pagine/fumetto/         Step 4
 docs/                     questa documentazione
@@ -112,6 +116,9 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `/api/ia/installa` | scarica Ollama portatile e il modello (lavoro) |
 | POST | `/api/ia/modello` | `{nome}` scarica e usa un modello (lavoro) |
 | POST | `/api/ia/prova` | `{testo}` analizza una scena di prova (lavoro) |
+| GET | `/api/ia/catalogo` | tutti i modelli (famiglia, dimensione, varianti quantizzate) con memoria che serve, dove girano (`gpu`, `misto`, `cpu`, `troppo`) e punteggio per questo computer; hardware e stato dell'IA |
+| POST | `/api/ia/catalogo/aggiorna` | `{famiglia?}` legge dal registro di Ollama tag e dimensioni vere (lavoro `ia_catalogo`); con `famiglia` aggiunge un modello che non è nell'elenco |
+| POST | `/api/ia/scegli` | `{nome}` usa questo modello: lo imposta e, se serve, installa Ollama e lo scarica; `{lavoro, stato}` |
 | POST | `/api/progetti/{p}/personaggi/{c}/tratti` | `{storia}` ricava i tratti fissi dalla descrizione (lavoro) |
 | POST | `…/fumetto/vignette/{v}/analizza` | descrizione → analisi → prompt (lavoro) |
 | GET | `…/fumetto/vignette/{v}/prompt` | il prompt dall'ultima analisi e se è ancora valida |

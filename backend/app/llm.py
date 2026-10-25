@@ -37,7 +37,12 @@ Avanzamento = Callable[[float, str], None]
 
 
 class ErroreIA(Exception):
-    pass
+    """Errore dell'IA locale; `non_pronta` vuol dire che manca qualcosa (Ollama, il modello, il server) e
+    l'interfaccia apre la finestra per sceglierlo e installarlo."""
+
+    def __init__(self, messaggio: str, non_pronta: bool = False):
+        super().__init__(messaggio)
+        self.codice = "ia_non_pronta" if non_pronta else None
 
 
 @dataclass
@@ -229,6 +234,14 @@ class ClientIA:
         r.raise_for_status()
         return sorted(m["id"] for m in r.json().get("data", []))
 
+    async def modelli_dettagli(self) -> list[dict]:
+        """I modelli scaricati con dimensione, parametri e quantizzazione (solo Ollama)."""
+        if self.tipo != "ollama":
+            return [{"name": n} for n in await self.modelli()]
+        r = await self._http.get("/api/tags", timeout=10)
+        r.raise_for_status()
+        return [m for m in r.json().get("models", []) if m.get("name")]
+
     async def scarica_modello(self, nome: str, avanzamento: Avanzamento, annullato: Callable[[], bool]):
         if self.tipo != "ollama":
             raise ErroreIA("I modelli si scaricano da Comic Studio solo con Ollama.")
@@ -272,7 +285,7 @@ class ClientIA:
                 corpo.pop("think")
                 r = await self._http.post("/api/chat", json=corpo)
             if r.status_code == 404:
-                raise ErroreIA(f"Il modello {self.modello} non è in Ollama: scaricalo da Sistema → IA locale.")
+                raise ErroreIA(f"Il modello {self.modello} non è ancora scaricato in Ollama.", non_pronta=True)
             if r.status_code >= 400:
                 raise ErroreIA(f"Ollama ha risposto {r.status_code}: {r.text[:300]}")
             return _json_da_testo(r.json().get("message", {}).get("content", ""))

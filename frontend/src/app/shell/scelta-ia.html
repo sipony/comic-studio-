@@ -1,0 +1,146 @@
+<div class="testa">
+  <mat-icon class="icona">psychology</mat-icon>
+  <div class="titoli">
+    <h2 mat-dialog-title>{{ titolo() }}</h2>
+    <p class="sotto">L’IA locale legge le descrizioni libere e le trasforma in tag e prompt. Gira sul tuo computer: scegli il modello che ci sta meglio.</p>
+  </div>
+  <button mat-icon-button (click)="chiudi()" aria-label="Chiudi"><mat-icon>close</mat-icon></button>
+</div>
+
+<mat-dialog-content>
+  @if ((dati.motivo || spiegazione()) && !stato()?.pronta) {
+    <div class="motivo" role="status"><mat-icon>info</mat-icon><span>{{ dati.motivo }} {{ spiegazione() }}</span></div>
+  }
+
+  @if (stato()?.tipo === 'openai' && !stato()?.pronta) {
+    <div class="motivo">
+      <mat-icon>dns</mat-icon>
+      <span>Comic Studio usa un server compatibile OpenAI su {{ stato()?.url }}, che non risponde. Avvialo, oppure passa a Ollama e scegli un modello qui sotto.</span>
+      <button mat-stroked-button (click)="usaOllama()">Usa Ollama</button>
+    </div>
+  }
+
+  @if (catalogo(); as c) {
+    <div class="hardware">
+      <span class="pezzo" [matTooltip]="'Memoria che il modello può usare sulla GPU: ' + (c.hardware.memoria_gpu | number: '1.0-1') + ' GB'">
+        <mat-icon>memory</mat-icon>
+        @if (c.hardware.apple) {
+          Apple Silicon · {{ c.hardware.ram_gb | number: '1.0-0' }} GB di memoria unificata
+        } @else if (c.hardware.gpu) {
+          {{ c.hardware.gpu }} · {{ c.hardware.vram_gb | number: '1.0-0' }} GB di VRAM
+        } @else {
+          Nessuna scheda video riconosciuta
+        }
+      </span>
+      @if (!c.hardware.apple) {
+        <span class="pezzo"><mat-icon>developer_board</mat-icon> {{ c.hardware.ram_gb | number: '1.0-0' }} GB di RAM</span>
+      }
+      <span class="spazio"></span>
+      <span class="fonte" [matTooltip]="catalogo()?.aggiornato ? '' : 'Senza l’elenco di Ollama le dimensioni sono calcolate dai parametri e dalla quantizzazione'">{{ aggiornato() }}</span>
+      <button mat-button (click)="aggiorna()" [disabled]="inCorso()" class="aggiorna" matTooltip="Chiede a Ollama tutte le versioni (quantizzazioni comprese) e le dimensioni vere">
+        <mat-icon>sync</mat-icon> Aggiorna da Ollama
+      </button>
+    </div>
+
+    <div class="filtri">
+      <mat-button-toggle-group [value]="tutti() ? 'tutti' : 'adatti'" (change)="tutti.set($event.value === 'tutti')" aria-label="Quali modelli mostrare" hideSingleSelectionIndicator>
+        <mat-button-toggle value="adatti">Adatti al mio computer</mat-button-toggle>
+        <mat-button-toggle value="tutti">Tutti ({{ c.modelli.length }})</mat-button-toggle>
+      </mat-button-toggle-group>
+      <mat-form-field class="cerca">
+        <mat-icon matPrefix>search</mat-icon>
+        <mat-label>Cerca un modello</mat-label>
+        <input matInput [ngModel]="cerca()" (ngModelChange)="cerca.set($event)" placeholder="qwen3, gemma3, mistral…" />
+      </mat-form-field>
+      @if (daCercare(); as d) {
+        <button mat-stroked-button (click)="aggiorna(d)" [disabled]="inCorso()">
+          <mat-icon>travel_explore</mat-icon> Cerca «{{ d }}» su Ollama
+        </button>
+      }
+    </div>
+
+    <div class="legenda">
+      <span><i class="punto gpu"></i> tutto sulla GPU: veloce</span>
+      <span><i class="punto misto"></i> in parte sulla CPU: più lento</span>
+      <span><i class="punto cpu"></i> solo processore</span>
+      <span><i class="punto troppo"></i> non entra in memoria</span>
+      <span class="q">Q4 = file più piccolo · Q8 / FP16 = un po’ più preciso, molto più grande</span>
+    </div>
+
+    <div class="elenco" role="listbox" aria-label="Modelli">
+      @for (r of righe(); track r.famiglia + r.dimensione) {
+        @let attiva = r.varianti.some(v => v.nome === scelta());
+        <div class="riga" [class.attiva]="attiva" [class.troppo]="r.dove === 'troppo'" (click)="scegliRiga(r)" role="option" [attr.aria-selected]="attiva">
+          <div class="info">
+            <div class="nome">
+              <strong>{{ r.famiglia }}</strong> <span class="dim">{{ r.dimensione }}</span>
+              @if (r.attivi) { <span class="tag" matTooltip="Mixture of Experts: usa solo una parte dei parametri a ogni parola, quindi è veloce anche se è grande">MoE · {{ r.attivi }}B attivi</span> }
+              @if (r.migliore_in_assoluto) {
+                <span class="tag forte"><mat-icon>star</mat-icon> il migliore per te</span>
+              } @else if (r.consigliato) {
+                <span class="tag buono">consigliato</span>
+              }
+              @if (r.varianti.some(v => v.installato)) { <span class="tag scaricato"><mat-icon>check</mat-icon> scaricato</span> }
+            </div>
+            <div class="descrizione">{{ r.descrizione }}</div>
+          </div>
+          <div class="varianti">
+            @for (v of r.varianti; track v.nome) {
+              <button type="button" [class]="'variante ' + v.dove + (v.nome === scelta() ? ' scelta' : '')" [attr.aria-pressed]="v.nome === scelta()"
+                (click)="$event.stopPropagation(); scelta.set(v.nome)" [matTooltip]="v.nome + ' · ' + v.nota + ' · serve circa ' + v.memoria_gb + ' GB'">
+                <i [class]="'punto ' + v.dove"></i>
+                <span class="quant">{{ v.quant }}</span>
+                <span class="gb">{{ v.stimata ? '~' : '' }}{{ v.gb | number: '1.1-1' }} GB</span>
+                @if (v.installato) { <mat-icon class="ok">check_circle</mat-icon> }
+              </button>
+            }
+          </div>
+        </div>
+      } @empty {
+        <p class="vuoto">
+          @if (daCercare(); as d) {
+            «{{ d }}» non è nell’elenco: premi «Cerca su Ollama» per vedere tutte le sue versioni.
+          } @else {
+            Nessun modello corrisponde. @if (!tutti()) { Prova con «Tutti». }
+          }
+        </p>
+      }
+      @if (!tutti() && nascosti() > 0) {
+        <button mat-button class="altri" (click)="tutti.set(true)">Mostra anche i {{ nascosti() }} che non entrano in memoria</button>
+      }
+    </div>
+  } @else if (caricamento()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+</mat-dialog-content>
+
+<div class="piede">
+  @if (lavoro(); as l) {
+    @if (inCorso()) {
+      <div class="avanzamento">
+        <div class="riga-av"><span>{{ l.titolo }}</span><span class="dett">{{ l.testo }}</span></div>
+        <mat-progress-bar [mode]="l.progresso > 0 ? 'determinate' : 'indeterminate'" [value]="l.progresso * 100" />
+      </div>
+    }
+  }
+  @if (errore()) {
+    <div class="errore" role="alert"><mat-icon>error</mat-icon> {{ errore() }}</div>
+  }
+  <div class="azioni">
+    @if (variante(); as v) {
+      <div class="riepilogo">
+        <strong>{{ v.nome }}</strong>
+        <span>{{ v.installato ? 'già scaricato' : (v.stimata ? 'circa ' : '') + (v.gb | number: '1.1-1') + ' GB da scaricare' }} · {{ v.nota }}</span>
+      </div>
+    }
+    <span class="spazio"></span>
+    <button mat-button (click)="avanzate()">Impostazioni avanzate</button>
+    @if (scaricando()) {
+      <button mat-stroked-button (click)="ferma()"><mat-icon>stop</mat-icon> Ferma</button>
+    } @else {
+      <button mat-flat-button (click)="conferma()" [disabled]="!variante()">
+        <mat-icon>{{ variante()?.installato ? 'check' : 'download' }}</mat-icon> {{ testoAzione() }}
+      </button>
+    }
+  </div>
+</div>

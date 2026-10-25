@@ -312,3 +312,19 @@ h2 {
     color: var(--mat-sys-on-surface-variant);
   }
 }
+
+.scegli-modello {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--mat-sys-primary) 8%, transparent);
+  p {
+    margin: 0;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}

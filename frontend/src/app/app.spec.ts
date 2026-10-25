@@ -54,3 +54,39 @@ describe('indirizzi cliccabili nella console', () => {
     expect(eComfy('http://127.0.0.1:8765/', 'http://127.0.0.1:8188')).toBe(false);
   });
 });
+
+import { azionePrincipale, filtraRighe } from './core/catalogo-ia';
+import { CatalogoIA, RigaCatalogoIA, VarianteIA } from './core/modelli';
+
+function variante(nome: string, dove: VarianteIA['dove'], installato = false): VarianteIA {
+  return { nome, alias: [], quant: 'Q4_K_M', gb: 5.2, memoria_gb: 7.2, stimata: false, installato, attuale: false,
+    dove, nota: '', punteggio: 1 };
+}
+function riga(famiglia: string, dimensione: string, dove: VarianteIA['dove']): RigaCatalogoIA {
+  const v = variante(`${famiglia}:${dimensione.toLowerCase()}-q4_K_M`, dove);
+  return { famiglia, dimensione, parametri: 8, attivi: null, descrizione: '', varianti: [v], migliore: v.nome, punteggio: 1, dove };
+}
+
+describe('scelta del modello dell\'IA', () => {
+  const righe = [riga('qwen3', '14B', 'gpu'), riga('gemma3', '27B', 'misto'), riga('llama3.1', '70B', 'troppo')];
+
+  it('mostra prima solo i modelli che girano sul computer, poi tutti', () => {
+    expect(filtraRighe(righe, false, '').map((r) => r.famiglia)).toEqual(['qwen3', 'gemma3']);
+    expect(filtraRighe(righe, true, '')).toHaveLength(3);
+  });
+
+  it('cerca per famiglia, dimensione e nome completo', () => {
+    expect(filtraRighe(righe, true, 'gemma').map((r) => r.famiglia)).toEqual(['gemma3']);
+    expect(filtraRighe(righe, true, 'qwen3:14').map((r) => r.famiglia)).toEqual(['qwen3']);
+    expect(filtraRighe(righe, true, '70b-q4')).toHaveLength(1);
+  });
+
+  it('il pulsante dice cosa succede', () => {
+    const stato = (raggiungibile: boolean, eseguibile: string | null) =>
+      ({ stato: { tipo: 'ollama', raggiungibile, eseguibile } }) as unknown as CatalogoIA;
+    expect(azionePrincipale(null, null)).toBe('Scegli un modello');
+    expect(azionePrincipale(variante('qwen3:8b', 'gpu', true), stato(true, 'x'))).toBe('Usa questo');
+    expect(azionePrincipale(variante('qwen3:8b', 'gpu'), stato(false, null))).toBe('Installa Ollama e scarica');
+    expect(azionePrincipale(variante('qwen3:8b', 'gpu'), stato(true, 'x'))).toBe('Scarica e usa (5,2 GB)');
+  });
+});

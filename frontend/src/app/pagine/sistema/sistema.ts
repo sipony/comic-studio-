@@ -13,6 +13,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
+import { SceltaIAService } from '../../core/scelta-ia.service';
+import { ActivatedRoute } from '@angular/router';
 import { apribile } from '../../core/link';
 import { Esito, Installazione, PromptScena, StatoIA, VoceControllo, gb } from '../../core/modelli';
 
@@ -28,6 +30,9 @@ const PESO: Record<Esito, number> = { errore: 0, avviso: 1, info: 2, ok: 3 };
 })
 export class SistemaPage {
   protected eventi = inject(EventiService);
+  private sceltaIA = inject(SceltaIAService);
+  /** scheda aperta all'arrivo (?scheda=ia apre l'IA locale) */
+  protected schedaIniziale = inject(ActivatedRoute).snapshot.queryParamMap.get('scheda') === 'ia' ? 1 : 0;
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);
   protected gb = gb;
@@ -133,6 +138,12 @@ export class SistemaPage {
     if (!confirm(`Scaricare il modello ${nome}${m ? ` (circa ${m.gb} GB)` : ''}?`)) return;
     this.iaModello.set(nome);
     await this.lavoroConEsito(this.api.scaricaModelloIA(nome), `Modello ${nome} pronto`);
+  }
+
+  /** Finestra con tutti i modelli (quantizzazioni comprese) ordinati per questo computer. */
+  protected async scegliModello() {
+    await this.sceltaIA.apri();
+    await this.caricaIA();
   }
 
   protected async usaModello(nome: string) {

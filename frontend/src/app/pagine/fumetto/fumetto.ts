@@ -13,6 +13,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
+import { SceltaIAService } from '../../core/scelta-ia.service';
 import {
   Dialogo, FormatoVignetta, Fumetto, ImmaginiVignetta, ImpostazioniFumetto, Pagina, Personaggio, PosizioneBalloon, PromptScena,
   Vignetta,
@@ -44,6 +45,7 @@ export class FumettoPage {
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);
   protected eventi = inject(EventiService);
+  private sceltaIA = inject(SceltaIAService);
 
   protected progetto = computed(() => this.progetti.corrente()!);
   protected personaggi = computed(() => this.progetto().personaggi);
@@ -124,6 +126,7 @@ export class FumettoPage {
 
   protected async analizza(id: string) {
     if (!(await this.salva())) return;
+    if (!(await this.sceltaIA.pronta('Per trasformare la descrizione della vignetta in prompt serve l’IA locale.'))) return;
     try {
       const fine = await this.eventi.attendi((await this.api.analizzaVignetta(this.progetto().id, id)).id);
       if (fine.stato !== 'completato' && fine.errore) this.avvisi.errore(fine.errore);
@@ -145,6 +148,7 @@ export class FumettoPage {
 
   protected async storiaIA(sostituisci: boolean) {
     if (sostituisci && !confirm('Sostituire tutte le pagine attuali con questa storia?')) return;
+    if (!(await this.sceltaIA.pronta('Per dividere la storia in pagine e vignette serve l’IA locale.'))) return;
     try {
       clearTimeout(this.timer);
       await this.salva();

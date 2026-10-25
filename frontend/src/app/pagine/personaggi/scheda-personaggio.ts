@@ -10,6 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
+import { SceltaIAService } from '../../core/scelta-ia.service';
 import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
 import { GENERI, Genere, InquadraturaProposta, Personaggio, Proposta, TrattiRicavati } from '../../core/modelli';
 
@@ -29,6 +30,7 @@ export class SchedaPersonaggio {
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);
   protected eventi = inject(EventiService);
+  private sceltaIA = inject(SceltaIAService);
   protected generi = GENERI;
 
   protected nome = signal('');
@@ -109,6 +111,7 @@ export class SchedaPersonaggio {
   }
 
   protected async ricava() {
+    if (!(await this.sceltaIA.pronta('Per ricavare i tratti dalla descrizione libera serve l’IA locale.'))) return;
     this.ricavando.set(true);
     this.note.set('');
     try {
@@ -166,6 +169,9 @@ export class SchedaPersonaggio {
   }
 
   protected async generaProposte(da: string | null) {
+    // senza tratti l'IA li ricava prima dalla descrizione libera
+    if (!this.personaggio().descrizione.trim() && (this.personaggio().storia ?? '').trim()
+      && !(await this.sceltaIA.pronta('Il personaggio ha solo la descrizione libera: per ricavarne i tratti serve l’IA locale.'))) return;
     try {
       const l = await this.api.generaProposte(this.progetto(), this.personaggio().id, {
         checkpoint: this.checkpoint(), numero: da ? Math.min(this.numero(), 4) : this.numero(),

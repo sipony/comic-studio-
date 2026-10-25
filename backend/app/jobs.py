@@ -75,6 +75,7 @@ class Lavoro:
         self.progresso = 0.0
         self.testo = ""
         self.errore: str | None = None
+        self.codice: str | None = None      # tipo di errore riconoscibile dall'interfaccia (es. ia_non_pronta)
         self.risultato: Any = None
         self.creato = time.time()
         self.iniziato: float | None = None
@@ -119,6 +120,7 @@ class Lavoro:
     def dict(self) -> dict:
         return {"id": self.id, "tipo": self.tipo, "titolo": self.titolo, "progetto": self.progetto,
                 "stato": self.stato, "progresso": self.progresso, "testo": self.testo, "errore": self.errore,
+                "codice": self.codice,
                 "creato": self.creato, "iniziato": self.iniziato, "finito": self.finito,
                 "anteprima": self.n_anteprima if self.anteprima else 0, "annullando": self._annulla}
 
@@ -174,6 +176,7 @@ class Gestore:
             except Exception as e:  # noqa: BLE001 - qualunque errore va mostrato all'utente
                 l.finito = time.time()
                 l.errore = str(e) or e.__class__.__name__
+                l.codice = getattr(e, "codice", None)
                 l.log(f"Errore in '{titolo}': {l.errore}", "errore")
                 dettaglio = "".join(traceback.format_exception(e)).strip()
                 l.log(dettaglio, "debug")

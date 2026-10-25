@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  CatalogoIA, ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -52,6 +52,9 @@ export class ApiService {
   impostaIA(dati: { tipo?: string; url?: string; modello?: string; chiave?: string; libera_gpu?: boolean }) {
     return this.post<StatoIA>('/api/ia/impostazioni', dati);
   }
+  catalogoIA() { return this.get<CatalogoIA>('/api/ia/catalogo'); }
+  aggiornaCatalogoIA(famiglia?: string) { return this.post<Lavoro>('/api/ia/catalogo/aggiorna', famiglia ? { famiglia } : {}); }
+  scegliModelloIA(nome: string) { return this.post<{ lavoro: Lavoro | null; stato: StatoIA }>('/api/ia/scegli', { nome }); }
   installaIA() { return this.post<Lavoro>('/api/ia/installa'); }
   scaricaModelloIA(nome: string) { return this.post<Lavoro>('/api/ia/modello', { nome }); }
   provaIA(testo: string, checkpoint: string | null) { return this.post<Lavoro>('/api/ia/prova', { testo, checkpoint }); }

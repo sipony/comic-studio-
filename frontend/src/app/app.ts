@@ -10,6 +10,7 @@ import { EventiService } from './core/eventi.service';
 import { apribile } from './core/link';
 import { gb } from './core/modelli';
 import { ProgettoService } from './core/progetto.service';
+import { SceltaIAService } from './core/scelta-ia.service';
 import { ConsoleComponent } from './shell/console';
 
 interface VoceMenu {
@@ -35,6 +36,8 @@ export class App implements OnInit {
 
   constructor() {
     inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-outlined');
+    // apre la scelta dell'IA quando un lavoro fallisce perché mancano Ollama o il modello
+    inject(SceltaIAService);
   }
 
   protected passi = computed<VoceMenu[]>(() => {

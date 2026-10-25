@@ -80,7 +80,7 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
 
     @api.exception_handler(ErroreIA)
     async def _errore_ia(_: Request, e: ErroreIA):
-        return JSONResponse({"detail": str(e)}, status_code=503)
+        return JSONResponse({"detail": str(e), "codice": e.codice}, status_code=503)
 
     @api.exception_handler(ComfyErrore)
     async def _errore_comfy(_: Request, e: ComfyErrore):

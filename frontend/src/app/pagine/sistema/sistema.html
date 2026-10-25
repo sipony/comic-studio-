@@ -21,7 +21,7 @@
     </div>
   }
 
-  <mat-tab-group animationDuration="150ms" mat-stretch-tabs="false" mat-align-tabs="start">
+  <mat-tab-group animationDuration="150ms" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="schedaIniziale">
     <!-- ======================= CONTROLLO ======================= -->
     <mat-tab label="Controllo">
       @if (rapporto(); as r) {
@@ -150,7 +150,9 @@
           }
         </div>
         <div class="azioni-stato">
-          @if (s && s.tipo === 'ollama' && !s.raggiungibile && !s.eseguibile) {
+          @if (s && !s.pronta) {
+            <button mat-flat-button (click)="scegliModello()" [disabled]="!!lavoroIA()"><mat-icon>tune</mat-icon> Scegli e installa</button>
+          } @else if (s && s.tipo === 'ollama' && !s.raggiungibile && !s.eseguibile) {
             <button mat-flat-button (click)="installaIA()" [disabled]="!!lavoroIA()"><mat-icon>download</mat-icon> Installa</button>
           } @else if (s && s.tipo === 'ollama' && !s.modello_presente) {
             <button mat-flat-button (click)="scaricaModello(s.modello ?? 'qwen3:8b')" [disabled]="!!lavoroIA()"><mat-icon>download</mat-icon> Scarica {{ s.modello }}</button>
@@ -204,6 +206,10 @@
       @if (iaTipo() === 'ollama') {
         <section class="categoria">
           <h2><mat-icon>deployed_code</mat-icon> Modello</h2>
+          <div class="scegli-modello">
+            <p>Tutti i modelli di Ollama, con le quantizzazioni, ordinati per la tua scheda video e la tua RAM.</p>
+            <button mat-flat-button (click)="scegliModello()" [disabled]="!!lavoroIA()"><mat-icon>tune</mat-icon> Scegli il modello adatto al tuo computer</button>
+          </div>
           @for (m of s?.consigliati ?? []; track m.nome) {
             <div class="installazione" [class.in-uso]="m.nome === s?.modello">
               <mat-icon>{{ s?.modelli?.includes(m.nome) ? 'check_circle' : 'cloud_download' }}</mat-icon>
