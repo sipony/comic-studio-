@@ -30,6 +30,11 @@ export const routes: Routes = [
         loadComponent: () => import('./pagine/addestramento/addestramento').then((m) => m.AddestramentoPage),
       },
       {
+        path: 'fumetto',
+        title: 'Fumetto · Comic Studio',
+        loadComponent: () => import('./pagine/fumetto/fumetto').then((m) => m.FumettoPage),
+      },
+      {
         path: ':passo',
         loadComponent: () => import('./pagine/in-arrivo/in-arrivo').then((m) => m.InArrivoPage),
       },

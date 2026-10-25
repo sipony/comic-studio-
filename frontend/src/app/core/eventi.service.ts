@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
-import { Evento, EventoAddestramento, EventoDataset, EventoDidascalie, Installazione, Lavoro, Rapporto, RigaLog, Sistema, StatoComfy } from './modelli';
+import { Evento, EventoAddestramento, EventoDataset, EventoDidascalie, EventoFumetto, Installazione, Lavoro, Rapporto, RigaLog, Sistema, StatoComfy } from './modelli';
 
 const MAX_LOG = 3000;
 
@@ -27,6 +27,8 @@ export class EventiService {
   readonly didascalie = signal<EventoDidascalie | null>(null, { equal: () => false });
   /** Avanzamento dell'addestramento (punti della loss, epoche salvate, test). */
   readonly addestramento = signal<EventoAddestramento | null>(null, { equal: () => false });
+  /** Una vignetta del fumetto ha una nuova immagine. */
+  readonly fumetto = signal<EventoFumetto | null>(null, { equal: () => false });
   /** Cambia quando kohya viene installato o aggiornato. */
   readonly kohya = signal(0);
 
@@ -106,6 +108,9 @@ export class EventiService {
         break;
       case 'addestramento':
         this.addestramento.set(e);
+        break;
+      case 'fumetto':
+        this.fumetto.set(e);
         break;
       case 'kohya':
         this.kohya.update((n) => n + 1);

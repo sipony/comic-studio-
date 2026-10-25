@@ -142,6 +142,7 @@ export type Evento =
   | EventoDataset
   | EventoDidascalie
   | EventoAddestramento
+  | EventoFumetto
   | { tipo: 'kohya'; dati: StatoKohya; ts: number };
 
 export const GENERI: { valore: Genere; etichetta: string }[] = [
@@ -424,5 +425,80 @@ export interface EventoAddestramento {
   rimanente?: string;
   epoche_cambiate?: boolean;
   test?: boolean;
+  ts: number;
+}
+
+// ------------------------------------------------------------ Step 4: fumetto
+
+export type FormatoVignetta = 'larga' | 'alta' | 'quadrata';
+export type PosizioneBalloon = 'auto' | 'alto-sx' | 'alto-dx' | 'basso-sx' | 'basso-dx';
+
+export interface Dialogo {
+  chi: string;
+  testo: string;
+  posizione: PosizioneBalloon;
+}
+
+export interface Vignetta {
+  id: string;
+  formato: FormatoVignetta;
+  personaggi: string[];
+  azione: string;
+  dialoghi: Dialogo[];
+  seme: number | null;
+}
+
+export interface Pagina {
+  id: string;
+  vignette: Vignetta[];
+}
+
+export interface ImpostazioniFumetto {
+  checkpoint: string | null;
+  lora_stile: string | null;
+  forza_stile: number;
+  forza_personaggio: number;
+  positivo: string;
+  negativo: string;
+  tag_qualita: string | null;
+  tag_qualita_negativi: string | null;
+  passi: number;
+  cfg: number;
+  sampler: string;
+  scheduler: string;
+  ripasso: number;
+  font: string | null;
+  larghezza_pagina: number;
+  margine: number;
+}
+
+export interface Fumetto {
+  titolo: string;
+  impostazioni: ImpostazioniFumetto;
+  pagine: Pagina[];
+}
+
+export interface VersioneVignetta {
+  file: string;
+  seme: number;
+  creato: number;
+  prompt: string;
+}
+
+export interface ImmaginiVignetta {
+  versioni: VersioneVignetta[];
+  scelta: number | null;
+}
+
+export interface StatoFumetto {
+  fumetto: Fumetto;
+  immagini: Record<string, ImmaginiVignetta>;
+  lora: Record<string, string | null>;
+}
+
+export interface EventoFumetto {
+  tipo: 'fumetto';
+  progetto: string;
+  vignetta: string;
   ts: number;
 }

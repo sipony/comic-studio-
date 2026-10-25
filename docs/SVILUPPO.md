@@ -15,9 +15,9 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 1 | Base: backend, interfaccia, progetti e personaggi, ricerca automatica di ComfyUI, controllo del sistema, console e avanzamento, avvio multipiattaforma, CI | ✅ unita |
 | 2 | Step 1 Dataset: caricamento e analisi dei workflow (formato UI e API), associazione dei nodi, varianti, generazione con avanzamento, galleria, selezione automatica per somiglianza | ✅ unita |
 | 3 | Step 2 Didascalie: tagger WD14, trigger word, tabella delle frequenze dei tag, modifica per immagine | ✅ unita |
-| 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | ✅ questa PR |
-| 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona + pose), balloon, tavole | da fare |
-| 6 | Costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | ✅ unita |
+| 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona), balloon, tavole, PDF | ✅ questa PR |
+| 6 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
 | 7 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
@@ -70,6 +70,16 @@ vengono segnalati come «fisso?».
 **La scelta dell'epoca si fa guardando, aiutati dal punteggio.** Il programma prova alcune epoche con gli stessi
 prompt e semi e calcola la somiglianza al riferimento; consiglia la prima epoca quasi buona quanto la migliore,
 perché le ultime tendono a «cuocere» il LoRA. La decisione finale resta a te.
+
+**Scene di gruppo: composizione + ripasso.** Con più LoRA attivi insieme sull'intera immagine i personaggi si
+mescolano. Ogni vignetta di gruppo si fa quindi in un solo workflow con due passaggi: prima la scena con tutti
+i LoRA a forza ridotta e un prompt per zona (il primo personaggio a sinistra, poi gli altri), poi ogni zona
+viene ridisegnata (inpainting, denoise ≈ 0,5) con il solo LoRA del suo personaggio e incollata con bordi sfumati.
+Le pose guidate con ControlNet arriveranno nella PR 6.
+
+**Immagini e testo separati.** La struttura del fumetto (pagine, vignette, dialoghi) e le immagini generate sono
+salvate in file diversi: si può continuare a scrivere mentre il programma genera, senza sovrascriversi. Ogni
+vignetta tiene tutte le versioni generate; la tavola usa quella scelta.
 
 **Eliminazioni nel cestino.** Progetti e personaggi eliminati vengono spostati in `progetti/.cestino`.
 
@@ -193,5 +203,26 @@ Fatto:
 
 Non ancora verificato: l'installazione e l'addestramento veri su Windows con la GPU dell'utente.
 
-Prossimo passo: PR 5, Step 4 Fumetto.
+## PR 5 — Step 4 Fumetto
+
+Fatto:
+
+- **Pagine e vignette** (`backend/app/fumetto.py`, `rotte_fumetto.py`): formato larga / alta / quadrata, fino a 3
+  personaggi per vignetta (ordinati da sinistra a destra), cosa succede, dialoghi e didascalie con posizione
+  (automatica o in uno dei 4 angoli), seme fisso facoltativo; aggiunta, spostamento ed eliminazione di vignette e pagine
+- **Storia da testo**: una vignetta per riga `formato | personaggi | azione | chi: battuta`, `---` per una nuova
+  pagina; i personaggi per nome, id o trigger; errori riga per riga
+- **Generazione** come lavoro GPU: una vignetta, «stesso seme» per correggere senza cambiare composizione, oppure
+  tutte le mancanti; con il LoRA basta la trigger word, senza LoRA si usa la descrizione (con avviso);
+  scene di gruppo con composizione regionale e ripasso per personaggio; tutte le versioni restano e si sceglie quale usare
+- **Impostazioni del fumetto**: checkpoint, LoRA di stile, forza dei personaggi, ripasso, stile e negativo comuni
+  con tag di qualità automatici, campionatore, font dei balloon, larghezza della tavola e margini
+- **Tavole**: impaginazione automatica (due vignette alte di fila affiancate), balloon con coda verso chi parla,
+  didascalie gialle del narratore, anteprima della tavola sempre aggiornata; **esportazione** in PDF e PNG (zip)
+- **Test**: 67 test backend (workflow con 0, 1 e 3 personaggi, importazione della storia, impaginazione e balloon,
+  PDF, flusso completo via API con versioni, stesso seme, anteprima ed esportazione); collaudo con Playwright
+
+Non ancora verificato: la resa delle scene di gruppo su un ComfyUI vero (dipende dal checkpoint e dai LoRA).
+
+Prossimo passo: PR 6, pose guidate e costruttore di workflow.
 

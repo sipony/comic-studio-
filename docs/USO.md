@@ -75,7 +75,19 @@ Per ogni personaggio (scegli in alto quale):
    affiancate e premi **Usa questa** sull'epoca migliore: quella «consigliata» è un buon punto di partenza.
 6. Hai già un LoRA addestrato altrove? Sceglilo in **Oppure usa un LoRA già addestrato**.
 
-## 7. La console
+## 7. Step 4 · Fumetto
+
+1. **Impostazioni**: scegli il checkpoint (lo stesso dei LoRA) ed eventualmente un LoRA di stile.
+2. Scrivi le pagine: **Storia da testo** per incollare tutta la storia in una volta (c'è un esempio), oppure
+   aggiungi le vignette a mano a sinistra.
+3. Per ogni vignetta: **formato**, **personaggi** in scena (clic per aggiungerli; il primo sta a sinistra, le
+   frecce cambiano l'ordine), **cosa succede** in inglese, **battute** con chi parla e dove mettere il balloon.
+4. **Genera le mancanti** fa tutte le vignette senza immagine; sulla singola vignetta **Nuova versione** ne prova
+   un'altra, **Stesso seme** rifà la stessa composizione con le modifiche al testo. Le versioni restano: clic su
+   una miniatura per usarla.
+5. A destra vedi la **tavola** con i balloon. **Esporta** ti dà il PDF o le pagine in PNG.
+
+## 8. La console
 
 In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, in futuro, dell'addestramento.
 
@@ -86,4 +98,4 @@ In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, i
 
 ## Prossimi step
 
-Il Fumetto arriva con le prossime versioni (vedi [SVILUPPO.md](SVILUPPO.md)).
+Pose guidate nelle scene di gruppo, costruttore di workflow e aggiornamenti con un clic: vedi [SVILUPPO.md](SVILUPPO.md).
