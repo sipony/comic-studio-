@@ -412,3 +412,24 @@ def integrato(checkpoint: str, ipadapter: str, clip_vision: str, lora_stile: str
 def per_invio(wf: dict) -> dict:
     """Toglie i campi che ComfyUI non usa."""
     return {k: {"class_type": v["class_type"], "inputs": v["inputs"]} for k, v in wf.items()}
+
+
+def workflow_test_lora(checkpoint: str, lora: str, positivo: str, negativo: str, seme: int,
+                       larghezza: int = 832, altezza: int = 1216, forza: float = 0.85, passi: int = 28,
+                       cfg: float = 6.0, sampler: str = "euler_ancestral", scheduler: str = "karras") -> tuple[dict, str]:
+    """Workflow minimo per provare un LoRA: restituisce (workflow, id del nodo SaveImage)."""
+    wf = {
+        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
+        "2": {"class_type": "LoraLoader", "inputs": {"model": ["1", 0], "clip": ["1", 1], "lora_name": lora,
+                                                     "strength_model": forza, "strength_clip": forza}},
+        "3": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 1], "text": positivo}},
+        "4": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["2", 1], "text": negativo}},
+        "5": {"class_type": "EmptyLatentImage", "inputs": {"width": larghezza, "height": altezza, "batch_size": 1}},
+        "6": {"class_type": "KSampler", "inputs": {"model": ["2", 0], "positive": ["3", 0], "negative": ["4", 0],
+                                                   "latent_image": ["5", 0], "seed": seme, "steps": passi, "cfg": cfg,
+                                                   "sampler_name": sampler, "scheduler": scheduler, "denoise": 1.0}},
+        "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["1", 2]}},
+        "8": {"class_type": "SaveImage", "inputs": {"images": ["7", 0], "filename_prefix": "comic_studio/test_lora"}},
+    }
+    return wf, "8"
+

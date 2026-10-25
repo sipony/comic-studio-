@@ -2,7 +2,8 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ConfigDataset, ConfigDidascalie, DettaglioWorkflow, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
+  ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Preset, RiassuntoAddestramento,
+  StatoAddestramento, StatoKohya, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
 
@@ -140,6 +141,32 @@ export class ApiService {
     return this.post<Lavoro>(`${this.dd(progetto, pers)}/analizza`, { tutte });
   }
   urlZipDataset(progetto: string, pers: string) { return `${this.dd(progetto, pers)}/zip`; }
+
+  // ------------------------------------------------------------ Step 3: addestramento
+  kohya(ricontrolla = false) { return this.get<StatoKohya>('/api/kohya', { ricontrolla: String(ricontrolla) }); }
+  installaKohya(reinstalla = false) { return this.post<Lavoro>('/api/kohya/installa', { reinstalla }); }
+  private da(progetto: string, pers: string) { return `/api/progetti/${progetto}/personaggi/${pers}/addestramento`; }
+  addestramento(progetto: string, pers: string) { return this.get<RiassuntoAddestramento>(this.da(progetto, pers)); }
+  salvaConfigAddestramento(progetto: string, pers: string, c: ConfigAddestramento) {
+    return this.chiama(firstValueFrom(this.http.put<RiassuntoAddestramento>(`${this.da(progetto, pers)}/config`, c)));
+  }
+  applicaPreset(progetto: string, pers: string, preset: Preset) {
+    return this.post<RiassuntoAddestramento>(`${this.da(progetto, pers)}/preset`, { preset });
+  }
+  salvaPromptTest(progetto: string, pers: string, prompt: string[]) {
+    return this.chiama(firstValueFrom(this.http.put<StatoAddestramento>(`${this.da(progetto, pers)}/prompt-test`, { prompt })));
+  }
+  avviaAddestramento(progetto: string, pers: string) { return this.post<Lavoro>(`${this.da(progetto, pers)}/avvia`); }
+  provaEpoche(progetto: string, pers: string, epoche: number[] | null) {
+    return this.post<Lavoro>(`${this.da(progetto, pers)}/prova`, { epoche });
+  }
+  scegliEpoca(progetto: string, pers: string, epoca: number) {
+    return this.post<StatoAddestramento>(`${this.da(progetto, pers)}/scegli`, { epoca });
+  }
+  usaLoraEsistente(progetto: string, pers: string, lora: string | null) {
+    return this.post<StatoAddestramento>(`${this.da(progetto, pers)}/esistente`, { lora });
+  }
+  urlTest(progetto: string, pers: string, file: string) { return `${this.da(progetto, pers)}/test/${file}`; }
 
   specNodi(classi: string[]) {
     return this.get<Record<string, SpecNodo>>('/api/comfy/nodi', { classi: classi.join(',') });
