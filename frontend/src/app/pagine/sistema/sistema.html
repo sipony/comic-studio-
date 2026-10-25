@@ -1,0 +1,197 @@
+<div class="pagina">
+  <div class="intestazione">
+    <div>
+      <h1>Sistema</h1>
+      <p class="sotto">Hardware, componenti installati, aggiornamenti e connessione a ComfyUI.</p>
+    </div>
+    <div class="azioni">
+      <button mat-stroked-button (click)="controlla(false)" [disabled]="!!inControllo()" matTooltip="Solo controlli locali, senza cercare aggiornamenti">
+        <mat-icon>speed</mat-icon> Controllo rapido
+      </button>
+      <button mat-flat-button (click)="controlla(true)" [disabled]="!!inControllo()">
+        <mat-icon>refresh</mat-icon> Ricontrolla tutto
+      </button>
+    </div>
+  </div>
+
+  @if (inControllo(); as l) {
+    <div class="in-corso">
+      <span>{{ l.titolo }} — {{ l.testo || 'avvio' }}</span>
+      <mat-progress-bar mode="determinate" [value]="l.progresso * 100" />
+    </div>
+  }
+
+  <mat-tab-group animationDuration="150ms" mat-stretch-tabs="false" mat-align-tabs="start">
+    <!-- ======================= CONTROLLO ======================= -->
+    <mat-tab label="Controllo">
+      @if (rapporto(); as r) {
+        <section class="riepilogo">
+          <div class="scheda hw">
+            <mat-icon>memory</mat-icon>
+            <div>
+              <div class="etichetta">Scheda video</div>
+              @if (gpu(); as g) {
+                <div class="valore">{{ g.nome }}</div>
+                <div class="nota">{{ gb(g.vram_totale) }} di VRAM{{ g.vram_libera ? ' · ' + gb(g.vram_libera, 1) + ' libera' : '' }}</div>
+              } @else if (r.hardware.apple_silicon) {
+                <div class="valore">Apple Silicon</div>
+                <div class="nota">memoria unificata</div>
+              } @else {
+                <div class="valore">non rilevata</div>
+                <div class="nota">avvia ComfyUI per leggerla</div>
+              }
+            </div>
+          </div>
+          <div class="scheda hw">
+            <mat-icon>developer_board</mat-icon>
+            <div>
+              <div class="etichetta">RAM e processore</div>
+              <div class="valore">{{ gb(r.hardware.ram_totale) }} di RAM</div>
+              <div class="nota">{{ r.hardware.core }} core / {{ r.hardware.thread }} thread · {{ r.hardware.sistema }}</div>
+            </div>
+          </div>
+          @for (d of r.hardware.dischi; track d.cartella) {
+            <div class="scheda hw">
+              <mat-icon>hard_drive</mat-icon>
+              <div class="largo">
+                <div class="etichetta" [title]="d.cartella">Disco · {{ d.cartella }}</div>
+                <div class="valore">{{ gb(d.libero) }} liberi</div>
+                <mat-progress-bar mode="determinate" [value]="percentuale(d.libero, d.totale)" />
+              </div>
+            </div>
+          }
+          <div class="scheda conteggi">
+            <div class="conteggio ok"><strong>{{ r.riepilogo.ok }}</strong> ok</div>
+            <div class="conteggio avviso"><strong>{{ r.riepilogo.avviso }}</strong> avvisi</div>
+            <div class="conteggio errore"><strong>{{ r.riepilogo.errore }}</strong> da sistemare</div>
+          </div>
+        </section>
+
+        @if (r.consigli.length) {
+          <section class="consigli">
+            <h2><mat-icon>tips_and_updates</mat-icon> Consigli per il tuo hardware</h2>
+            <ul>
+              @for (c of r.consigli; track $index) {
+                <li>{{ c }}</li>
+              }
+            </ul>
+          </section>
+        }
+
+        @for (cat of categorie(); track cat.nome) {
+          <section class="categoria">
+            <h2>
+              <mat-icon class="esito" [class]="cat.peggiore">{{ icona(cat.peggiore) }}</mat-icon>
+              {{ cat.nome }}
+            </h2>
+            <div class="voci">
+              @for (v of cat.voci; track v.nome) {
+                <div class="voce" [class]="v.esito">
+                  <mat-icon class="esito">{{ icona(v.esito) }}</mat-icon>
+                  <div class="testo">
+                    <div class="nome">{{ v.nome }}</div>
+                    <div class="dettaglio">{{ v.dettaglio }}</div>
+                    @if (v.azione) {
+                      <div class="azione">{{ v.azione }}</div>
+                    }
+                  </div>
+                  @if (v.link) {
+                    <a mat-button [href]="v.link" target="_blank" rel="noopener">Apri <mat-icon iconPositionEnd>open_in_new</mat-icon></a>
+                  }
+                </div>
+              }
+            </div>
+          </section>
+        }
+        @if (!r.aggiornamenti_controllati) {
+          <p class="nota-fine">Gli aggiornamenti non sono stati controllati: usa «Ricontrolla tutto».</p>
+        }
+
+        @if (r.modelli.length) {
+          <section class="categoria">
+            <h2><mat-icon>deployed_code</mat-icon> Modelli principali trovati</h2>
+            <table class="tabella">
+              <thead>
+                <tr><th>File</th><th>Famiglia</th><th>Precisione</th><th class="num">Dimensione</th></tr>
+              </thead>
+              <tbody>
+                @for (m of r.modelli; track m.file) {
+                  <tr>
+                    <td>{{ m.file }}</td>
+                    <td>@if (m.famiglia) { <span class="tag">{{ m.famiglia }}</span> } @else { — }</td>
+                    <td>{{ m.precisione ?? '—' }}@if (m.quantizzato) { <span class="tag q">quantizzato</span> }</td>
+                    <td class="num">{{ m.dimensione_gb | number: '1.1-1' }} GB</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </section>
+        }
+      } @else {
+        <div class="vuoto">
+          <mat-icon>hourglass_top</mat-icon>
+          <p>Il controllo del sistema parte da solo all'avvio. Se non compare, premi «Ricontrolla tutto».</p>
+        </div>
+      }
+    </mat-tab>
+
+    <!-- ======================= CONNESSIONE ======================= -->
+    <mat-tab label="Connessione a ComfyUI">
+      <section class="stato-connessione" [class.ok]="eventi.comfy()?.connesso">
+        <mat-icon>{{ eventi.comfy()?.connesso ? 'link' : 'link_off' }}</mat-icon>
+        <div>
+          @if (eventi.comfy()?.connesso) {
+            <div class="valore">Connesso a ComfyUI {{ eventi.comfy()?.versione }}</div>
+            <div class="nota">{{ eventi.comfy()?.url }} · {{ eventi.comfy()?.cartella }}</div>
+          } @else {
+            <div class="valore">Non connesso</div>
+            <div class="nota">{{ eventi.comfy()?.errore }}</div>
+          }
+        </div>
+      </section>
+
+      <section class="categoria">
+        <div class="titolo-riga">
+          <h2><mat-icon>travel_explore</mat-icon> Installazioni trovate</h2>
+          <button mat-stroked-button (click)="cerca()" [disabled]="!!inControllo()"><mat-icon>search</mat-icon> Cerca di nuovo</button>
+        </div>
+        @for (i of eventi.installazioni(); track i.cartella) {
+          <div class="installazione" [class.in-uso]="inUso(i)">
+            <mat-icon>{{ i.url ? 'play_circle' : 'folder' }}</mat-icon>
+            <div class="testo">
+              <div class="nome">{{ i.cartella }}</div>
+              <div class="dettaglio">
+                {{ i.tipo }} · {{ i.origine }}{{ i.versione ? ' · v' + i.versione : '' }} ·
+                {{ i.modelli['checkpoints'] || 0 }} checkpoint · {{ i.modelli['loras'] || 0 }} LoRA
+              </div>
+            </div>
+            @if (inUso(i)) {
+              <span class="tag">in uso</span>
+            } @else {
+              <button mat-button (click)="usa(i)">Usa questa</button>
+            }
+          </div>
+        } @empty {
+          <p class="nota-fine">Nessuna installazione trovata. Avvia ComfyUI e premi «Cerca di nuovo», oppure indica la cartella qui sotto.</p>
+        }
+      </section>
+
+      <section class="categoria">
+        <h2><mat-icon>tune</mat-icon> Impostazioni manuali</h2>
+        <div class="modulo">
+          <mat-form-field>
+            <mat-label>Indirizzo di ComfyUI</mat-label>
+            <input matInput [ngModel]="url()" (ngModelChange)="url.set($event)" placeholder="http://127.0.0.1:8188" />
+            <mat-hint>Di solito 8188 (portable) o 8000 (app Desktop)</mat-hint>
+          </mat-form-field>
+          <mat-form-field class="largo">
+            <mat-label>Cartella di ComfyUI</mat-label>
+            <input matInput [ngModel]="cartella()" (ngModelChange)="cartella.set($event)" placeholder="C:\ComfyUI_windows_portable\ComfyUI" />
+            <mat-hint>La cartella che contiene models, input e output</mat-hint>
+          </mat-form-field>
+          <button mat-flat-button (click)="usa()" [disabled]="salvando()"><mat-icon>save</mat-icon> Salva e prova</button>
+        </div>
+      </section>
+    </mat-tab>
+  </mat-tab-group>
+</div>

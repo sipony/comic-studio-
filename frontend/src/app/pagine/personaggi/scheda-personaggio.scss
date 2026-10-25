@@ -1,0 +1,122 @@
+.scheda {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 20px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--mat-sys-surface-container);
+  border: 1px solid var(--mat-sys-outline-variant);
+  &.modificato {
+    border-color: var(--mat-sys-primary);
+  }
+}
+
+.immagine {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 2 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--mat-sys-surface-container-highest);
+  border: 2px dashed var(--mat-sys-outline-variant);
+  &.trascina {
+    border-color: var(--mat-sys-primary);
+    background: color-mix(in srgb, var(--mat-sys-primary) 12%, var(--mat-sys-surface-container-highest));
+  }
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #fff;
+  }
+  .sostituisci {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    background: rgb(0 0 0 / 65%);
+    color: #fff;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+  }
+  &:hover .sostituisci {
+    opacity: 1;
+  }
+}
+.segnaposto {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 13px;
+  mat-icon {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+  }
+  small {
+    opacity: 0.75;
+  }
+}
+
+.campi {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.riga {
+  display: flex;
+  gap: 12px;
+  .nome {
+    flex: 1 1 auto;
+  }
+  .genere {
+    flex: 0 0 220px;
+  }
+}
+.mono {
+  font-family: 'JetBrains Mono', Consolas, Menlo, monospace;
+}
+.pulsanti {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  .spazio {
+    flex: 1;
+  }
+  .elimina {
+    color: var(--cs-errore-testo);
+  }
+}
+
+@media (max-width: 720px) {
+  .scheda {
+    grid-template-columns: 1fr;
+  }
+  .immagine {
+    max-width: 220px;
+  }
+  .riga {
+    flex-direction: column;
+    .genere {
+      flex: 1 1 auto;
+    }
+  }
+}

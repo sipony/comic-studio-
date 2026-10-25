@@ -1,0 +1,64 @@
+<article class="scheda" [class.modificato]="modificato()">
+  <label
+    class="immagine"
+    [class.trascina]="trascina()"
+    (dragover)="$event.preventDefault(); trascina.set(true)"
+    (dragleave)="trascina.set(false)"
+    (drop)="rilasciato($event)"
+    matTooltip="Trascina qui un'immagine o fai clic per sceglierla"
+  >
+    @if (immagine(); as src) {
+      <img [src]="src" [alt]="'Riferimento di ' + personaggio().nome" />
+      <span class="sostituisci"><mat-icon>photo_camera</mat-icon> Sostituisci</span>
+    } @else {
+      <span class="segnaposto">
+        <mat-icon>add_photo_alternate</mat-icon>
+        Immagine di riferimento
+        <small>trascinala qui o fai clic</small>
+      </span>
+    }
+    <input type="file" accept="image/png,image/jpeg,image/webp" (change)="scelto($event)" hidden />
+  </label>
+
+  <div class="campi">
+    <div class="riga">
+      <mat-form-field class="nome">
+        <mat-label>Nome</mat-label>
+        <input matInput [ngModel]="nome()" (ngModelChange)="nome.set($event)" maxlength="60" />
+      </mat-form-field>
+      <mat-form-field class="genere">
+        <mat-label>Tipo</mat-label>
+        <mat-select [value]="genere()" (valueChange)="genere.set($event)">
+          @for (g of generi; track g.valore) {
+            <mat-option [value]="g.valore">{{ g.etichetta }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <mat-form-field>
+      <mat-label>Trigger word</mat-label>
+      <input matInput class="mono" [ngModel]="trigger()" (ngModelChange)="trigger.set($event.toLowerCase())" maxlength="24" />
+      <button mat-icon-button matSuffix (click)="suggerisci()" matTooltip="Inventane una nuova" type="button">
+        <mat-icon>casino</mat-icon>
+      </button>
+      <mat-hint>Parola inventata che richiama il personaggio nei prompt</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field>
+      <mat-label>Tratti fissi (in inglese)</mat-label>
+      <textarea matInput rows="3" [ngModel]="descrizione()" (ngModelChange)="descrizione.set($event)" maxlength="600"
+        placeholder="young woman, long blonde hair, blue eyes, blue police uniform"></textarea>
+      <mat-hint>Aspetto che non cambia mai: capelli, corporatura, vestiti</mat-hint>
+    </mat-form-field>
+
+    <div class="pulsanti">
+      <button mat-button class="elimina" (click)="elimina()"><mat-icon>delete</mat-icon> Elimina</button>
+      <span class="spazio"></span>
+      @if (modificato()) {
+        <button mat-button (click)="annulla()">Annulla</button>
+        <button mat-flat-button (click)="salva()" [disabled]="occupato() || !nome().trim()">Salva</button>
+      }
+    </div>
+  </div>
+</article>
