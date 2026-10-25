@@ -20,6 +20,11 @@ class Impostazioni(BaseModel):
     comfy_dir: str | None = None
     cartella_progetti: str = Field(default_factory=lambda: str(cartella_dati() / "progetti"))
     ultimo_progetto: str | None = None
+    # avvio di ComfyUI da Comic Studio
+    avvio_automatico: bool = True          # se ComfyUI non è attivo all'apertura, avvialo
+    argomenti_comfy: str = ""              # argomenti in più, es. "--lowvram --preview-method auto"
+    comando_comfy: str | None = None       # comando completo scritto a mano (sostituisce quello automatico)
+    attesa_avvio: int = 300                # secondi massimi per aspettare che ComfyUI sia pronto
 
 
 class Archivio:

@@ -29,6 +29,13 @@ class Usa(BaseModel):
     cartella: str | None = None
 
 
+class AvvioComfy(BaseModel):
+    avvio_automatico: bool | None = None
+    argomenti_comfy: str | None = None
+    comando_comfy: str | None = None
+    attesa_avvio: int | None = None
+
+
 class DatiProgetto(BaseModel):
     nome: str
     descrizione: str = ""
@@ -48,8 +55,8 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
         stato.bus.log(f"Comic Studio {__version__} avviato", "info")
         compiti = []
         if sorveglia:
+            compiti.append(asyncio.create_task(stato.avvio()))      # prima: segna che si sta preparando
             compiti.append(asyncio.create_task(stato.sorveglia()))
-            compiti.append(asyncio.create_task(stato.avvio()))
         yield
         for c in compiti:
             c.cancel()
@@ -92,6 +99,33 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
     @api.get("/api/comfy/stato")
     async def stato_comfy():
         return (await stato.aggiorna_comfy()).dict()
+
+    @api.post("/api/comfy/avvia")
+    async def avvia_comfy():
+        return stato.avvia_comfy().dict()
+
+    @api.post("/api/comfy/ferma")
+    async def ferma_comfy():
+        if not stato.comfy_pid:
+            raise HTTPException(409, "Posso fermare solo un ComfyUI avviato da Comic Studio: "
+                                     "questo l'hai aperto tu, chiudilo dalla sua finestra.")
+        return stato.ferma_comfy().dict()
+
+    @api.post("/api/comfy/riavvia")
+    async def riavvia_comfy():
+        if stato.comfy.connesso and not stato.comfy_pid:
+            raise HTTPException(409, "ComfyUI non è stato avviato da Comic Studio: chiudilo tu e poi premi Avvia.")
+        return stato.riavvia_comfy().dict()
+
+    @api.post("/api/comfy/avvio")
+    async def impostazioni_avvio(dati: AvvioComfy):
+        campi = dati.model_dump(exclude_none=True)
+        if "comando_comfy" in campi:
+            campi["comando_comfy"] = campi["comando_comfy"].strip() or None
+        if "attesa_avvio" in campi:
+            campi["attesa_avvio"] = max(30, min(campi["attesa_avvio"], 1800))
+        stato.impostazioni.aggiorna(**campi)
+        return (await stato.aggiorna_comfy()).dict() | {"impostazioni": stato.impostazioni.valori.model_dump()}
 
     @api.get("/api/diagnostica")
     async def rapporto():

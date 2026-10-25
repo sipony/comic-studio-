@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Preset, RiassuntoAddestramento,
+  ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -43,6 +43,12 @@ export class ApiService {
   cercaComfy() { return this.post<Lavoro>('/api/comfy/cerca'); }
   usaComfy(url: string | null, cartella: string | null) {
     return this.post<StatoComfy>('/api/comfy/usa', { url, cartella });
+  }
+  avviaComfy() { return this.post<Lavoro>('/api/comfy/avvia'); }
+  fermaComfy() { return this.post<Lavoro>('/api/comfy/ferma'); }
+  riavviaComfy() { return this.post<Lavoro>('/api/comfy/riavvia'); }
+  impostaAvvio(dati: ImpostazioniAvvio) {
+    return this.post<StatoComfy & { impostazioni: Impostazioni }>('/api/comfy/avvio', dati);
   }
   statoComfy() { return this.get<StatoComfy>('/api/comfy/stato'); }
   modelli() { return this.get<Record<string, string[]>>('/api/comfy/modelli'); }

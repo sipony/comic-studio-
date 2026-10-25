@@ -48,6 +48,7 @@ export class App implements OnInit {
     const c = this.eventi.comfy();
     if (!this.eventi.collegato()) return { classe: 'errore', testo: 'Comic Studio non risponde', dettaglio: '' };
     if (!c) return { classe: 'attesa', testo: 'ComfyUI…', dettaglio: '' };
+    if (!c.connesso && c.in_avvio) return { classe: 'attesa', testo: 'ComfyUI in avvio…', dettaglio: '' };
     if (!c.connesso) return { classe: 'errore', testo: 'ComfyUI non connesso', dettaglio: c.errore ?? '' };
     const gpu = c.gpu ? c.gpu.replace(/^cuda:\d+\s*/, '').replace(/ : .*$/, '').replace('NVIDIA GeForce ', '') : '';
     return {
