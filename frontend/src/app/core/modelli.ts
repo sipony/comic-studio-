@@ -158,7 +158,9 @@ export type Evento =
   | EventoFumetto
   | { tipo: 'kohya'; dati: StatoKohya; ts: number }
   | { tipo: 'chiusura'; ts: number }
-  | { tipo: 'ia'; dati: StatoIA; ts: number };
+  | { tipo: 'ia'; dati: StatoIA; ts: number }
+  | { tipo: 'proposte'; progetto: string; personaggio: string; ts: number }
+  | { tipo: 'personaggi'; progetto: string; personaggio: string; ts: number };
 
 export const GENERI: { valore: Genere; etichetta: string }[] = [
   { valore: '1girl', etichetta: 'Donna (1girl)' },
@@ -563,4 +565,24 @@ export interface EventoFumetto {
   progetto: string;
   vignetta: string;
   ts: number;
+}
+
+export type InquadraturaProposta = 'figura_intera' | 'mezzo_busto' | 'primo_piano';
+
+export interface ConfigProposte {
+  checkpoint: string;
+  numero: number;
+  inquadratura: InquadraturaProposta;
+  stile: string;
+  extra: string;
+  da?: string | null;
+}
+
+export interface Proposta {
+  file: string;
+  seme: number;
+  prompt: string;
+  creato: number;
+  da: string | null;
+  scelta: boolean;
 }

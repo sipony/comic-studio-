@@ -108,6 +108,19 @@ class Tratti(BaseModel):
     checkpoint: str | None = None
 
 
+async def tratti_dal_testo(app, p: Personaggio, storia: str, checkpoint: str | None, l: Lavoro) -> dict:
+    """I tratti fissi di un personaggio ricavati dalla sua descrizione libera."""
+    tp.verifica_contenuto([storia])
+    utente = f"Character name: {p.nome}\nDescription:\n{storia}"
+    analisi = await app.ia.chiedi(tp.SISTEMA_PERSONAGGIO, utente, tp.SCHEMA_PERSONAGGIO, l)
+    r = tp.tratti_personaggio(analisi, famiglia_da_nome(checkpoint or ""))
+    tp.verifica_contenuto([storia, r["descrizione"]], minori=r["adulto"] is False)
+    l.log(f"Tratti di {p.nome}: {r['descrizione']}", "ok")
+    if r["adulto"] is False:
+        l.log(f"{p.nome} risulta minorenne: nelle scene con lui o lei i contenuti sessuali sono bloccati.", "info")
+    return r
+
+
 @rotte.post("/personaggi/{cid}/tratti")
 async def ricava_tratti(pid: str, cid: str, dati: Tratti, req: Request):
     app = _app(req)
@@ -122,14 +135,7 @@ async def ricava_tratti(pid: str, cid: str, dati: Tratti, req: Request):
 
     async def lavoro(l: Lavoro):
         l.avanza(0.1, f"l'IA legge la descrizione di {p.nome}")
-        utente = f"Character name: {p.nome}\nDescription:\n{storia}"
-        analisi = await app.ia.chiedi(tp.SISTEMA_PERSONAGGIO, utente, tp.SCHEMA_PERSONAGGIO, l)
-        r = tp.tratti_personaggio(analisi, famiglia_da_nome(checkpoint or ""))
-        tp.verifica_contenuto([storia, r["descrizione"]], minori=r["adulto"] is False)
-        l.log(f"Tratti di {p.nome}: {r['descrizione']}", "ok")
-        if r["adulto"] is False:
-            l.log(f"{p.nome} risulta minorenne: nelle scene con lui o lei i contenuti sessuali sono bloccati.", "info")
-        return r
+        return await tratti_dal_testo(app, p, storia, checkpoint, l)
     return app.gestore.avvia("ia_tratti", f"Tratti di {p.nome} dal testo", lavoro, progetto=pid).dict()
 
 

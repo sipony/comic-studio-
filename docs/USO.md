@@ -42,6 +42,10 @@ Nel riquadro **Consigli** trovi le impostazioni più adatte alla tua scheda vide
      (es. `old man, fat, white hair, white mustache, blue police uniform`). Puoi anche scriverli a mano.
    - **Immagine di riferimento**: trascinala nel riquadro. Meglio un'immagine pulita, a figura intera o
      mezzo busto, su sfondo semplice.
+   - **Non hai un'immagine?** Scrivi la descrizione libera e premi **Crea dal testo**: scegli checkpoint,
+     inquadratura e quante proposte, poi **Genera**. Se mancano i tratti fissi li ricava prima l'IA. Sulla
+     proposta giusta premi **Usa questa** (diventa l'immagine di riferimento) oppure **Varianti** per averne
+     altre simili; **Togli le non scelte** sposta le altre nel cestino del progetto.
 
 ## 4. Step 1 · Dataset
 

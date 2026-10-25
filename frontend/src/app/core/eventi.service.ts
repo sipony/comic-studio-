@@ -18,6 +18,7 @@ export class EventiService {
   /** Comic Studio è stato chiuso con «Esci». */
   readonly chiuso = signal(false);
   readonly ia = signal<StatoIA | null>(null);
+  readonly proposte = signal<{ progetto: string; personaggio: string } | null>(null, { equal: () => false });
   readonly log = signal<RigaLog[]>([]);
   readonly lavori = signal<Record<string, Lavoro>>({});
   readonly comfy = signal<StatoComfy | null>(null);
@@ -118,6 +119,10 @@ export class EventiService {
         break;
       case 'kohya':
         this.kohya.update((n) => n + 1);
+        break;
+      case 'proposte':
+      case 'personaggi':
+        this.proposte.set({ progetto: e.progetto, personaggio: e.personaggio });
         break;
       case 'ia':
         this.ia.set(e.dati);

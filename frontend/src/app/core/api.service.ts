@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, StatoIA, Preset, RiassuntoAddestramento,
+  ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -65,6 +65,18 @@ export class ApiService {
   }
   storiaIA(progetto: string, testo: string, sostituisci: boolean) {
     return this.post<Lavoro>(`/api/progetti/${progetto}/fumetto/storia`, { testo, sostituisci });
+  }
+
+  // ------------------------------------------------------------ personaggio dal nulla
+  private dp(progetto: string, id: string) { return `/api/progetti/${progetto}/personaggi/${id}/proposte`; }
+  proposte(progetto: string, id: string) { return this.get<Proposta[]>(this.dp(progetto, id)); }
+  generaProposte(progetto: string, id: string, conf: ConfigProposte) { return this.post<Lavoro>(this.dp(progetto, id), conf); }
+  urlProposta(progetto: string, id: string, file: string) { return `${this.dp(progetto, id)}/${encodeURIComponent(file)}`; }
+  scegliProposta(progetto: string, id: string, file: string) {
+    return this.post<Personaggio>(`${this.dp(progetto, id)}/${encodeURIComponent(file)}/scegli`);
+  }
+  scartaProposte(progetto: string, id: string) {
+    return this.post<{ spostate_nel_cestino: number }>(`${this.dp(progetto, id)}/scarta`);
   }
 
   avviaComfy() { return this.post<Lavoro>('/api/comfy/avvia'); }

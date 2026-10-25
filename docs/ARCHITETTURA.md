@@ -36,6 +36,8 @@ backend/app/
   llm.py                  client dell'IA locale (Ollama / compatibile OpenAI), Ollama portatile
   ia.py                   servizio dell'IA: stato, installazione, avvio, modelli, domande
   testo_prompt.py         dal testo in linguaggio naturale al prompt: schemi, composizione, blocco, aderenza
+  proposte.py             personaggio dal nulla: proposte d'immagine di riferimento dal testo
+  rotte_proposte.py       API delle proposte
   rotte_testo.py          API dell'IA, tratti dei personaggi, analisi delle vignette, storia → vignette
   installato.py           avvio dell'app installata: registro su file, niente console, messaggi di errore nativi
   comfy/avvio.py          avvio e arresto di ComfyUI (comando per tipo di installazione, registro, PID)
@@ -72,6 +74,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
       progetto.json                  nome, descrizione, personaggi[]
       workflows/<id>.json            libreria dei workflow (formato API + ruoli)
       personaggi/<id>/riferimento.png
+      personaggi/<id>/proposte/          proposte generate dal testo (proposte.json + png)
       personaggi/<id>/dataset/
         config.json                  workflow, ruoli, prompt, varianti, parametri dei nodi, quantità
         immagini.json                variante, prompt, seme, stato (tenuta/scartata), punteggio
@@ -109,6 +112,11 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `/api/progetti/{p}/personaggi/{c}/tratti` | `{storia}` ricava i tratti fissi dalla descrizione (lavoro) |
 | POST | `…/fumetto/vignette/{v}/analizza` | descrizione → analisi → prompt (lavoro) |
 | GET | `…/fumetto/vignette/{v}/prompt` | il prompt dall'ultima analisi e se è ancora valida |
+| GET | `/api/progetti/{p}/personaggi/{c}/proposte` | proposte d'immagine di riferimento |
+| POST | `…/personaggi/{c}/proposte` | `{checkpoint, numero, inquadratura, stile, extra, da}` genera proposte o varianti (lavoro GPU) |
+| GET | `…/proposte/{file}` | immagine di una proposta |
+| POST | `…/proposte/{file}/scegli` | la proposta diventa l'immagine di riferimento |
+| POST | `…/proposte/scarta` | sposta nel cestino le proposte non scelte |
 | POST | `…/fumetto/storia` | `{testo, sostituisci}` racconto libero → pagine e vignette (lavoro) |
 | POST | `/api/esci` | `{comfy}` chiude Comic Studio (e, se richiesto, il ComfyUI avviato da lui) |
 | GET | `/api/sistema` | versione, impostazioni, stato ComfyUI, installazioni trovate, ultimo controllo |
@@ -184,6 +192,7 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `fumetto` | `progetto`, `vignetta`: nuova immagine generata |
 | `chiusura` | Comic Studio si sta chiudendo |
 | `ia` | stato dell'IA locale |
+| `proposte`, `personaggi` | `progetto`, `personaggio`: nuove proposte o tratti ricavati dall'IA |
 
 ## Lavori
 
