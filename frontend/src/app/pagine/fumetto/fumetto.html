@@ -1,0 +1,281 @@
+<div class="pagina larga">
+  <div class="intestazione">
+    <div>
+      <h1>Step 4 · Fumetto</h1>
+      <p class="sotto">
+        Scrivi le pagine vignetta per vignetta: chi c'è (il primo a sinistra), cosa succede e chi parla.
+        Ogni personaggio usa il suo LoRA nella sua zona della vignetta.
+      </p>
+    </div>
+    <div class="azioni">
+      <span class="salvataggio" [class]="salvataggio()">
+        {{ salvataggio() === 'salvato' ? 'Salvato' : salvataggio() === 'errore' ? 'Non salvato' : 'Modifiche…' }}
+      </span>
+      <button mat-stroked-button (click)="apriImporta()"><mat-icon>edit_note</mat-icon> Storia da testo</button>
+      <button mat-stroked-button (click)="impostazioniAperte.set(!impostazioniAperte())"><mat-icon>tune</mat-icon> Impostazioni</button>
+      <button mat-stroked-button [matMenuTriggerFor]="esporta"><mat-icon>download</mat-icon> Esporta</button>
+      <mat-menu #esporta="matMenu">
+        <a mat-menu-item [href]="urlEsporta('pdf')" download><mat-icon>picture_as_pdf</mat-icon> PDF (tutte le tavole)</a>
+        <a mat-menu-item [href]="urlEsporta('zip')" download><mat-icon>image</mat-icon> PNG (zip)</a>
+      </mat-menu>
+    </div>
+  </div>
+
+  @if (senzaLora().length) {
+    <p class="nota-avviso">
+      <mat-icon>warning</mat-icon>
+      Senza LoRA: {{ senzaLora().map(p => p.nome).join(', ') }}. Si possono usare lo stesso (solo con la descrizione), ma
+      saranno meno coerenti: addestrali nello <a [routerLink]="['/progetto', progetto().id, 'addestramento']">Step 3</a>.
+    </p>
+  }
+
+  @if (lavoro(); as l) {
+    <div class="in-corso">
+      <span><strong>{{ l.titolo }}</strong> · {{ l.testo || 'in coda' }}</span>
+      <mat-progress-bar [mode]="l.stato === 'in_coda' ? 'query' : 'determinate'" [value]="l.progresso * 100" />
+      <button mat-icon-button (click)="ferma(l.id)" aria-label="Ferma"><mat-icon>stop</mat-icon></button>
+    </div>
+  }
+
+  <!-- ============================== STORIA DA TESTO ============================== -->
+  @if (importaAperto()) {
+    <section class="scheda">
+      <h2>Storia da testo</h2>
+      <p class="nota">Scrivi o incolla la storia: una vignetta per riga, <code>---</code> per una nuova pagina.</p>
+      <textarea class="storia" rows="10" [ngModel]="testoStoria()" (ngModelChange)="testoStoria.set($event)"></textarea>
+      <div class="pulsanti">
+        <button mat-button (click)="importaAperto.set(false)">Annulla</button>
+        <button mat-stroked-button (click)="importa(true)">Sostituisci tutto</button>
+        <button mat-flat-button (click)="importa(false)">Aggiungi in fondo</button>
+      </div>
+    </section>
+  }
+
+  <!-- ============================== IMPOSTAZIONI ============================== -->
+  @if (impostazioniAperte() && fumetto(); as f) {
+    <section class="scheda impostazioni">
+      <h2>Impostazioni del fumetto</h2>
+      <div class="campi">
+        <mat-form-field>
+          <mat-label>Checkpoint</mat-label>
+          <mat-select [value]="f.impostazioni.checkpoint" (valueChange)="impostazione('checkpoint', $event)">
+            @for (m of checkpoint(); track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+          </mat-select>
+          <mat-hint>Lo stesso usato per addestrare i LoRA</mat-hint>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>LoRA di stile</mat-label>
+          <mat-select [value]="f.impostazioni.lora_stile" (valueChange)="impostazione('lora_stile', $event)">
+            <mat-option [value]="null">— nessuno —</mat-option>
+            @for (m of loraElenco(); track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Forza stile</mat-label>
+          <input matInput type="number" step="0.05" [value]="f.impostazioni.forza_stile" (change)="numeroImp('forza_stile', $any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Forza personaggi</mat-label>
+          <input matInput type="number" step="0.05" [value]="f.impostazioni.forza_personaggio" (change)="numeroImp('forza_personaggio', $any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Ripasso di gruppo</mat-label>
+          <input matInput type="number" step="0.05" min="0" max="1" [value]="f.impostazioni.ripasso" (change)="numeroImp('ripasso', $any($event.target).value)" />
+          <mat-hint>0.4-0.6: quanto ridisegnare ogni personaggio</mat-hint>
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Passi</mat-label>
+          <input matInput type="number" [value]="f.impostazioni.passi" (change)="numeroImp('passi', $any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>CFG</mat-label>
+          <input matInput type="number" step="0.5" [value]="f.impostazioni.cfg" (change)="numeroImp('cfg', $any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Sampler</mat-label>
+          <input matInput [value]="f.impostazioni.sampler" (change)="impostazione('sampler', $any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Scheduler</mat-label>
+          <input matInput [value]="f.impostazioni.scheduler" (change)="impostazione('scheduler', $any($event.target).value)" />
+        </mat-form-field>
+      </div>
+      <mat-form-field>
+        <mat-label>Stile (prompt positivo comune)</mat-label>
+        <textarea matInput rows="2" [ngModel]="f.impostazioni.positivo" (change)="impostazione('positivo', $any($event.target).value)"></textarea>
+        <mat-hint>{{ '{qualita}' }} = tag di qualità adatti al checkpoint</mat-hint>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Prompt negativo comune</mat-label>
+        <textarea matInput rows="2" [ngModel]="f.impostazioni.negativo" (change)="impostazione('negativo', $any($event.target).value)"></textarea>
+      </mat-form-field>
+      <div class="campi">
+        <mat-form-field class="largo">
+          <mat-label>Font dei balloon (percorso di un file .ttf/.otf)</mat-label>
+          <input matInput [value]="f.impostazioni.font ?? ''" (change)="impostazione('font', $any($event.target).value || null)" placeholder="automatico (Comic Sans Bold su Windows)" />
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Larghezza tavola (px)</mat-label>
+          <input matInput type="number" [value]="f.impostazioni.larghezza_pagina" (change)="numeroImp('larghezza_pagina', $any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field class="corto">
+          <mat-label>Margine (px)</mat-label>
+          <input matInput type="number" [value]="f.impostazioni.margine" (change)="numeroImp('margine', $any($event.target).value)" />
+        </mat-form-field>
+      </div>
+    </section>
+  }
+
+  @if (fumetto(); as f) {
+    <div class="griglia">
+      <!-- ============================== PAGINE ============================== -->
+      <aside class="indice">
+        @for (p of pagine(); track p.id; let pi = $index) {
+          <section class="pagina-blocco">
+            <div class="testa-pagina">
+              <button class="nome-pagina" [class.attiva]="paginaAnteprima() === pi" (click)="paginaAnteprima.set(pi)">Pagina {{ pi + 1 }}</button>
+              <button mat-icon-button (click)="eliminaPagina(pi)" aria-label="Elimina pagina" matTooltip="Elimina pagina"><mat-icon>delete</mat-icon></button>
+            </div>
+            @for (v of p.vignette; track v.id; let vi = $index) {
+              <div class="voce" [class.scelta]="v.id === sceltaId()" (click)="scegli(v.id, pi)" tabindex="0" (keydown.enter)="scegli(v.id, pi)">
+                @if (corrente(v.id); as c) {
+                  <img [src]="url(c.file)" alt="" loading="lazy" />
+                } @else {
+                  <span class="vuota" [class]="v.formato"><mat-icon>image</mat-icon></span>
+                }
+                <div class="testo">
+                  <strong>{{ numero()[v.id] }} · {{ v.formato }}</strong>
+                  <span>{{ v.personaggi.length ? v.personaggi.map(id => nomi()[id] ?? id).join(' + ') : 'ambiente' }}</span>
+                  <small>{{ v.azione || 'da descrivere' }}</small>
+                </div>
+                <div class="sposta">
+                  <button (click)="spostaVignetta(pi, vi, -1); $event.stopPropagation()" aria-label="Su"><mat-icon>arrow_upward</mat-icon></button>
+                  <button (click)="spostaVignetta(pi, vi, 1); $event.stopPropagation()" aria-label="Giù"><mat-icon>arrow_downward</mat-icon></button>
+                </div>
+              </div>
+            }
+            <button mat-button class="aggiungi" (click)="aggiungiVignetta(pi)"><mat-icon>add</mat-icon> Vignetta</button>
+          </section>
+        }
+        <button mat-stroked-button (click)="aggiungiPagina()"><mat-icon>note_add</mat-icon> Nuova pagina</button>
+        <button mat-flat-button class="tutte" (click)="genera(null)" [disabled]="!mancanti() || !!lavoro() || !eventi.comfy()?.connesso || !f.impostazioni.checkpoint"
+          [matTooltip]="!f.impostazioni.checkpoint ? 'Scegli il checkpoint nelle impostazioni' : ''">
+          <mat-icon>auto_awesome</mat-icon> Genera le {{ mancanti() }} mancanti
+        </button>
+      </aside>
+
+      <!-- ============================== VIGNETTA ============================== -->
+      <section class="editor">
+        @if (scelta(); as s) {
+          <div class="titolo-editor">
+            <h2>Vignetta {{ numero()[s.v.id] }}</h2>
+            <button mat-icon-button (click)="eliminaVignetta(s.pi, s.vi)" aria-label="Elimina vignetta" matTooltip="Elimina vignetta"><mat-icon>delete</mat-icon></button>
+          </div>
+
+          <mat-button-toggle-group [value]="s.v.formato" (change)="formato($event.value)" aria-label="Formato">
+            <mat-button-toggle value="larga">Larga</mat-button-toggle>
+            <mat-button-toggle value="alta">Alta</mat-button-toggle>
+            <mat-button-toggle value="quadrata">Quadrata</mat-button-toggle>
+          </mat-button-toggle-group>
+
+          <div class="blocco">
+            <label>Personaggi in scena <small>(il primo sta a sinistra, massimo 3)</small></label>
+            <div class="chip-personaggi">
+              @for (p of personaggi(); track p.id) {
+                <button [class.dentro]="s.v.personaggi.includes(p.id)" (click)="alternaPersonaggio(p)">
+                  @if (s.v.personaggi.includes(p.id)) { <span class="ordine">{{ s.v.personaggi.indexOf(p.id) + 1 }}</span> }
+                  {{ p.nome }}
+                  @if (!lora()[p.id]) { <mat-icon class="nolora" matTooltip="Senza LoRA">warning</mat-icon> }
+                </button>
+              }
+            </div>
+            @if (s.v.personaggi.length > 1) {
+              <div class="ordine-scena">
+                @for (id of s.v.personaggi; track id; let i = $index) {
+                  <span class="posto">
+                    <button (click)="spostaPersonaggio(i, -1)" [disabled]="i === 0" aria-label="Più a sinistra"><mat-icon>chevron_left</mat-icon></button>
+                    {{ nomi()[id] }}
+                    <button (click)="spostaPersonaggio(i, 1)" [disabled]="i === s.v.personaggi.length - 1" aria-label="Più a destra"><mat-icon>chevron_right</mat-icon></button>
+                  </span>
+                }
+              </div>
+            }
+          </div>
+
+          <mat-form-field>
+            <mat-label>Cosa succede (in inglese, a tag)</mat-label>
+            <textarea matInput rows="3" [ngModel]="s.v.azione" (ngModelChange)="cambiaVignetta(x => x.azione = $event)"
+              placeholder="police office, dim lighting, the woman standing with a folder, medium shot"></textarea>
+            <mat-hint>Luogo, luce, inquadratura, cosa fanno. I personaggi li aggiunge il programma.</mat-hint>
+          </mat-form-field>
+
+          <div class="blocco">
+            <label>Dialoghi e didascalie</label>
+            @for (d of s.v.dialoghi; track $index; let i = $index) {
+              <div class="dialogo">
+                <select [ngModel]="d.chi" (ngModelChange)="cambiaDialogo(i, 'chi', $event)" aria-label="Chi parla">
+                  @for (c of chiParla(s.v); track c.id) { <option [value]="c.id">{{ c.nome }}</option> }
+                </select>
+                <input [ngModel]="d.testo" (ngModelChange)="cambiaDialogo(i, 'testo', $event)" placeholder="Testo…" aria-label="Testo" />
+                <select [ngModel]="d.posizione" (ngModelChange)="cambiaDialogo(i, 'posizione', $event)" aria-label="Posizione">
+                  <option value="auto">auto</option>
+                  <option value="alto-sx">alto sx</option>
+                  <option value="alto-dx">alto dx</option>
+                  <option value="basso-sx">basso sx</option>
+                  <option value="basso-dx">basso dx</option>
+                </select>
+                <button (click)="togliDialogo(i)" aria-label="Togli"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+            <button mat-button (click)="aggiungiDialogo()"><mat-icon>add_comment</mat-icon> Aggiungi battuta</button>
+          </div>
+
+          <div class="genera">
+            <button mat-flat-button (click)="genera(s.v.id)" [disabled]="!!lavoro() || !eventi.comfy()?.connesso || !f.impostazioni.checkpoint">
+              <mat-icon>casino</mat-icon> {{ corrente(s.v.id) ? 'Nuova versione' : 'Genera' }}
+            </button>
+            @if (corrente(s.v.id)) {
+              <button mat-stroked-button (click)="genera(s.v.id, true)" [disabled]="!!lavoro() || !eventi.comfy()?.connesso"
+                matTooltip="Stessa composizione, con le modifiche al testo">
+                <mat-icon>replay</mat-icon> Stesso seme
+              </button>
+            }
+            <mat-form-field class="seme">
+              <mat-label>Seme fisso</mat-label>
+              <input matInput type="number" [value]="s.v.seme ?? ''" (change)="seme($any($event.target).value)" placeholder="casuale" />
+            </mat-form-field>
+          </div>
+
+          @if (corrente(s.v.id); as c) {
+            <img class="grande" [src]="url(c.file)" alt="Vignetta generata" />
+            <p class="nota mono">seme {{ c.seme }}</p>
+          }
+          @if ((immagini()[s.v.id]?.versioni?.length ?? 0) > 1) {
+            <div class="versioni">
+              @for (ver of immagini()[s.v.id].versioni; track ver.file; let i = $index) {
+                <button [class.attiva]="ver.file === corrente(s.v.id)?.file" (click)="versione(s.v.id, i)" [attr.aria-label]="'Versione ' + (i + 1)">
+                  <img [src]="url(ver.file)" alt="" loading="lazy" />
+                </button>
+              }
+            </div>
+          }
+        } @else {
+          <p class="nota">Aggiungi una vignetta o importa una storia da testo per iniziare.</p>
+        }
+      </section>
+
+      <!-- ============================== TAVOLA ============================== -->
+      <section class="tavola">
+        <div class="titolo-editor">
+          <h2>Tavola {{ paginaAnteprima() + 1 }}</h2>
+          <a mat-icon-button [href]="urlAnteprima().replace('larghezza=900', 'larghezza=3000')" target="_blank" rel="noopener" aria-label="Apri grande" matTooltip="Apri a piena risoluzione"><mat-icon>open_in_new</mat-icon></a>
+        </div>
+        @if (pagine()[paginaAnteprima()]?.vignette?.length) {
+          <img [src]="urlAnteprima()" [alt]="'Tavola ' + (paginaAnteprima() + 1)" />
+        } @else {
+          <p class="nota">Pagina vuota.</p>
+        }
+      </section>
+    </div>
+  }
+</div>

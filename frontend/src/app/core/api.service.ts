@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
   ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Preset, RiassuntoAddestramento,
-  StatoAddestramento, StatoKohya, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
+  StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
 
@@ -167,6 +167,27 @@ export class ApiService {
     return this.post<StatoAddestramento>(`${this.da(progetto, pers)}/esistente`, { lora });
   }
   urlTest(progetto: string, pers: string, file: string) { return `${this.da(progetto, pers)}/test/${file}`; }
+
+  // ------------------------------------------------------------ Step 4: fumetto
+  private df(progetto: string) { return `/api/progetti/${progetto}/fumetto`; }
+  fumetto(progetto: string) { return this.get<StatoFumetto>(this.df(progetto)); }
+  salvaFumetto(progetto: string, f: Fumetto) {
+    return this.chiama(firstValueFrom(this.http.put<{ ok: boolean }>(this.df(progetto), f)));
+  }
+  importaStoria(progetto: string, testo: string, sostituisci = false) {
+    return this.post<StatoFumetto>(`${this.df(progetto)}/importa`, { testo, sostituisci });
+  }
+  generaVignette(progetto: string, vignette: string[] | null, stessoSeme = false) {
+    return this.post<Lavoro>(`${this.df(progetto)}/genera`, { vignette, stesso_seme: stessoSeme });
+  }
+  scegliVersione(progetto: string, vid: string, indice: number) {
+    return this.chiama(firstValueFrom(this.http.put<ImmaginiVignetta>(`${this.df(progetto)}/vignette/${vid}/scelta`, { indice })));
+  }
+  urlVignetta(progetto: string, file: string) { return `${this.df(progetto)}/immagini/${file}`; }
+  urlAnteprimaPagina(progetto: string, indice: number, larghezza = 900) {
+    return `${this.df(progetto)}/pagine/${indice}/anteprima?larghezza=${larghezza}`;
+  }
+  urlEsporta(progetto: string, formato: 'pdf' | 'zip') { return `${this.df(progetto)}/esporta?formato=${formato}`; }
 
   specNodi(classi: string[]) {
     return this.get<Record<string, SpecNodo>>('/api/comfy/nodi', { classi: classi.join(',') });

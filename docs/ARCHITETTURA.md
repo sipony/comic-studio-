@@ -30,6 +30,8 @@ backend/app/
   rotte_didascalie.py     API e lavori dello Step 2
   addestramento.py        Step 3: kohya (installazione, comando, lettura dell'uscita), parametri, epoche
   rotte_addestramento.py  API e lavori dello Step 3
+  fumetto.py              Step 4: pagine e vignette, workflow delle scene, balloon, tavole, PDF, storia da testo
+  rotte_fumetto.py        API e lavori dello Step 4
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
   comfy/client.py         client asincrono per l'API di ComfyUI
 backend/tests/            pytest; finto_comfy.py simula ComfyUI (HTTP + WebSocket)
@@ -41,6 +43,7 @@ frontend/src/app/
   pagine/didascalie/      Step 2
   shell/scelta-personaggio  selettore del personaggio comune agli step
   pagine/addestramento/   Step 3 e grafico della loss
+  pagine/fumetto/         Step 4
 docs/                     questa documentazione
 ```
 
@@ -71,6 +74,10 @@ docs/                     questa documentazione
         uscita/                      epoche: <trigger>-000001.safetensors … <trigger>.safetensors
         test/                        immagini di prova delle epoche
         comando.txt                  il comando di kohya usato
+      fumetto/
+        fumetto.json                 impostazioni, pagine, vignette, dialoghi
+        immagini.json                versioni generate di ogni vignetta e quella scelta
+        vignette/*.png               immagini generate
   modelli/                           CLIP per la somiglianza e tagger WD14 (scaricati al primo uso)
     .cestino/                        progetti e personaggi eliminati
 ```
@@ -116,6 +123,13 @@ docs/                     questa documentazione
 | POST | `…/addestramento/prova` | `{epoche}` prova le epoche con ComfyUI (lavoro GPU) |
 | GET | `…/addestramento/test/{file}` | immagine di prova |
 | POST | `…/addestramento/scegli` / `…/addestramento/esistente` | `{epoca}` LoRA finale / `{lora}` LoRA già esistente |
+| GET / PUT | `/api/progetti/{id}/fumetto` | fumetto, versioni delle immagini, LoRA dei personaggi / salva il fumetto |
+| POST | `…/fumetto/importa` | `{testo, sostituisci}` storia da testo |
+| POST | `…/fumetto/genera` | `{vignette, stesso_seme}` genera (tutte le mancanti se `vignette` è nullo) |
+| PUT | `…/fumetto/vignette/{vid}/scelta` | `{indice}` versione da usare |
+| GET | `…/fumetto/immagini/{file}` | immagine di una vignetta |
+| GET | `…/fumetto/pagine/{n}/anteprima?larghezza=` | tavola con i balloon (JPEG) |
+| GET | `…/fumetto/esporta?formato=pdf\|zip` | tutte le tavole in PDF o PNG |
 | GET | `/api/comfy/nodi?classi=A,B` | definizioni dei nodi (per l'editor dei parametri) |
 | GET | `/api/lavori` | lavori recenti |
 | POST | `/api/lavori/{id}/annulla` | annulla un lavoro |
@@ -138,6 +152,7 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `didascalie` | `progetto`, `personaggio`: tag analizzati, da ricaricare |
 | `addestramento` | `punto` [passo, loss], `passo`, `totale`, `epoca`, `velocita`, `rimanente`; `epoche_cambiate`, `test` |
 | `kohya` | trainer installato o aggiornato |
+| `fumetto` | `progetto`, `vignetta`: nuova immagine generata |
 
 ## Lavori
 

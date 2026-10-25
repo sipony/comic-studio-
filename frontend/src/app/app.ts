@@ -40,7 +40,7 @@ export class App implements OnInit {
       { percorso: `${base}/dataset`, icona: 'photo_library', etichetta: 'Dataset', passo: 1, pronto: true },
       { percorso: `${base}/didascalie`, icona: 'sell', etichetta: 'Didascalie', passo: 2, pronto: true },
       { percorso: `${base}/addestramento`, icona: 'model_training', etichetta: 'Addestramento', passo: 3, pronto: true },
-      { percorso: `${base}/fumetto`, icona: 'auto_stories', etichetta: 'Fumetto', passo: 4, pronto: false },
+      { percorso: `${base}/fumetto`, icona: 'auto_stories', etichetta: 'Fumetto', passo: 4, pronto: true },
     ];
   });
 
