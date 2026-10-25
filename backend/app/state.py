@@ -62,6 +62,8 @@ class App:
 
     def __post_init__(self):
         self.gestore = Gestore(self.bus)
+        from .ia import ServizioIA
+        self.ia = ServizioIA(self)
 
     @property
     def file_log_comfy(self) -> Path:

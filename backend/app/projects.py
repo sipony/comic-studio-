@@ -59,7 +59,9 @@ class Personaggio(BaseModel):
     nome: str = Field(min_length=1, max_length=60)
     trigger: str
     genere: Genere = "1girl"
-    descrizione: str = Field(default="", max_length=600)
+    descrizione: str = Field(default="", max_length=1500)    # tratti fissi, in inglese a tag
+    storia: str = Field(default="", max_length=20000)        # descrizione libera e lunga, in qualsiasi lingua
+    adulto: bool | None = None              # ricavato dall'IA dalla descrizione (None = non analizzato)
     riferimento: str | None = None          # nome del file dentro la cartella del personaggio
     creato: float = Field(default_factory=time.time)
 
@@ -88,14 +90,17 @@ class NuovoPersonaggio(BaseModel):
     nome: str = Field(min_length=1, max_length=60)
     trigger: str | None = None
     genere: Genere = "1girl"
-    descrizione: str = Field(default="", max_length=600)
+    descrizione: str = Field(default="", max_length=1500)
+    storia: str = Field(default="", max_length=20000)
 
 
 class ModificaPersonaggio(BaseModel):
     nome: str | None = Field(default=None, min_length=1, max_length=60)
     trigger: str | None = None
     genere: Genere | None = None
-    descrizione: str | None = Field(default=None, max_length=600)
+    descrizione: str | None = Field(default=None, max_length=1500)
+    storia: str | None = Field(default=None, max_length=20000)
+    adulto: bool | None = None
 
 
 class Archivio:
@@ -197,7 +202,7 @@ class Archivio:
                 pid, n = f"{base}_{n}", n + 1
             try:
                 c = Personaggio(id=pid, nome=dati.nome.strip(), trigger=trigger, genere=dati.genere,
-                                descrizione=dati.descrizione.strip())
+                                descrizione=dati.descrizione.strip(), storia=dati.storia.strip())
             except ValueError as e:
                 raise ErroreProgetto(_primo_errore(e)) from None
             self._controlla_trigger(p, c.trigger)

@@ -16,6 +16,7 @@ from . import fumetto as fm
 from .addestramento import ArchivioAddestramento
 from .comfy.client import ComfyErrore
 from .jobs import Lavoro
+from .llm import ErroreIA
 from .modelinfo import TAG_QUALITA, famiglia_da_nome
 from .projects import slug
 from .workflows import per_invio
@@ -65,6 +66,13 @@ async def salva(pid: str, f: fm.Fumetto, req: Request):
             for d in v.dialoghi:
                 if d.chi != "narratore" and d.chi not in ids:
                     d.chi = "narratore"
+    # l'interfaccia non rimanda l'analisi dell'IA: si tiene quella salvata (vale finché il testo non cambia)
+    vecchio = {v.id: v for p in _arch(req).leggi(pid).pagine for v in p.vignette}
+    for p in f.pagine:
+        for v in p.vignette:
+            prima = vecchio.get(v.id)
+            if v.analisi is None and prima and prima.analisi:
+                v.analisi = prima.analisi
     _arch(req).salva(pid, f)
     return {"ok": True}
 
@@ -130,6 +138,37 @@ async def genera(pid: str, dati: Genera, req: Request):
     numeri = {v.id: i + 1 for i, v in enumerate(tutte)}
 
     async def lavoro(l: Lavoro):
+        from .rotte_testo import analizza
+        # 1. le descrizioni in linguaggio naturale diventano prompt (prima, così l'IA e ComfyUI non si
+        #    contendono la GPU)
+        scene: dict[str, object] = {}
+        con_testo = [v for v in da_fare if v.descrizione.strip()]
+        for k, v in enumerate(con_testo):
+            l.controlla()
+            l.avanza(0.15 * k / len(con_testo), f"l'IA legge la vignetta {numeri[v.id]}")
+            try:
+                r = await analizza(app, pid, v.id, l)
+            except ErroreIA as e:
+                if not v.azione.strip():
+                    raise ErroreIA(f"Vignetta {numeri[v.id]}: {e} Senza IA serve almeno il campo «tag» della "
+                                   "vignetta, in inglese.") from None
+                l.log(f"Vignetta {numeri[v.id]}: {e} Uso solo i tag della vignetta.", "avviso")
+                continue
+            if r:
+                scene[v.id] = r[1]
+        f2 = a.leggi(pid)                     # personaggi eventualmente trovati dall'IA
+        aggiornate = {x.id: x for p in f2.pagine for x in p.vignette}
+        da_fare[:] = [aggiornate.get(v.id, v) for v in da_fare]
+        quota = 0.15 if con_testo else 0.0
+        tagger = None
+        if scene:
+            try:
+                from .didascalie import carica_tagger
+                from .settings import cartella_dati
+                tagger = await asyncio.to_thread(carica_tagger, cartella_dati() / "modelli", "wd-vit-tagger-v3",
+                                                 None, l.log)
+            except Exception as e:  # noqa: BLE001 - l'aderenza è un di più
+                l.log(f"Controllo di aderenza non disponibile: {e}", "avviso")
         senza = {p for v in da_fare for p in v.personaggi if not lora.get(p)}
         for p in senza:
             l.log(f"{personaggi[p].nome} non ha ancora un LoRA (Step 3): uso solo la sua descrizione, sarà meno "
@@ -145,13 +184,16 @@ async def genera(pid: str, dati: Genera, req: Request):
                     seme = corrente.seme
                 else:
                     seme = v.seme if v.seme is not None else random.randrange(2 ** 48)
-                pers = [personaggi[x] for x in v.personaggi]
-                wf, salva_id, prompt = fm.Costruttore(f.impostazioni, _qualita(f.impostazioni)).costruisci(v, pers, lora, seme)
+                pers = [personaggi[x] for x in v.personaggi if x in personaggi]
+                scena = scene.get(v.id)
+                wf, salva_id, prompt = fm.Costruttore(f.impostazioni, _qualita(f.impostazioni)).costruisci(
+                    v, pers, lora, seme, scena)
                 chi = " + ".join(p.nome for p in pers) or "scena"
-                l.log(f"Vignetta {numeri[v.id]} ({chi}): {v.azione}")
+                l.log(f"Vignetta {numeri[v.id]} ({chi}): {prompt}" if scena else
+                      f"Vignetta {numeri[v.id]} ({chi}): {v.azione}")
 
                 def avanza(x, t, k=k):
-                    l.avanza((k + x) / len(da_fare), f"vignetta {k + 1}/{len(da_fare)} · {t}")
+                    l.avanza(quota + (1 - quota) * (k + x) / len(da_fare), f"vignetta {k + 1}/{len(da_fare)} · {t}")
                 try:
                     uscite = await client.esegui(per_invio(wf), avanza)
                 except asyncio.CancelledError:
@@ -161,13 +203,29 @@ async def genera(pid: str, dati: Genera, req: Request):
                 if not img:
                     raise ComfyErrore("ComfyUI non ha restituito l'immagine della vignetta.")
                 dati_img = await client.scarica(img)
-                await asyncio.to_thread(a.aggiungi_versione, pid, v.id, dati_img, seme, prompt)
+                iv = await asyncio.to_thread(a.aggiungi_versione, pid, v.id, dati_img, seme, prompt)
+                if tagger and scena and scena.chiave:
+                    await asyncio.to_thread(_aderenza, a, pid, v.id, iv, tagger, scena.chiave, l, numeri[v.id])
                 app.bus.pubblica({"tipo": "fumetto", "progetto": pid, "vignetta": v.id})
         l.log(f"Generate {len(da_fare)} vignette in {int(time.time() - inizio)} s", "ok")
         return {"generate": len(da_fare)}
 
     titolo = f"Fumetto: {len(da_fare)} vignett{'a' if len(da_fare) == 1 else 'e'}"
     return app.gestore.avvia("fumetto_genera", titolo, lavoro, progetto=pid, esclusivo=True).dict()
+
+
+def _aderenza(a: fm.ArchivioFumetto, pid: str, vid: str, iv: fm.ImmaginiVignetta, tagger, chiave: list[str],
+              l: Lavoro, numero: int):
+    from .testo_prompt import aderenza
+    ultima = iv.versioni[-1]
+    tag = tagger.tagga([a.file(pid, ultima.file)])
+    r = aderenza(next(iter(tag.values()), {}), chiave, set(tagger.nomi))
+    a.imposta_aderenza(pid, vid, len(iv.versioni) - 1, r)
+    if r["punteggio"] is not None:
+        testo = f"Vignetta {numero}: aderenza {len(r['trovati'])}/{len(r['trovati']) + len(r['mancanti'])}"
+        if r["mancanti"]:
+            testo += " — mancano: " + ", ".join(r["mancanti"])
+        l.log(testo, "ok" if not r["mancanti"] else "avviso")
 
 
 # ---------------------------------------------------------------- tavole

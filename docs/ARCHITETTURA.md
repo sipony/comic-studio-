@@ -33,6 +33,10 @@ backend/app/
   fumetto.py              Step 4: pagine e vignette, workflow delle scene, balloon, tavole, PDF, storia da testo
   rotte_fumetto.py        API e lavori dello Step 4
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
+  llm.py                  client dell'IA locale (Ollama / compatibile OpenAI), Ollama portatile
+  ia.py                   servizio dell'IA: stato, installazione, avvio, modelli, domande
+  testo_prompt.py         dal testo in linguaggio naturale al prompt: schemi, composizione, blocco, aderenza
+  rotte_testo.py          API dell'IA, tratti dei personaggi, analisi delle vignette, storia → vignette
   installato.py           avvio dell'app installata: registro su file, niente console, messaggi di errore nativi
   comfy/avvio.py          avvio e arresto di ComfyUI (comando per tipo di installazione, registro, PID)
   comfy/client.py         client asincrono per l'API di ComfyUI
@@ -56,11 +60,13 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 ```
 ~/ComicStudio/                       (COMIC_STUDIO_HOME)
   impostazioni.json                  comfy_url, comfy_dir, cartella_progetti, ultimo_progetto,
-                                     avvio_automatico, argomenti_comfy, comando_comfy, attesa_avvio
+                                     avvio_automatico, argomenti_comfy, comando_comfy, attesa_avvio,
+                                     ia_tipo, ia_url, ia_modello, ia_chiave, ia_libera_gpu
   comicstudio.log                    registro dell'app installata (senza terminale)
   comfyui.log                        uscita del ComfyUI avviato da Comic Studio
   comfyui.pid                        PID (e ora di creazione) del ComfyUI avviato da Comic Studio
   strumenti/sd-scripts/              kohya sd-scripts con il suo venv
+  strumenti/ollama/                  Ollama portatile (programma/, modelli/, ollama.log), se installato da qui
   progetti/
     <id-progetto>/
       progetto.json                  nome, descrizione, personaggi[]
@@ -94,6 +100,16 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 
 | Metodo | Percorso | Cosa fa |
 | --- | --- | --- |
+| GET | `/api/lavori/{id}` | il lavoro con il suo risultato |
+| GET | `/api/ia` | stato dell'IA locale, modelli scaricati e consigliati, impostazioni |
+| POST | `/api/ia/impostazioni` | `{tipo, url, modello, chiave, libera_gpu}` |
+| POST | `/api/ia/installa` | scarica Ollama portatile e il modello (lavoro) |
+| POST | `/api/ia/modello` | `{nome}` scarica e usa un modello (lavoro) |
+| POST | `/api/ia/prova` | `{testo}` analizza una scena di prova (lavoro) |
+| POST | `/api/progetti/{p}/personaggi/{c}/tratti` | `{storia}` ricava i tratti fissi dalla descrizione (lavoro) |
+| POST | `…/fumetto/vignette/{v}/analizza` | descrizione → analisi → prompt (lavoro) |
+| GET | `…/fumetto/vignette/{v}/prompt` | il prompt dall'ultima analisi e se è ancora valida |
+| POST | `…/fumetto/storia` | `{testo, sostituisci}` racconto libero → pagine e vignette (lavoro) |
 | POST | `/api/esci` | `{comfy}` chiude Comic Studio (e, se richiesto, il ComfyUI avviato da lui) |
 | GET | `/api/sistema` | versione, impostazioni, stato ComfyUI, installazioni trovate, ultimo controllo |
 | POST | `/api/comfy/cerca` | avvia la ricerca di ComfyUI (lavoro) |
@@ -167,6 +183,7 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `kohya` | trainer installato o aggiornato |
 | `fumetto` | `progetto`, `vignetta`: nuova immagine generata |
 | `chiusura` | Comic Studio si sta chiudendo |
+| `ia` | stato dell'IA locale |
 
 ## Lavori
 

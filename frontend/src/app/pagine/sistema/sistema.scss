@@ -286,3 +286,29 @@ h2 {
   color: var(--mat-sys-on-surface-variant);
   text-align: center;
 }
+
+.pieno {
+  width: 100%;
+}
+.prompt-prova {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container);
+  font-size: 13px;
+  strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+  code {
+    display: block;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: 'JetBrains Mono', Consolas, Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}

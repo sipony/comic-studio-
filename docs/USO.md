@@ -35,8 +35,11 @@ Nel riquadro **Consigli** trovi le impostazioni più adatte alla tua scheda vide
    - **Nome** e **tipo** (donna, uomo, altro)
    - **Trigger word**: una parola inventata (ne viene proposta una, il dado ne genera un'altra).
      Non usare parole vere come "police" o "girl": il modello le conosce già e si confonderebbe.
+   - **Descrizione libera**: scrivi il personaggio come vuoi, anche a lungo e in italiano, poi premi
+     **Ricava i tratti con l'IA**: l'IA locale ne tira fuori i tratti fissi in inglese (e il tipo). Controllali e
+     premi **Salva**. La personalità e la storia restano nella descrizione, non finiscono nel prompt.
    - **Tratti fissi**, in inglese: ciò che non cambia mai, come capelli, corporatura e vestiti
-     (es. `old man, fat, white hair, white mustache, blue police uniform`).
+     (es. `old man, fat, white hair, white mustache, blue police uniform`). Puoi anche scriverli a mano.
    - **Immagine di riferimento**: trascinala nel riquadro. Meglio un'immagine pulita, a figura intera o
      mezzo busto, su sfondo semplice.
 
@@ -85,16 +88,35 @@ Per ogni personaggio (scegli in alto quale):
 ## 7. Step 4 · Fumetto
 
 1. **Impostazioni**: scegli il checkpoint (lo stesso dei LoRA) ed eventualmente un LoRA di stile.
-2. Scrivi le pagine: **Storia da testo** per incollare tutta la storia in una volta (c'è un esempio), oppure
-   aggiungi le vignette a mano a sinistra.
+2. Scrivi le pagine: **Storia da testo → Racconto libero** per incollare tutta la storia così com'è (l'IA la divide
+   in pagine e vignette, sceglie i personaggi e copia i dialoghi), **Una vignetta per riga** per il formato
+   a righe, oppure aggiungi le vignette a mano a sinistra.
 3. Per ogni vignetta: **formato**, **personaggi** in scena (clic per aggiungerli; il primo sta a sinistra, le
-   frecce cambiano l'ordine), **cosa succede** in inglese, **battute** con chi parla e dove mettere il balloon.
+   frecce cambiano l'ordine; se non ne scegli, li trova l'IA nel testo), la **descrizione della scena** in
+   linguaggio naturale, lunga quanto vuoi, ed eventuali **tag in più** in inglese, poi le **battute** con chi parla
+   e dove mettere il balloon. **Trasforma in prompt** mostra cosa ha capito l'IA: la scena, cosa fa ciascun
+   personaggio nella sua zona, cosa evitare e cosa non si può disegnare (suoni, odori, pensieri). Si fa comunque
+   da solo quando generi, e si rifà solo se cambi il testo.
 4. **Genera le mancanti** fa tutte le vignette senza immagine; sulla singola vignetta **Nuova versione** ne prova
    un'altra, **Stesso seme** rifà la stessa composizione con le modifiche al testo. Le versioni restano: clic su
    una miniatura per usarla.
+   Sotto l'immagine c'è l'**aderenza**: quali elementi chiave della descrizione il tagger vede davvero
+   (✓) e quali mancano (✗). **Rafforza i mancanti e rigenera** li fa pesare di più e rifà la vignetta con lo
+   stesso seme.
 5. A destra vedi la **tavola** con i balloon. **Esporta** ti dà il PDF o le pagine in PNG.
 
-## 8. La console
+## 8. L'IA locale
+
+In **Sistema → IA locale** la prima volta premi **Installa**: Comic Studio scarica Ollama (1-2 GB) e il modello
+(Qwen3 8B, circa 5 GB) nella cartella `ComicStudio/strumenti/ollama`, dopo averti chiesto conferma. Tutto gira sul
+tuo computer. Se hai già Ollama o LM Studio, Comic Studio usa quelli. Puoi provare l'IA con una scena di esempio e
+cambiare modello (più leggero o più preciso). Prima di ogni domanda all'IA la memoria della scheda video viene
+liberata, così ComfyUI e l'IA non se la contendono.
+
+Contenuti: il testo viene tradotto in modo fedele, horror, violenza e sangue compresi. C'è un solo blocco fisso,
+che non si può disattivare: niente contenuti sessuali con minorenni o personaggi dall'aspetto infantile.
+
+## 9. La console
 
 Per **chiudere** Comic Studio usa il pulsante ⏻ in alto a destra: puoi lasciare acceso ComfyUI o chiudere anche
 quello. Riaprendo l'icona la pagina si riattiva da sola. Se qualcosa va storto all'avvio, il registro è in

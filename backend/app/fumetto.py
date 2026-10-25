@@ -20,6 +20,7 @@ from typing import Literal
 from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, Field
 
+from .testo_prompt import PromptScena  # noqa: F401 - usato nelle annotazioni
 from .projects import ErroreProgetto, Personaggio
 
 Formato = Literal["larga", "alta", "quadrata"]
@@ -40,7 +41,10 @@ class Vignetta(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex[:10])
     formato: Formato = "larga"
     personaggi: list[str] = Field(default_factory=list, max_length=3)   # da sinistra a destra
-    azione: str = ""                  # cosa succede, in inglese, a tag
+    azione: str = ""                  # cosa succede, in inglese, a tag (si aggiunge a quanto ricavato dal testo)
+    descrizione: str = Field(default="", max_length=20000)   # la scena in linguaggio naturale, qualsiasi lingua
+    analisi: dict | None = None       # {"chiave": impronta del testo, "dati": analisi dell'IA}
+    rafforza: list[str] = Field(default_factory=list)        # elementi da far pesare di più alla prossima
     dialoghi: list[Dialogo] = Field(default_factory=list)
     seme: int | None = None
 
@@ -81,6 +85,7 @@ class Versione(BaseModel):
     seme: int
     creato: float = Field(default_factory=time.time)
     prompt: str = ""
+    aderenza: dict | None = None      # elementi chiave trovati / mancanti secondo il tagger
 
 
 class ImmaginiVignetta(BaseModel):
@@ -141,6 +146,14 @@ class ArchivioFumetto:
             tutte[vid] = iv
             self._salva_immagini(pid, tutte)
             return iv
+
+    def imposta_aderenza(self, pid: str, vid: str, indice: int, aderenza: dict):
+        with _lock:
+            tutte = self.immagini(pid)
+            iv = tutte.get(vid)
+            if iv and 0 <= indice < len(iv.versioni):
+                iv.versioni[indice].aderenza = aderenza
+                self._salva_immagini(pid, tutte)
 
     def scegli_versione(self, pid: str, vid: str, indice: int) -> ImmaginiVignetta:
         with _lock:
@@ -225,15 +238,27 @@ class Costruttore:
         return [self.n("KSampler", model=model, positive=pos, negative=neg, latent_image=latente, seed=seme,
                        steps=i.passi, cfg=i.cfg, sampler_name=i.sampler, scheduler=i.scheduler, denoise=denoise), 0]
 
-    def costruisci(self, v: Vignetta, pers: list[Personaggio], lora: dict[str, str | None], seme: int) -> tuple[dict, str, str]:
-        """Restituisce (workflow, id del nodo di salvataggio, prompt principale)."""
+    def costruisci(self, v: Vignetta, pers: list[Personaggio], lora: dict[str, str | None], seme: int,
+                   scena: "PromptScena | None" = None) -> tuple[dict, str, str]:
+        """Restituisce (workflow, id del nodo di salvataggio, prompt principale).
+
+        Con `scena` (ricavata dalla descrizione) la scena è quella del testo, e ogni personaggio riceve nella sua
+        zona la sua azione, posa ed espressione; `v.azione` si aggiunge in fondo."""
         imp = self.imp
+        azione = pulisci(f"{scena.globale}, {v.azione}") if scena else v.azione
+        extra = scena.per_personaggio if scena else {}
+        da_solo = "" if scena and scena.altri_soggetti else ", solo"
+
+        def chi(p: Personaggio) -> str:
+            return pulisci(f"{descrivi(p, bool(lora.get(p.id)))}, {extra.get(p.id, '')}")
         if not imp.checkpoint:
             raise ErroreProgetto("Scegli il checkpoint del fumetto nelle impostazioni.")
         W, H = DIMENSIONI[v.formato]
         val = {"qualita": self.qualita[0], "negativo_qualita": self.qualita[1]}
         stile = componi(imp.positivo, val)
         negativo = componi(imp.negativo, val)
+        if scena and scena.negativo:
+            negativo = pulisci(f"{negativo}, {scena.negativo}")
         ck = self.n("CheckpointLoaderSimple", ckpt_name=imp.checkpoint)
         m0, c0, vae = [ck, 0], [ck, 1], [ck, 2]
         if imp.lora_stile:
@@ -242,13 +267,13 @@ class Costruttore:
 
         if len(pers) <= 1:
             model, clip = m0, c0
-            soggetto = "no humans, scenery"
+            soggetto = "" if scena and scena.altri_soggetti else "no humans, scenery"
             if pers:
                 p = pers[0]
                 if lora.get(p.id):
                     model, clip = self.lora(model, clip, lora[p.id], imp.forza_personaggio)
-                soggetto = f"{descrivi(p, bool(lora.get(p.id)))}, solo"
-            prompt = pulisci(f"{stile}, {soggetto}, {v.azione}")
+                soggetto = f"{chi(p)}{da_solo}"
+            prompt = pulisci(f"{stile}, {soggetto}, {azione}")
             ks = self.campiona(model, self.testo(clip, prompt), self.testo(clip, negativo), lat, seme)
             dec = self.n("VAEDecode", samples=ks, vae=vae)
             return self.wf, self.n("SaveImage", images=[dec, 0], filename_prefix="comic_studio/fumetto"), prompt
@@ -271,11 +296,11 @@ class Costruttore:
             if lora.get(p.id):
                 mc, cc = self.lora(mc, cc, lora[p.id], round(imp.forza_personaggio * 0.55, 2))
         posizioni = ["on the left", "on the right"] if n == 2 else ["on the left", "in the center", "on the right"]
-        chi = ", ".join(f"{p.trigger} {posizioni[i]}" for i, p in enumerate(pers))
-        prompt = pulisci(f"{stile}, {coppia([p.genere for p in pers])}, {n} people, {chi}, {v.azione}")
+        dove = ", ".join(f"{p.trigger} {posizioni[i]}" for i, p in enumerate(pers))
+        prompt = pulisci(f"{stile}, {coppia([p.genere for p in pers])}, {n} people, {dove}, {azione}")
         pos = self.testo(cc, prompt)
         for i, p in enumerate(pers):
-            reg = self.testo(cc, descrivi(p, bool(lora.get(p.id))))
+            reg = self.testo(cc, chi(p))
             zona = [self.n("ConditioningSetMask", conditioning=reg, mask=zone[i], strength=0.85,
                            set_cond_area="default"), 0]
             pos = [self.n("ConditioningCombine", conditioning_1=pos, conditioning_2=zona), 0]
@@ -286,7 +311,7 @@ class Costruttore:
             mp, cp = m0, c0
             if lora.get(p.id):
                 mp, cp = self.lora(m0, c0, lora[p.id], imp.forza_personaggio)
-            pp = self.testo(cp, pulisci(f"{stile}, {descrivi(p, bool(lora.get(p.id)))}, solo, {v.azione}"))
+            pp = self.testo(cp, pulisci(f"{stile}, {chi(p)}, solo, {azione}"))
             nn = self.testo(cp, negativo)
             inp = self.n("InpaintModelConditioning", positive=pp, negative=nn, vae=vae, pixels=img, mask=sfumate[i],
                          noise_mask=True)
@@ -394,7 +419,7 @@ def segnaposto(v: Vignetta, nomi: dict[str, str]) -> Image.Image:
     chi = " + ".join(nomi.get(p, p) for p in v.personaggi) or "scena senza personaggi"
     font = carica_font(None, 36)
     d.text((48, H // 2 - 40), chi, font=font, fill=(60, 60, 70))
-    for i, r in enumerate(a_capo(v.azione or "da descrivere", carica_font(None, 26), W - 96)[:4]):
+    for i, r in enumerate(a_capo(v.descrizione or v.azione or "da descrivere", carica_font(None, 26), W - 96)[:4]):
         d.text((48, H // 2 + 10 + i * 34), r, font=carica_font(None, 26), fill=(90, 90, 100))
     return img
 

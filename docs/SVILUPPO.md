@@ -18,9 +18,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 4 | Step 3 Addestramento: installazione di kohya sd-scripts, preset per VRAM, parametri avanzati, log e grafico della loss, test delle epoche, scelta del LoRA | ✅ unita |
 | 5 | Step 4 Fumetto: storia per pagine e vignette, scene con più personaggi (LoRA per zona), balloon, tavole, PDF | ✅ unita |
 | 6 | Avvio di ComfyUI da Comic Studio: aggancio se è già attivo, altrimenti avvio automatico (portable, Desktop, manuale o comando a mano), uscita nella console, Avvia / Riavvia / Ferma | ✅ unita |
-| 7 | Installer per Windows, macOS e Linux: doppio clic, senza terminale, con Python e interfaccia già dentro; chiusura dall'interfaccia | ✅ questa PR |
-| 8 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 9 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 7 | Installer per Windows, macOS e Linux: doppio clic, senza terminale, con Python e interfaccia già dentro; chiusura dall'interfaccia | ✅ unita |
+| 8 | Dal testo al prompt: IA locale (Ollama) che legge descrizioni lunghe di personaggi, vignette e storie intere e ne ricava prompt fedeli per il checkpoint; controllo di aderenza con il tagger | ✅ questa PR |
+| 9 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 10 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -308,4 +309,53 @@ richiesto da macOS), e l'installer su un Windows 11 vero. Con Wine, numpy 2.5 si
 Limiti: app non firmate (servono certificati a pagamento), quindi la prima apertura chiede conferma; le istruzioni
 sono in `installer/NOTE_RILASCIO.md`.
 
-Prossimo passo: PR 8, pose guidate e costruttore di workflow.
+Prossimo passo: PR 8, dal testo al prompt.
+
+## PR 8 — Dal testo al prompt
+
+Richiesta: «leggere una descrizione anche molto lunga per la scena e per la generazione iniziale dei personaggi,
+e creare automaticamente dal linguaggio naturale un prompt attendibile e fedele».
+
+Decisioni:
+
+- **IA locale, non un servizio esterno**: Ollama gira sul computer dell'utente, gratis e senza mandare i testi in
+  rete. Modello predefinito Qwen3 8B (circa 5 GB, buon italiano, contesto lungo); in alternativa Qwen3 4B o
+  Gemma 3 12B, o qualsiasi server compatibile OpenAI (LM Studio, llama.cpp)
+- **L'IA analizza, Comic Studio compone**: l'IA restituisce un JSON con schema fisso (soggetti con posizione,
+  azione, posa, espressione, vestiti; interazione, inquadratura, ambiente, luce, atmosfera, oggetti, effetti,
+  elementi chiave, negativo, frase in inglese, cose non disegnabili). Il prompt lo compone il codice, in modo
+  prevedibile e nello stile del checkpoint: tag Danbooru per Pony / Illustrious / NoobAI / SD 1.5, frasi per
+  Flux / SD3, tag + frase per SDXL. Gli elementi chiave pesano 1.15, quelli da rafforzare 1.3
+- **I tratti dei personaggi con LoRA non si ripetono**: il LoRA li conosce; l'IA descrive solo cosa cambia nella
+  scena, e ciascun personaggio riceve la sua parte nella sua zona (composizione regionale e ripasso)
+- **GPU condivisa**: `keep_alive: 0` (Ollama scarica il modello appena risponde) e, prima di ogni domanda, ComfyUI
+  libera la VRAM. Le analisi si fanno tutte prima di generare
+- **Fedeltà**: l'istruzione dice di non ammorbidire violenza, sangue, gore e horror descritti e di non aggiungere
+  nulla. Blocco fisso e non disattivabile: niente contenuto sessuale con minori o personaggi dall'aspetto infantile
+  (parole nel testo + `adulto`/`sessuale` dell'analisi + `adulto` del personaggio); il testo esplicito non
+  arriva nemmeno all'IA
+
+Fatto:
+
+- `backend/app/llm.py`: client Ollama / OpenAI con risposta JSON, download dei modelli in streaming, Ollama
+  portatile (zip / tgz / tar.zst dalla release di GitHub, in `strumenti/ollama`, avviato con `ollama serve`)
+- `backend/app/ia.py`: stato, installazione (dopo conferma), avvio, download del modello, domande con lock
+- `backend/app/testo_prompt.py`: schemi e istruzioni, composizione per famiglia, blocco, aderenza, storia a pezzi
+- `backend/app/rotte_testo.py`: `/api/ia` (stato, impostazioni, installa, modello, prova), tratti del personaggio,
+  analisi della vignetta (rifatta solo se testo, personaggi o modello cambiano), prompt, storia → pagine
+- Fumetto: `Vignetta.descrizione` / `analisi` / `rafforza`, `Versione.aderenza`; la generazione analizza prima,
+  poi genera e controlla l'aderenza con il tagger WD14 (solo gli elementi che il tagger conosce)
+- Personaggi: `storia` (descrizione libera, fino a 20 000 caratteri) e `adulto`; tratti fino a 1500 caratteri
+- `GET /api/lavori/{id}` con il risultato del lavoro
+- Interfaccia: scheda **IA locale** in Sistema, **Ricava i tratti** nei personaggi, descrizione della scena con
+  prompt ricavato, aderenza e **Rafforza i mancanti** nel fumetto, **Racconto libero** nella storia da testo
+- Versione 0.8.0; `zstandard` tra le librerie (archivio di Ollama per Linux)
+- **Test**: 95 test backend; un Ollama finto (versione, modelli, pull in streaming, chat) per: stato e download
+  del modello, tratti dal testo (con `keep_alive: 0` e schema), analisi della vignetta con personaggi trovati
+  dall'IA e cache, generazione con prompt della scena e aderenza, storia intera, blocco (anche prima di chiedere
+  all'IA), composizione per Illustrious / Flux / SDXL, archivi di Ollama per ogni sistema
+
+Non ancora verificato: la qualità delle analisi con Qwen3 8B vero sui testi lunghi in italiano, e quanto spesso
+il tagger riconosce gli elementi chiave.
+
+Prossimo passo: PR 9, pose guidate e costruttore di workflow.
