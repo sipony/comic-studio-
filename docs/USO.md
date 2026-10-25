@@ -2,7 +2,8 @@
 
 ## 1. Primo avvio
 
-1. Avvia Comic Studio (`avvia.bat`, `avvia.command` o `./avvia.sh`). Si apre il browser.
+1. Installa Comic Studio con l'installer del tuo sistema (vedi il README) e aprilo dall'icona;
+   dai sorgenti: `avvia.bat`, `avvia.command` o `./avvia.sh`. Si apre il browser.
 2. Il programma cerca ComfyUI da solo: se è già aperto ci si aggancia, altrimenti **lo avvia lui** e aspetta
    che sia pronto (la prima volta può volerci qualche minuto; in console vedi cosa scrive ComfyUI).
 3. Poi controlla il sistema. In alto a destra vedi lo stato: pallino giallo = in avvio, verde = connesso,
@@ -94,6 +95,10 @@ Per ogni personaggio (scegli in alto quale):
 5. A destra vedi la **tavola** con i balloon. **Esporta** ti dà il PDF o le pagine in PNG.
 
 ## 8. La console
+
+Per **chiudere** Comic Studio usa il pulsante ⏻ in alto a destra: puoi lasciare acceso ComfyUI o chiudere anche
+quello. Riaprendo l'icona la pagina si riattiva da sola. Se qualcosa va storto all'avvio, il registro è in
+`ComicStudio/comicstudio.log`.
 
 In basso c'è sempre la console: tutti i messaggi del programma, di ComfyUI e, in futuro, dell'addestramento.
 

@@ -33,6 +33,7 @@ backend/app/
   fumetto.py              Step 4: pagine e vignette, workflow delle scene, balloon, tavole, PDF, storia da testo
   rotte_fumetto.py        API e lavori dello Step 4
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
+  installato.py           avvio dell'app installata: registro su file, niente console, messaggi di errore nativi
   comfy/avvio.py          avvio e arresto di ComfyUI (comando per tipo di installazione, registro, PID)
   comfy/client.py         client asincrono per l'API di ComfyUI
 backend/tests/            pytest; finto_comfy.py simula ComfyUI (HTTP + WebSocket)
@@ -46,6 +47,8 @@ frontend/src/app/
   pagine/addestramento/   Step 3 e grafico della loss
   pagine/fumetto/         Step 4
 docs/                     questa documentazione
+installer/costruisci.py   costruisce gli installer (Windows NSIS, app macOS, AppImage, .deb) da Linux
+installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 ```
 
 ## Dati su disco
@@ -54,6 +57,7 @@ docs/                     questa documentazione
 ~/ComicStudio/                       (COMIC_STUDIO_HOME)
   impostazioni.json                  comfy_url, comfy_dir, cartella_progetti, ultimo_progetto,
                                      avvio_automatico, argomenti_comfy, comando_comfy, attesa_avvio
+  comicstudio.log                    registro dell'app installata (senza terminale)
   comfyui.log                        uscita del ComfyUI avviato da Comic Studio
   comfyui.pid                        PID (e ora di creazione) del ComfyUI avviato da Comic Studio
   strumenti/sd-scripts/              kohya sd-scripts con il suo venv
@@ -90,6 +94,7 @@ docs/                     questa documentazione
 
 | Metodo | Percorso | Cosa fa |
 | --- | --- | --- |
+| POST | `/api/esci` | `{comfy}` chiude Comic Studio (e, se richiesto, il ComfyUI avviato da lui) |
 | GET | `/api/sistema` | versione, impostazioni, stato ComfyUI, installazioni trovate, ultimo controllo |
 | POST | `/api/comfy/cerca` | avvia la ricerca di ComfyUI (lavoro) |
 | POST | `/api/comfy/usa` | `{url, cartella}` imposta l'installazione da usare |
@@ -161,6 +166,7 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `addestramento` | `punto` [passo, loss], `passo`, `totale`, `epoca`, `velocita`, `rimanente`; `epoche_cambiate`, `test` |
 | `kohya` | trainer installato o aggiornato |
 | `fumetto` | `progetto`, `vignetta`: nuova immagine generata |
+| `chiusura` | Comic Studio si sta chiudendo |
 
 ## Lavori
 
@@ -168,3 +174,19 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 `lavoro.log(msg, livello)`, `lavoro.avanza(0..1, testo)`, `lavoro.controlla()` nei cicli lunghi per
 rispettare l'annullamento. Si può chiamare `log` e `avanza` anche da un thread. I lavori con `esclusivo=True`
 (generazione, addestramento) usano la GPU uno alla volta.
+
+## App installata
+
+Tutti gli installer contengono la stessa struttura (in Windows in `%LOCALAPPDATA%\Programs\ComicStudio`, in macOS
+in `Comic Studio.app/Contents/Resources`, nell'AppImage in `usr/`, nel `.deb` in `/opt/comic-studio`):
+
+```
+python/                     Python 3.12 (python-build-standalone) con le librerie già installate
+app/backend/app/            il backend
+app/frontend/dist/…         l'interfaccia compilata
+app/comic_studio.pyw        lanciatore → app.installato.main()
+app/chiudi.py               usato dall'installer Windows per chiudere Comic Studio prima di aggiornare
+```
+
+Il collegamento avvia `python/pythonw.exe -s app/comic_studio.pyw` (Windows) o `python/bin/python3 -s …`
+(macOS, Linux). I dati restano sempre in `~/ComicStudio`, fuori dalla cartella dell'app.

@@ -44,6 +44,7 @@ export class ApiService {
   usaComfy(url: string | null, cartella: string | null) {
     return this.post<StatoComfy>('/api/comfy/usa', { url, cartella });
   }
+  esci(comfy: boolean) { return this.post<{ ok: boolean }>('/api/esci', { comfy }); }
   avviaComfy() { return this.post<Lavoro>('/api/comfy/avvia'); }
   fermaComfy() { return this.post<Lavoro>('/api/comfy/ferma'); }
   riavviaComfy() { return this.post<Lavoro>('/api/comfy/riavvia'); }

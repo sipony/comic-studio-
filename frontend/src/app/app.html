@@ -24,7 +24,32 @@
       <span class="badge">{{ problemi() }}</span>
     }
   </button>
+  <button mat-icon-button [matMenuTriggerFor]="menuEsci" matTooltip="Chiudi Comic Studio" aria-label="Chiudi Comic Studio">
+    <mat-icon>power_settings_new</mat-icon>
+  </button>
+  <mat-menu #menuEsci="matMenu" xPosition="before">
+    <button mat-menu-item (click)="esci(false)">
+      <mat-icon>logout</mat-icon>
+      <span>Chiudi Comic Studio{{ eventi.comfy()?.avviato_da_noi ? ' (ComfyUI resta acceso)' : '' }}</span>
+    </button>
+    @if (eventi.comfy()?.avviato_da_noi) {
+      <button mat-menu-item (click)="esci(true)">
+        <mat-icon>power_settings_new</mat-icon>
+        <span>Chiudi Comic Studio e ComfyUI</span>
+      </button>
+    }
+  </mat-menu>
 </header>
+
+@if (eventi.chiuso()) {
+  <div class="chiuso" role="alertdialog" aria-label="Comic Studio è chiuso">
+    <div class="riquadro">
+      <mat-icon>bedtime</mat-icon>
+      <h1>Comic Studio è chiuso</h1>
+      <p>Puoi chiudere questa scheda. Per riaprirlo usa l'icona di Comic Studio: questa pagina si riattiva da sola.</p>
+    </div>
+  </div>
+}
 
 <div class="corpo">
   <nav class="menu" aria-label="Navigazione">

@@ -68,6 +68,8 @@ def python_per_kohya() -> list[str] | None:
         candidati += [["py", f"-3.{v}"] for v in (10, 11, 12)]
     candidati += [[n] for n in ("python3.10", "python3.11", "python3.12") if shutil.which(n)]
     base = getattr(sys, "_base_executable", sys.executable)
+    if Path(base).name.lower() == "pythonw.exe":          # Comic Studio installato su Windows
+        base = str(Path(base).with_name("python.exe"))
     candidati += [[base], ["python3"], ["python"]]
     for c in candidati:
         try:

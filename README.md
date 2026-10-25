@@ -7,6 +7,7 @@ Da un'immagine di riferimento per ogni personaggio arriva alle tavole finite in 
 | --- | --- | --- |
 | **Sistema** | Trova ComfyUI da solo, controlla hardware, componenti, aggiornamenti e dà consigli per la tua GPU | ✅ PR 1 |
 | **Avvio di ComfyUI** | Se ComfyUI è già aperto ci si aggancia, altrimenti lo avvia da solo; Avvia / Riavvia / Ferma | ✅ PR 6 |
+| **Installer** | Windows, macOS e Linux con doppio clic, senza terminale né Python da installare | ✅ PR 7 |
 | **Personaggi** | Nome, trigger word, tratti fissi e immagine di riferimento di ogni personaggio | ✅ PR 1 |
 | **1 · Dataset** | Genera con ComfyUI decine di immagini varie di ogni personaggio, con i workflow che scegli, e tiene le migliori | ✅ PR 2 |
 | **2 · Didascalie** | Tag automatici (WD14 e prompt), trigger word, pulizia dei tratti fissi, zip del dataset | ✅ PR 3 |
@@ -15,7 +16,26 @@ Da un'immagine di riferimento per ogni personaggio arriva alle tavole finite in 
 
 Funziona su **Windows, macOS e Linux**. L'interfaccia si apre nel browser.
 
-## Cosa serve
+## Installazione (consigliata)
+
+Dalla pagina **Releases** del repository scarica l'installer per il tuo sistema: dentro c'è già tutto (Python,
+librerie, interfaccia), non serve il terminale.
+
+| Sistema | File | Come |
+| --- | --- | --- |
+| Windows 10 / 11 | `ComicStudio-…-Windows-Setup.exe` | doppio clic → Avanti → Installa |
+| Mac Apple Silicon / Intel | `ComicStudio-…-macOS-AppleSilicon.zip` / `…-Intel.zip` | apri lo zip, trascina l'app in Applicazioni |
+| Ubuntu, Debian, Mint | `comic-studio_…_amd64.deb` | doppio clic → Installa |
+| Altre distribuzioni | `ComicStudio-…-Linux-x86_64.AppImage` | rendilo eseguibile (Proprietà), poi doppio clic |
+
+La prima volta Windows e macOS chiedono conferma perché l'app non è firmata: istruzioni in
+[installer/NOTE_RILASCIO.md](installer/NOTE_RILASCIO.md). Per chiudere Comic Studio usa il pulsante ⏻ in alto a destra.
+
+Gli installer si costruiscono (da Linux, anche per Windows e macOS) con `python installer/costruisci.py`.
+
+## Avvio dai sorgenti (per chi sviluppa)
+
+### Cosa serve
 
 - **Python 3.10 o più recente** — [python.org](https://www.python.org/downloads/) (su Windows spunta *Add python.exe to PATH*)
 - **ComfyUI** installato sullo stesso computer (portable, Desktop o manuale)
@@ -24,7 +44,7 @@ Funziona su **Windows, macOS e Linux**. L'interfaccia si apre nel browser.
   dalla scheda *Actions* del repository.
 - **Git** — consigliato, per scaricare gli aggiornamenti e per il controllo degli aggiornamenti di ComfyUI
 
-## Avvio
+### Avvio
 
 | Sistema | Come |
 | --- | --- |
@@ -51,11 +71,8 @@ I progetti eliminati vanno in `ComicStudio/progetti/.cestino`, non vengono cance
 
 ## Aggiornare
 
-```
-git pull
-```
-
-poi riavvia: librerie e interfaccia si aggiornano da sole.
+Con l'installer: installa la versione nuova sopra la vecchia. Dai sorgenti: `git pull` e riavvia, librerie e
+interfaccia si aggiornano da sole.
 
 ## Documentazione
 
