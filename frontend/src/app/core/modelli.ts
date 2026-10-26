@@ -813,11 +813,26 @@ export interface ImpostazioniGrafo {
 }
 
 /** Il dataset confrontato con la proposta scelta come riferimento. */
+export interface ConfrontoListe {
+  proposta: string[] | string;
+  dataset: string[] | string;
+  mancano: string[];
+  in_piu: string[];
+  ordine_ok: boolean;
+  uguale: boolean;
+}
 export interface ConfrontoDataset {
   proposta: { file: string; prompt: string; ricetta: RicettaProposta | null };
+  /** famiglia del checkpoint delle proposte (dalla ricetta, o dai tag di qualità del prompt) */
+  famiglia_proposta: string | null;
   stile_proposta: string[];
   mancanti: string[];
   esempio_dataset: string | null;
+  /** parti fisse del prompt (senza le varianti), tag per tag */
+  prompt: ConfrontoListe & { proposta: string[]; dataset: string[] };
+  negativo: ConfrontoListe & { proposta: string; dataset: string };
+  /** uguale = stessi nodi, valori e catene, in più solo il riferimento; null = proposta senza ricetta */
+  workflow: { uguale: boolean | null; riferimento: boolean | null; differenze: string[] };
   righe: { voce: string; proposte: string; dataset: string; uguale: boolean | null; nota: string }[];
   coerente: boolean;
 }

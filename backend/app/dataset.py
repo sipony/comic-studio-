@@ -272,7 +272,8 @@ class ArchivioDataset:
                       ) -> tuple[ConfigDataset, VoceWorkflow, list[str]]:
         """Configura il dataset del personaggio con le stesse scelte delle proposte da cui viene il riferimento:
         workflow integrato con lo stesso checkpoint, LoRA di stile e campionamento (con IPAdapter sul riferimento se
-        i modelli ci sono), stessi tag di stile e stesso negativo. Il workflow si riusa se è già in libreria."""
+        i modelli ci sono), lo stesso prompt (salvo la parte delle varianti) e lo stesso negativo. Il workflow si riusa
+        se è già in libreria."""
         avvisi = []
         ipadapter = scegli_primo(modelli.get("ipadapter") or [], PREFERENZE_IPADAPTER)
         clip_vision = scegli_primo(modelli.get("clip_vision") or [], PREFERENZE_CLIP_VISION)
@@ -294,13 +295,14 @@ class ArchivioDataset:
             if parametri["lora_stile"]:
                 nome += f" + {Path(parametri['lora_stile']).stem}"
             voce, _ = self.aggiungi_workflow(pid, nome, "integrato", wf, [], ruoli, parametri)
+        from .proposte import modello_dataset
         c = self.config(pid, cid)
         c.workflow, c.ruoli, c.modifiche, c.disattivati, c.composizione = voce.id, None, {}, [], "libera"
-        c.stile = ", ".join(x for x in (ricetta.get("stile", ""), ricetta.get("extra", "")) if x)
-        if c.stile and "{stile}" not in c.prompt_positivo:
-            c.prompt_positivo = c.prompt_positivo + ", {stile}"
-        if ricetta.get("negativo"):
-            c.prompt_negativo = ricetta["negativo"]
+        # lo stesso prompt delle proposte (stesso ordine, stessi tag di qualità automatici, stesso negativo): cambia
+        # solo la parte delle varianti
+        c.prompt_positivo, c.prompt_negativo = modello_dataset(ricetta)
+        c.stile = ricetta.get("stile", "")
+        c.tag_qualita = c.tag_qualita_negativi = None
         self.salva_config(pid, cid, c)
         return c, voce, avvisi
 

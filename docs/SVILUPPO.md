@@ -32,7 +32,8 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 18 | Workflow nei log e scheda «Grafo» nella console: i nodi collegati di ogni workflow mandato a ComfyUI, disegnati come in ComfyUI; JSON da aprire in ComfyUI | ✅ unita |
 | 19 | Dataset confrontato con la proposta da cui è nato il personaggio: checkpoint, LoRA, stile, campionamento, IPAdapter; tag di stile mancanti rimessi con un clic | ✅ unita |
 | 20 | Aggiornare senza confondersi: la versione nuova sostituisce quella vecchia ancora aperta (chiedendo se ha lavori in corso); numero di versione in alto | ✅ unita |
-| 21 | Impostazioni dei nodi modificabili dal grafo della console, controllate come in ComfyUI e salvate nel workflow del personaggio (dataset e proposte) | ✅ questa PR |
+| 21 | Impostazioni dei nodi modificabili dal grafo della console, controllate come in ComfyUI e salvate nel workflow del personaggio (dataset e proposte) | ✅ unita |
+| 22 | Dataset identico alle proposte: stesso workflow con in più solo il riferimento, stesso prompt salvo le varianti, stesso negativo; verifica tag per tag e nodo per nodo; proposte vecchie completate con il checkpoint | ✅ questa PR |
 | 22 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
 | 23 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
@@ -876,4 +877,52 @@ scrive a ogni generazione. `ritocchi.py` decide per ogni impostazione di ogni no
   minimo è 1», 40 e dpmpp_2m salvati nelle scelte; dataset → checkpoint cambiato e salvato nelle modifiche, prompt
   bloccato con il motivo
 
-Prossimo passo: PR 22, pose guidate e costruttore di workflow.
+Prossimo passo: PR 22, dataset identico alle proposte.
+
+## PR 22 — Dataset identico alle proposte
+
+Richiesta: «accertarmi che il prompt e il workflow usati per creare un personaggio dal nulla siano gli stessi usati nel
+dataset: nel dataset deve usare lo stesso, con solo in più l'immagine di riferimento».
+
+**La regola**, scritta una volta in `proposte.py` e usata sia per costruire sia per verificare:
+- workflow: quello delle proposte (Checkpoint → LoRA → Prompt → KSampler → VAE → Salva, stessi valori), con in più
+  solo i nodi del riferimento (IPAdapter Plus sul modello)
+- prompt: quello delle proposte, stessi tag nello stesso ordine; cambia solo la parte di inquadratura, sguardo,
+  espressione e sfondo (`PARTE_VARIABILE`: nelle proposte è fissa, «looking at viewer, neutral expression, simple
+  background, white background» e il tag dell'inquadratura; nel dataset è `{variante}`, che cambia a ogni immagine:
+  senza, le 100 immagini del dataset sarebbero copie e il LoRA non imparerebbe il personaggio da ogni lato)
+- negativo: identico (quello delle proposte, prima il dataset ne aveva uno suo)
+
+**Cosa non tornava prima.** «Come le proposte» (PR 16) metteva lo stesso checkpoint, LoRA e campionamento, ma il
+modello del prompt era quello del dataset (i «tag in più» finivano in fondo, dopo le varianti) e il negativo restava
+quello predefinito del dataset, diverso da quello delle proposte; il confronto (PR 19) guardava solo checkpoint, LoRA,
+stile e campionamento.
+
+- `proposte.modello_dataset(ricetta)`: `{qualita}, {genere}, solo, {descrizione}, <tag in più>, {variante}, {stile}`
+  e il negativo delle proposte; `come_proposte` lo usa e azzera i tag di qualità scritti a mano (si usano quelli del
+  checkpoint, come nelle proposte)
+- `coerenza.py`, verifica rigorosa:
+  - prompt: parti fisse (tolta `PARTE_VARIABILE`) della proposta e del dataset (il modello con le varianti vuote),
+    tag per tag, con mancanti, in più e ordine
+  - negativo: quello delle proposte con i tag negativi di qualità della loro famiglia contro quello del dataset
+  - workflow: quello delle proposte ricostruito dalla ricetta contro quello del dataset con le modifiche del
+    personaggio: stessi nodi e valori (checkpoint, LoRA e forze, passi, CFG, sampler, scheduler, denoise), nessun
+    nodo in più tranne quelli del riferimento, nessun nodo staccato, stesse catene (il modello che arriva al KSampler
+    passa per gli stessi nodi, salvo IPAdapter; il CLIP dei prompt anche) e IPAdapter davvero collegato al modello
+  - «coerente» solo se prompt, negativo e workflow sono uguali
+- proposte fatte prima della 0.16 (senza ricetta): `POST …/proposte/{file}/ricetta {checkpoint}` la ricostruisce
+  (stile e inquadratura dal prompt, campionamento e negativo erano fissi); rifiuta un checkpoint di un'altra famiglia
+  rispetto ai tag di qualità del prompt; se è il riferimento aggiorna `origine`
+- interfaccia, dataset: un solo riquadro (tolto quello «Come le proposte», che controllava meno e poteva dire «ok»
+  quando non lo era): esito; per le proposte vecchie la scelta del checkpoint (prima quelli della famiglia giusta);
+  **Rendi il dataset identico alle proposte**; tabella; differenze del workflow; prompt e negativo tag per tag (in
+  rosso quelli che mancano, in giallo quelli in più); i due prompt completi
+- Versione 0.22.0
+- **Test**: `test_confronto_dataset_proposta` riscritto (personaggio come quelli vecchi: prompt senza lo stile,
+  negativo diverso, workflow da verificare; checkpoint di un'altra famiglia rifiutato; ricetta ricostruita →
+  differenze di passi, CFG e riferimento; IPAdapter installato → identico, prompt fisso uguale a quello della
+  proposta tag per tag; un'impostazione cambiata e un nodo in più si vedono); `test_dataset_come_le_proposte`
+  aggiornato. Collaudo con Chromium e confronto dei workflow davvero inviati a ComfyUI: stessi nodi più i 5 di
+  IPAdapter, KSampler uguale, negativo uguale, positivo uguale salvo la parte variabile
+
+Prossimo passo: PR 23, pose guidate e costruttore di workflow.

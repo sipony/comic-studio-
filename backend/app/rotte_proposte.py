@@ -5,6 +5,7 @@ import asyncio
 import random
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field
 from fastapi.responses import FileResponse
 from . import testo_prompt as tp
 from .comfy.client import ComfyErrore
@@ -125,6 +126,36 @@ async def scegli(pid: str, cid: str, nome: str, req: Request):
         except Exception as e:  # noqa: BLE001 - il riferimento è salvato comunque
             app.bus.log(f"Non sono riuscito a preparare il dataset come le proposte: {e}", "avviso")
     return c.model_dump()
+
+
+class RicettaVecchia(BaseModel):
+    checkpoint: str = Field(min_length=1)
+
+
+@rotte.post("/{nome}/ricetta")
+async def ricetta_vecchia(pid: str, cid: str, nome: str, dati: RicettaVecchia, req: Request):
+    """Completa una proposta fatta prima della 0.16 (senza ricetta) con il checkpoint usato: stile e inquadratura si
+    leggono dal suo prompt, campionamento e negativo erano fissi. Se è il riferimento, il personaggio la ricorda."""
+    from .coerenza import ricetta_da_proposta_vecchia
+    from .proposte import Ricetta
+    app = _app(req)
+    pers = _personaggio(app, pid, cid)
+    a = ArchivioProposte(app.progetti)
+    p = a.leggi(pid, cid, nome)
+    if p is None:
+        raise ErroreProgetto("Proposta inesistente", 404)
+    if p.ricetta:
+        raise ErroreProgetto("Questa proposta ricorda già come è stata fatta.", 409)
+    try:
+        r = ricetta_da_proposta_vecchia(p, pers, dati.checkpoint)
+    except ValueError as e:
+        raise ErroreProgetto(str(e)) from None
+    a.imposta_ricetta(pid, cid, nome, Ricetta(**r))
+    if p.scelta:
+        app.progetti.modifica_personaggio(pid, cid, ModificaPersonaggio(origine=r))
+        app.bus.pubblica({"tipo": "personaggi", "progetto": pid, "personaggio": cid})
+    app.bus.log(f"Proposta {nome} di {pers.nome}: ricetta ricostruita con {dati.checkpoint}", "ok")
+    return r
 
 
 @rotte.post("/scarta")

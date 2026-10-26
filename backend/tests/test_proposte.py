@@ -108,7 +108,8 @@ def test_dataset_come_le_proposte(casa, finto_comfy, cartella_comfy):
         assert pers["origine"]["checkpoint"] == "ponyDiffusionV6XL.safetensors"
         ds = c.get(f"/api/progetti/{p}/personaggi/jack/dataset").json()
         conf_ds = ds["config"]
-        assert conf_ds["stile"] == "western comics (style), ink lines" and "{stile}" in conf_ds["prompt_positivo"]
+        assert conf_ds["stile"] == "western comics (style)" and "{stile}" in conf_ds["prompt_positivo"]
+        assert conf_ds["prompt_positivo"] == "{qualita}, {genere}, solo, {descrizione}, ink lines, {variante}, {stile}"
         assert conf_ds["prompt_negativo"] == "{negativo_qualita}, 3d, realistic"
         assert ds["origine"]["coerente"] and ds["origine"]["checkpoint_workflow"] == "ponyDiffusionV6XL.safetensors"
         wf = c.get(f"/api/progetti/{p}/workflows/{conf_ds['workflow']}").json()
@@ -119,7 +120,8 @@ def test_dataset_come_le_proposte(casa, finto_comfy, cartella_comfy):
         assert any("IPAdapter non è installato" in e["msg"] for e in stato.bus.storico)
         # i prompt del dataset usano lo stesso stile e lo stesso negativo
         es = c.post(f"/api/progetti/{p}/personaggi/jack/dataset/esempi", json=conf_ds).json()[0]
-        assert es["positivo"].startswith("score_9") and es["positivo"].endswith("western comics (style), ink lines")
+        assert es["positivo"].startswith("score_9") and es["positivo"].endswith("western comics (style)")
+        assert "leather vest, ink lines, " in es["positivo"] or "cowboy hat, ink lines, " in es["positivo"]
         assert es["negativo"] == "score_4, score_5, score_6, 3d, realistic"
 
         # un altro workflow con un altro checkpoint: il dataset lo segnala
@@ -186,10 +188,12 @@ def test_workflow_nei_log_e_grafo(casa, finto_comfy, cartella_comfy):
 
 
 def test_confronto_dataset_proposta(casa, finto_comfy, cartella_comfy):
-    """Il caso di un personaggio nato con una versione vecchia: la proposta non ha la ricetta, il dataset ha un
-    workflow integrato fatto a mano e il modello del prompt senza {stile}. Il confronto trova lo stile mancante;
-    rimesso nello stile, finisce nei prompt anche con il modello vecchio."""
+    """Un personaggio nato con una versione vecchia (proposta senza ricetta, workflow integrato fatto a mano, modello
+    del prompt senza stile): il confronto trova le differenze di prompt, negativo e workflow; indicato il checkpoint e
+    installato IPAdapter, «come le proposte» rende il dataset identico alle proposte, con in più solo il riferimento."""
     import json as j
+    from app.coerenza import confronta_workflow
+    from app.dataset import ConfigDataset
     stato = App(Archivio(casa / "impostazioni.json"))
     with TestClient(crea_app(stato, sorveglia=False)) as c:
         c.post("/api/comfy/usa", json={"url": finto_comfy.url, "cartella": str(cartella_comfy)})
@@ -200,40 +204,57 @@ def test_confronto_dataset_proposta(casa, finto_comfy, cartella_comfy):
         ds = f"/api/progetti/{p}/personaggi/secretary/dataset"
         attendi(c, c.post(base, json={"checkpoint": "waiIllustriousSDXL_v170.safetensors", "numero": 1,
                                       "inquadratura": "figura_intera", "stile": "western comics (style)"}).json()["id"])
+        prompt_proposta = c.get(base).json()[0]["prompt"]
         # come con la 0.15: niente ricetta nella proposta
         f = stato.progetti.cartella_personaggio(p, "secretary") / "proposte" / "proposte.json"
         elenco = j.loads(f.read_text())
         for x in elenco:
             x.pop("ricetta")
         f.write_text(j.dumps(elenco))
-        c.post(f"{base}/{elenco[0]['file']}/scegli")
+        nome = elenco[0]["file"]
+        c.post(f"{base}/{nome}/scegli")
         assert c.get(ds).json()["origine"] is None and not c.get(ds).json()["config"]["workflow"]
         wf = c.post(f"/api/progetti/{p}/workflows/integrato", json={
             "checkpoint": "waiIllustriousSDXL_v170.safetensors"}).json()
         conf = c.get(ds).json()["config"] | {"workflow": wf["id"],
                                               "prompt_positivo": "{qualita}, {genere}, solo, {descrizione}, {variante}"}
+        c.put(f"{ds}/config", json=conf)
         r = c.post(f"{ds}/confronto", json=conf).json()
-        assert r["stile_proposta"] == ["western comics (style)"] and r["mancanti"] == ["western comics (style)"]
-        assert not r["coerente"] and "western comics" not in r["esempio_dataset"]
-        righe = {x["voce"]: x for x in r["righe"]}
-        assert righe["Checkpoint"]["uguale"] is None and "prima della versione 0.16" in righe["Checkpoint"]["proposte"]
-        assert righe["Tag di stile"]["uguale"] is False and righe["IPAdapter sul riferimento"]["uguale"] is False
-        # lo stile rimesso (anche con il modello senza {stile})
-        r = c.post(f"{ds}/confronto", json=conf | {"stile": "western comics (style)"}).json()
-        assert not r["mancanti"] and r["coerente"] and r["esempio_dataset"].endswith("western comics (style)")
-        es = c.post(f"{ds}/esempi", json=conf | {"stile": "western comics (style)"}).json()[0]
-        assert es["positivo"].endswith("western comics (style)")
-
-        # con la ricetta (versione nuova) tutto torna, campionamento compreso
-        attendi(c, c.post(base, json={"checkpoint": "waiIllustriousSDXL_v170.safetensors", "numero": 1,
-                                      "stile": "western comics (style)", "passi": 24}).json()["id"])
-        nuova = c.get(base).json()[-1]["file"]
-        c.post(f"{base}/{nuova}/scegli")
-        cr = c.post(f"{ds}/come-proposte").json()["config"]
-        r = c.post(f"{ds}/confronto", json=cr).json()
-        assert r["coerente"] and all(x["uguale"] is not False for x in r["righe"] if x["voce"] != "IPAdapter sul riferimento")
-        assert {x["voce"] for x in r["righe"]} >= {"Checkpoint", "LoRA di stile", "Passi", "CFG", "Sampler"}
+        assert not r["coerente"] and r["famiglia_proposta"] == "illustrious"
+        assert r["prompt"]["mancano"] == ["western comics (style)"] and not r["prompt"]["in_piu"]
+        assert not r["negativo"]["uguale"] and "multiple views" in r["negativo"]["mancano"]
+        assert r["workflow"]["uguale"] is None and "0.16" in r["workflow"]["differenze"][0]
+        # il checkpoint della proposta vecchia: deve avere i tag di qualità giusti
+        e = c.post(f"{base}/{nome}/ricetta", json={"checkpoint": "ponyDiffusionV6XL.safetensors"})
+        assert e.status_code == 400 and "illustrious" in e.json()["detail"]
+        ric = c.post(f"{base}/{nome}/ricetta", json={"checkpoint": "waiIllustriousSDXL_v170.safetensors"}).json()
+        assert (ric["stile"], ric["inquadratura"], ric["passi"], ric["cfg"]) == ("western comics (style)", "figura_intera", 28, 6.0)
+        assert c.get(ds).json()["origine"]["ricetta"]["checkpoint"] == "waiIllustriousSDXL_v170.safetensors"
+        assert c.post(f"{base}/{nome}/ricetta", json={"checkpoint": "x.safetensors"}).status_code == 409
+        r = c.post(f"{ds}/confronto", json=conf).json()
+        diff = " ".join(r["workflow"]["differenze"])
+        assert r["workflow"]["uguale"] is False and "KSampler · steps: proposte 28, dataset 30" in diff
+        assert "KSampler · cfg: proposte 6.0, dataset 6.5" in diff and "Manca l'immagine di riferimento" in diff
+        # IPAdapter installato → dataset identico alle proposte, con in più solo il riferimento
+        finto_comfy.modelli |= {"ipadapter": ["ip-adapter-plus_sdxl_vit-h.safetensors"],
+                                "clip_vision": ["CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"]}
+        nuovo = c.post(f"{ds}/come-proposte").json()["config"]
+        r = c.post(f"{ds}/confronto", json=nuovo).json()
+        assert r["coerente"], r["workflow"]["differenze"]
+        assert r["prompt"]["uguale"] and r["negativo"]["uguale"] and r["workflow"]["riferimento"]
+        # il prompt del dataset, tolta la parte delle varianti, è quello della proposta tag per tag
+        from app.proposte import PARTE_VARIABILE
+        assert r["prompt"]["dataset"] == [t.strip() for t in prompt_proposta.split(",")
+                                          if t.strip().lower() not in PARTE_VARIABILE]
+        # un'impostazione cambiata (dal grafo o da Nodi e parametri) si vede subito
+        r = c.post(f"{ds}/confronto", json=nuovo | {"modifiche": {"11": {"steps": 35}}}).json()
+        assert not r["coerente"] and r["workflow"]["differenze"] == ["KSampler · steps: proposte 28, dataset 35."]
+        # un nodo che le proposte non hanno
+        wfd = c.get(f"/api/progetti/{p}/workflows/{nuovo['workflow']}").json()["workflow"]
+        wfd["99"] = {"class_type": "FaceDetailer", "inputs": {"image": ["12", 0]}}
+        esito = confronta_workflow(ric, wfd, ConfigDataset(**nuovo))
+        assert esito["differenze"] == ["Nodo in più nel dataset: FaceDetailer."]
         # riferimento caricato a mano: niente confronto
         dati = (stato.progetti.cartella_personaggio(p, "secretary") / "riferimento.png").read_bytes()
         c.put(f"/api/progetti/{p}/personaggi/secretary/riferimento", files={"file": ("r.png", dati, "image/png")})
-        assert c.post(f"{ds}/confronto", json=cr).json() is None
+        assert c.post(f"{ds}/confronto", json=nuovo).json() is None

@@ -29,47 +29,34 @@
 
     @if (personaggio(); as pers) {
       @if (config(); as cfg) {
-        @if (ricetta(); as r) {
-          <div class="origine" [class.ok]="coerente()" role="status">
-            <mat-icon>{{ coerente() ? 'link' : 'warning' }}</mat-icon>
-            <div class="testo">
-              @if (coerente()) {
-                <strong>Come le proposte da cui è nato {{ pers.nome }}</strong>
-                <span>{{ descrizioneRicetta() }}</span>
-              } @else {
-                <strong>{{ pers.nome }} è nato con altre scelte: il dataset potrebbe venire diverso</strong>
-                <span>
-                  Le proposte usavano {{ descrizioneRicetta() }}.
-                  @if (workflowScelto(); as w) {
-                    Il workflow scelto usa {{ w.checkpoint ?? 'un checkpoint sconosciuto' }}{{ r.lora_stile && !w.lora.includes(r.lora_stile) ? ' senza quella LoRA' : '' }}.
-                  } @else {
-                    Non c'è ancora un workflow.
-                  }
-                </span>
-              }
-            </div>
-            @if (!coerente()) {
-              <button mat-flat-button (click)="comeProposte()" [disabled]="preparando()">
-                <mat-icon>sync_alt</mat-icon> Usa le scelte delle proposte
-              </button>
-            }
-          </div>
-        }
         @if (confronto(); as k) {
           <section class="confronto" [class.ok]="k.coerente">
             <button type="button" class="c-testa" (click)="confrontoAperto.set(!confrontoAperto())" [attr.aria-expanded]="confrontoAperto()">
               <img [src]="urlProposta(k.proposta.file)" alt="Proposta scelta come riferimento" />
               <mat-icon>{{ k.coerente ? 'verified' : 'compare_arrows' }}</mat-icon>
               <span class="c-titolo">
-                @if (k.coerente) { Il dataset è coerente con la proposta da cui è nato {{ pers.nome }} }
-                @else { Il dataset non usa le stesse scelte della proposta: le immagini verranno diverse }
+                @if (k.coerente) { Il dataset usa lo stesso prompt e lo stesso workflow della proposta da cui è nato {{ pers.nome }}, con in più l'immagine di riferimento }
+                @else if (k.workflow.uguale === null) { Questa proposta non ricorda il checkpoint: indicalo per verificare il workflow }
+                @else { Il dataset non è identico alla proposta: le immagini verranno diverse }
               </span>
               <mat-icon>{{ confrontoAperto() ? 'expand_less' : 'expand_more' }}</mat-icon>
             </button>
-            @if (k.mancanti.length) {
+            @if (!k.proposta.ricetta) {
               <div class="c-mancanti">
-                <span>Tag di stile della proposta che il dataset non usa: <strong>{{ k.mancanti.join(', ') }}</strong></span>
-                <button mat-flat-button (click)="aggiungiStile()"><mat-icon>add</mat-icon> Aggiungili allo stile</button>
+                <span>Con quale checkpoint hai creato questa proposta?
+                  @if (k.famiglia_proposta) { <span class="nota">(dai tag di qualità è un {{ nomiFamiglia[k.famiglia_proposta] ?? k.famiglia_proposta }})</span> }</span>
+                <select class="c-scelta" [value]="checkpointVecchio()" (change)="checkpointVecchio.set($any($event.target).value)" aria-label="Checkpoint della proposta">
+                  @for (m of checkpointPossibili(); track m) { <option [value]="m">{{ m }}</option> }
+                </select>
+                <button mat-flat-button (click)="ricostruisciRicetta()" [disabled]="!checkpointVecchio() || preparando()">
+                  <mat-icon>check</mat-icon> Conferma</button>
+              </div>
+            } @else if (!k.coerente) {
+              <div class="c-mancanti">
+                <span>Comic Studio può rendere il dataset identico alla proposta: stesso workflow (con IPAdapter per il
+                  riferimento), stesso prompt salvo le varianti, stesso negativo.</span>
+                <button mat-flat-button (click)="comeProposte()" [disabled]="preparando()">
+                  <mat-icon>sync_alt</mat-icon> Rendi il dataset identico alle proposte</button>
               </div>
             }
             @if (confrontoAperto()) {
@@ -86,15 +73,35 @@
                   }
                 </tbody>
               </table>
-              <div class="c-prompt"><strong>Prompt della proposta</strong><code>{{ k.proposta.prompt }}</code></div>
+              @if (k.workflow.differenze.length) {
+                <div class="c-prompt"><strong>Workflow: {{ k.workflow.uguale === null ? 'da verificare' : 'differenze' }}</strong>
+                  <ul class="c-diff">@for (d of k.workflow.differenze; track $index) { <li>{{ d }}</li> }</ul></div>
+              }
+              <div class="c-prompt"><strong>Prompt senza le varianti, tag per tag</strong>
+                <div class="c-tag"><span class="etichetta">proposta</span>
+                  @for (t of k.prompt.proposta; track $index) { <span class="t" [class.manca]="k.prompt.mancano.includes(t)">{{ t }}</span> }</div>
+                <div class="c-tag"><span class="etichetta">dataset</span>
+                  @for (t of k.prompt.dataset; track $index) { <span class="t" [class.in-piu]="k.prompt.in_piu.includes(t)">{{ t }}</span> }</div>
+              </div>
+              <div class="c-prompt"><strong>Negativo</strong>
+                <div class="c-tag"><span class="etichetta">proposta</span>
+                  @for (t of tagDi(k.negativo.proposta); track $index) { <span class="t" [class.manca]="k.negativo.mancano.includes(t)">{{ t }}</span> }</div>
+                <div class="c-tag"><span class="etichetta">dataset</span>
+                  @for (t of tagDi(k.negativo.dataset); track $index) { <span class="t" [class.in-piu]="k.negativo.in_piu.includes(t)">{{ t }}</span> }</div>
+              </div>
+              <div class="c-prompt"><strong>Prompt completo della proposta</strong><code>{{ k.proposta.prompt }}</code></div>
               @if (k.esempio_dataset) {
-                <div class="c-prompt"><strong>Un prompt del dataset</strong><code>{{ k.esempio_dataset }}</code></div>
+                <div class="c-prompt"><strong>Un prompt completo del dataset</strong><code>{{ k.esempio_dataset }}</code></div>
               }
               <p class="nota">
-                Pose, inquadrature, espressioni e sfondi cambiano apposta: servono al LoRA per imparare il personaggio da
-                ogni lato. Devono restare uguali checkpoint, LoRA di stile e tag di stile. Il workflow completo di ogni
-                generazione lo vedi nella console, scheda «Grafo».
+                L'unica parte del prompt che cambia è quella di inquadratura, sguardo, espressione, posa e sfondo: nelle
+                proposte è fissa (figura su sfondo bianco, di fronte), nel dataset varia a ogni immagine perché il LoRA
+                impari il personaggio da ogni lato. In rosso i tag della proposta che mancano nel dataset, in giallo quelli
+                in più. Il workflow di ogni generazione lo vedi nella console, scheda «Grafo».
               </p>
+              @if (k.mancanti.length && !k.proposta.ricetta) {
+                <button mat-button (click)="aggiungiStile()"><mat-icon>add</mat-icon> Intanto aggiungi i tag di stile mancanti</button>
+              }
             }
           </section>
         }

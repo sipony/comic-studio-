@@ -68,6 +68,38 @@ export class DatasetPage {
   private timerConfronto?: ReturnType<typeof setTimeout>;
   protected urlProposta = (file: string) => this.api.urlProposta(this.progetto().id, this.sceltoId() ?? '', file);
 
+  protected tagDi(t: string): string[] {
+    return t.split(',').map((x) => x.trim()).filter(Boolean);
+  }
+
+  // proposte fatte prima della 0.16: il checkpoint lo indica l'utente
+  protected checkpointVecchio = signal('');
+  private tuttiCheckpoint = signal<string[]>([]);
+  protected checkpointPossibili = computed(() => {
+    const fam = this.confronto()?.famiglia_proposta;
+    const tutti = this.tuttiCheckpoint();
+    const regole: Record<string, RegExp> = { pony: /pony|pdxl|autismmix/i, illustrious: /illustrious|wai/i, noobai: /noob/i };
+    const adatti = fam && regole[fam] ? tutti.filter((m) => regole[fam].test(m)) : [];
+    return adatti.length ? [...adatti, ...tutti.filter((m) => !adatti.includes(m))] : tutti;
+  });
+
+  protected async ricostruisciRicetta() {
+    const k = this.confronto();
+    const id = this.sceltoId();
+    if (!k || !id || !this.checkpointVecchio()) return;
+    this.preparando.set(true);
+    try {
+      await this.api.ricettaPropostaVecchia(this.progetto().id, id, k.proposta.file, this.checkpointVecchio());
+      this.avvisi.ok('Ricetta della proposta ricostruita: ora il confronto controlla anche il workflow');
+      const c = this.config();
+      if (c) this.config.set({ ...c });           // ricalcola il confronto
+    } catch (e) {
+      this.avvisi.errore(e);
+    } finally {
+      this.preparando.set(false);
+    }
+  }
+
   /** Aggiunge allo stile del dataset i tag di stile delle proposte che mancano. */
   protected aggiungiStile() {
     const c = this.config();
@@ -96,7 +128,16 @@ export class DatasetPage {
       if (!c || !id) return;
       this.timerConfronto = setTimeout(() => {
         this.api.confrontoDataset(this.progetto().id, id, c)
-          .then((r) => { if (this.sceltoId() === id) this.confronto.set(r); })
+          .then((r) => {
+            if (this.sceltoId() !== id) return;
+            this.confronto.set(r);
+            if (r && !r.proposta.ricetta && !this.tuttiCheckpoint().length) {
+              void this.api.modelli().then((m) => {
+                this.tuttiCheckpoint.set(m['checkpoints'] ?? []);
+                if (!this.checkpointVecchio()) this.checkpointVecchio.set(this.checkpointPossibili()[0] ?? '');
+              }).catch(() => undefined);
+            }
+          })
           .catch(() => this.confronto.set(null));
       }, 400);
     });

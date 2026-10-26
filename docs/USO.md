@@ -49,11 +49,11 @@ Nel riquadro **Consigli** trovi le impostazioni più adatte alla tua scheda vide
      mancano i tratti fissi li ricava prima l'IA. Sulla proposta giusta premi **Usa questa** (diventa l'immagine di
      riferimento) oppure **Varianti** per averne altre simili; ⟲ riprende le scelte con cui è stata fatta quella
      proposta; **Togli le non scelte** sposta le altre nel cestino del progetto.
-   - **Le scelte passano al dataset.** Con «Usa questa» Comic Studio prepara anche il dataset del personaggio con
-     le stesse scelte: un workflow con lo stesso checkpoint, la stessa LoRA di stile e lo stesso campionamento (con
-     IPAdapter sul riferimento, se è installato), lo stesso stile e lo stesso negativo. Così il dataset, e quindi il
-     LoRA, ritrae lo stesso personaggio delle proposte. Se il dataset aveva già un workflow scelto da te non lo
-     cambia: nel dataset compare un avviso con **Usa le scelte delle proposte**.
+   - **Il dataset è identico alle proposte.** Con «Usa questa» Comic Studio prepara anche il dataset del personaggio:
+     lo stesso workflow delle proposte con in più solo l'immagine di riferimento (IPAdapter, se è installato), lo
+     stesso prompt salvo la parte che cambia a ogni immagine, lo stesso negativo. Così il dataset, e quindi il LoRA,
+     ritrae lo stesso personaggio delle proposte. Se il dataset aveva già un workflow scelto da te non lo cambia: nel
+     dataset il riquadro di confronto propone **Rendi il dataset identico alle proposte**.
 
 **IPAdapter Plus.** Se all'apertura Comic Studio non trova il nodo ComfyUI_IPAdapter_plus, il modello
 ip-adapter-plus_sdxl_vit-h o CLIP Vision ViT-H, ti chiede se installarli: vedi cosa manca, quanto pesa (circa 3,3 GB in
@@ -77,11 +77,11 @@ dimensioni…): il pannello dice perché e dove si cambiano.
 
 Per ogni personaggio (scegli in alto quale):
 
-- se il riferimento è una proposta, il riquadro di confronto dice se il dataset è **coerente** con lei: checkpoint,
-  LoRA, tag di stile, campionamento e IPAdapter a confronto e i due prompt; se mancano tag di stile della proposta,
-  **Aggiungili allo stile** li rimette (vale anche per i personaggi creati con le versioni vecchie)
-- se il personaggio è nato da una proposta, in alto c'è con quali scelte (checkpoint, LoRA, stile); se il workflow
-  del dataset usa un altro checkpoint o non ha quella LoRA, l'avviso propone **Usa le scelte delle proposte**
+- se il riferimento è una proposta, il riquadro in alto verifica che il dataset usi **lo stesso workflow** della
+  proposta con in più solo l'immagine di riferimento (IPAdapter), **lo stesso prompt** salvo la parte che cambia a
+  ogni immagine (inquadratura, sguardo, espressione, posa, sfondo) e **lo stesso negativo**: mostra prompt e negativo
+  tag per tag e le differenze del workflow nodo per nodo. **Rendi il dataset identico alle proposte** sistema tutto.
+  Per i personaggi creati con le versioni vecchie indica prima il checkpoint con cui hai fatto la proposta
 
 1. **Workflow** — scegline uno dalla libreria del progetto, **caricane uno** tuo (il file salvato da ComfyUI va
    bene, con ComfyUI avviato) oppure **crea quello integrato** (SDXL + IPAdapter) scegliendo checkpoint, LoRA di
