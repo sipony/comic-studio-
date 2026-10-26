@@ -43,6 +43,7 @@ backend/app/
                           per la VRAM e la RAM di questo computer
   testo_prompt.py         dal testo in linguaggio naturale al prompt: schemi, composizione, blocco, aderenza
   proposte.py             personaggio dal nulla: proposte d'immagine di riferimento dal testo
+  grafo.py                workflow mandato a ComfyUI: riassunto per i log e grafo da disegnare
   componenti.py           IPAdapter Plus (nodo e modelli): cosa manca, spazio su disco, download controllati
   rotte_componenti.py     API dei componenti da installare
   rotte_proposte.py       API delle proposte
@@ -117,6 +118,8 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | --- | --- | --- |
 | GET | `/api/lavori/{id}` | il lavoro con il suo risultato |
 | GET | `/api/lavori/{id}/anteprima` | l'ultima anteprima (parziale o finita) del lavoro |
+| GET | `/api/lavori/{id}/workflow` | l'ultimo workflow mandato a ComfyUI dal lavoro: `workflow`, `n` (quante volte), `riassunto`, `grafo` (nodi con ingressi, widget e uscite tipizzati; collegamenti) |
+| GET | `/api/lavori/{id}/workflow.json` | lo stesso in formato API, da scaricare e aprire in ComfyUI |
 | POST | `/api/lavori/annulla` | annulla tutti i lavori attivi |
 | GET | `/api/ia` | stato dell'IA locale, modelli scaricati (con `dimensioni` in byte) e consigliati, impostazioni; del processo di Ollama: `in_avvio`, `avviato_da_noi`, `pid`, `esterno` (chi l'ha aperto), `fermato`, `avvio_automatico`; `suggerisci_ollama` se il server OpenAI non risponde ma Ollama c'è |
 | POST | `/api/ia/impostazioni` | `{tipo, url, modello, chiave, libera_gpu, avvio_automatico}`; passando a Ollama (o riattivando l'avvio automatico) lo avvia se è spento |
@@ -224,6 +227,7 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `chiusura` | Comic Studio si sta chiudendo |
 | `anteprima` | `lavoro`, `n`, `finale`: nuova anteprima del lavoro |
 | `ia` | stato dell'IA locale |
+| `workflow` | `lavoro`, `n`: il lavoro ha mandato un workflow a ComfyUI (le righe di log con `grafo: true` lo riassumono) |
 | `componenti` | `dati`: come `GET /api/componenti` (all'apertura e dopo un'installazione; anche nel benvenuto) |
 | `proposte`, `personaggi` | `progetto`, `personaggio`: nuove proposte o tratti ricavati dall'IA |
 

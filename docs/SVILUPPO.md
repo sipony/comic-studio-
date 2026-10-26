@@ -28,9 +28,11 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 14 | Staccare i nodi del workflow dall'interfaccia: Comic Studio ricollega il resto da solo, stacca a cascata i nodi che non possono più funzionare e spiega quando non si può | ✅ unita |
 | 15 | IA locale: eliminare dall'interfaccia i modelli scaricati con Ollama; gestione del processo di Ollama (avvio all'apertura, riavvio se si chiude o si blocca, Avvia / Riavvia / Ferma) | ✅ unita |
 | 16 | Personaggio dal nulla con più scelte (LoRA di stile, negativo, campionamento, anteprima del prompt) che passano da sole al dataset: stesso checkpoint, LoRA e stile, così il personaggio resta lo stesso | ✅ unita |
-| 17 | IPAdapter Plus proposto all'apertura se manca (nodo e modelli), con il controllo dello spazio su disco, e installato da Comic Studio | ✅ questa PR |
-| 18 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 19 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 17 | IPAdapter Plus proposto all'apertura se manca (nodo e modelli), con il controllo dello spazio su disco, e installato da Comic Studio | ✅ unita |
+| 18 | Workflow nei log e scheda «Grafo» nella console: i nodi collegati di ogni workflow mandato a ComfyUI, disegnati come in ComfyUI; JSON da aprire in ComfyUI | ✅ questa PR |
+| 19 | Ritocchi sul grafo (valori dei widget, nodi staccati) e rigenerazione; modifiche strutturali in ComfyUI e ritorno nella libreria | da fare |
+| 20 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 21 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -751,4 +753,33 @@ lo deve dire».
   di apertura vera: disco quasi pieno → finestra con «libera almeno 2,4 GB», Installa disattivato; disco libero →
   installazione (il nodo clonato con git da GitHub), «IPAdapter Plus è installato»
 
-Prossimo passo: PR 18, pose guidate e costruttore di workflow.
+Prossimo passo: PR 18, il workflow visibile.
+
+## PR 18 — Il workflow nei log e il grafo nella console
+
+Richiesta: «quando fa partire la creazione nei log mi logghi il workflow che sta usando e nella console un ulteriore
+tab dove far vedere il grafo di tutti i nodi collegati esattamente come li mostra ComfyUI».
+
+- `Lavoro.registra_workflow(wf)`: chiamato da tutti i lavori che mandano workflow a ComfyUI (proposte, dataset,
+  prova del LoRA, fumetto) subito prima dell'invio; tiene l'ultimo (con i titoli dei nodi) e quante volte è stato
+  mandato; scrive nella console «Workflow inviato a ComfyUI — 8 nodi: CheckpointLoaderSimple ponyDiffusionV6XL →
+  LoraLoader … → KSampler (28 passi, CFG 6, …) → …» solo quando cambia la struttura o un modello (`grafo.firma`), non
+  a ogni immagine del dataset dove cambiano solo prompt e seme; la riga ha `grafo: true`; evento `workflow`
+- `grafo.py`: `descrivi` (nodi in ordine topologico con ingressi tipizzati e collegati, widget con i valori, uscite con
+  nome e tipo da /object_info o dalle tabelle dei nodi più comuni; collegamenti), `riassunto`, `firma`
+- `GET /api/lavori/{id}/workflow` (workflow e grafo), `GET /api/lavori/{id}/workflow.json` (formato API da scaricare:
+  trascinato in ComfyUI si apre lì)
+- interfaccia, console: viste **Messaggi** / **Grafo**; sulle righe dei workflow il pulsante «grafo»; nel grafo il
+  lavoro da vedere (di serie l'ultimo); la console si alza a 420 px per il grafo
+- `GrafoComponent` (SVG, senza librerie): disposizione a colonne per dipendenze con ordine per baricentro (meno
+  incroci); nodi come ComfyUI (barra del titolo, #id, ingressi a sinistra e uscite a destra con i pallini colorati per
+  tipo come nel tema scuro di ComfyUI, widget con nome e valore), collegamenti a curva colorati per tipo; zoom con la
+  rotella verso il puntatore, trascinamento dello sfondo e dei nodi, «Adatta»; clic su un nodo → pannello con da dove
+  arriva ogni ingresso e i valori interi (il prompt completo); scarica JSON, apri ComfyUI, a tutto schermo
+- Versione 0.18.0
+- **Test**: `test_workflow_nei_log_e_grafo` (una sola riga per 3 proposte, riassunto con modelli e campionamento,
+  grafo con tipi e collegamenti, JSON senza `_meta`, nuova riga per le varianti img2img, 404). Collaudo con Chromium:
+  proposte con Pony + LoRA → riga «grafo» → 8 nodi e 11 collegamenti come in ComfyUI, dettaglio del KSampler, tutto
+  schermo
+
+Prossimo passo: PR 19, ritocchi sul grafo.

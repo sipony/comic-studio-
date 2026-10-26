@@ -11,8 +11,11 @@ import { EventiService } from '../core/eventi.service';
 import { eComfy, Parte, spezzaLink } from '../core/link';
 import { Livello } from '../core/modelli';
 import { AnteprimaLavoro } from './anteprima-lavoro';
+import { GrafoComponent, GrafoDialog } from './grafo';
+import { MatDialog } from '@angular/material/dialog';
 
 type Filtro = 'normale' | 'problemi' | 'tutto';
+type Vista = 'messaggi' | 'grafo';
 
 function leggi(chiave: string, predefinito: string): string {
   try {
@@ -31,7 +34,7 @@ function scrivi(chiave: string, valore: string) {
 
 @Component({
   selector: 'app-console',
-  imports: [AnteprimaLavoro, DatePipe, DecimalPipe, FormsModule, MatButtonModule, MatIconModule, MatProgressBarModule,
+  imports: [AnteprimaLavoro, GrafoComponent, DatePipe, DecimalPipe, FormsModule, MatButtonModule, MatIconModule, MatProgressBarModule,
     MatTooltipModule],
   templateUrl: './console.html',
   styleUrl: './console.scss',
@@ -48,6 +51,39 @@ export class ConsoleComponent {
   protected filtro = signal<Filtro>((leggi('console.filtro', 'normale') as Filtro));
   protected cerca = signal('');
   protected segui = signal(true);
+  private dialog = inject(MatDialog);
+
+  // scheda «Grafo»: il workflow che un lavoro ha mandato a ComfyUI
+  protected vista = signal<Vista>((leggi('console.vista', 'messaggi') as Vista));
+  /** lavoro scelto a mano; null = segui l'ultimo che ha mandato un workflow */
+  protected sceltoGrafo = signal<string | null>(null);
+  protected conWorkflow = computed(() =>
+    Object.values(this.eventi.lavori()).filter((l) => (l.workflow ?? 0) > 0).sort((a, b) => b.creato - a.creato));
+  protected lavoroGrafo = computed(() => this.sceltoGrafo() ?? this.conWorkflow()[0]?.id ?? null);
+  protected nGrafo = computed(() => this.eventi.lavori()[this.lavoroGrafo() ?? '']?.workflow ?? 0);
+
+  protected impostaVista(v: Vista) {
+    this.vista.set(v);
+    scrivi('console.vista', v);
+    // il grafo ha bisogno di spazio
+    if (v === 'grafo' && this.altezza() < 420) this.altezza.set(Math.min(420, Math.round(window.innerHeight * 0.6)));
+    if (v === 'messaggi') queueMicrotask(() => this.scorriInFondo());
+  }
+
+  /** Dalla riga del log «Workflow inviato…» al suo grafo. */
+  protected vediGrafo(lavoro: string | null) {
+    if (!lavoro) return;
+    this.sceltoGrafo.set(lavoro);
+    if (!this.aperta()) this.interruttore();
+    this.impostaVista('grafo');
+  }
+
+  protected ingrandisciGrafo() {
+    const id = this.lavoroGrafo();
+    if (!id) return;
+    this.dialog.open(GrafoDialog, { data: { lavoro: id }, width: '96vw', maxWidth: '96vw', height: '90vh',
+      panelClass: 'finestra-grafo' });
+  }
 
   private cacheLink = new Map<string, Parte[]>();
 

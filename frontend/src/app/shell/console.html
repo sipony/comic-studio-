@@ -37,6 +37,18 @@
 
   @if (aperta()) {
     <div class="strumenti">
+      <div class="filtri viste" role="group" aria-label="Cosa mostrare">
+        <button [class.attivo]="vista() === 'messaggi'" (click)="impostaVista('messaggi')">Messaggi</button>
+        <button [class.attivo]="vista() === 'grafo'" (click)="impostaVista('grafo')"
+          matTooltip="Il workflow che i lavori mandano a ComfyUI, disegnato come in ComfyUI">Grafo</button>
+      </div>
+      @if (vista() === 'grafo') {
+        <select class="scelta-lavoro" [value]="sceltoGrafo() ?? ''" (change)="sceltoGrafo.set($any($event.target).value || null)"
+          aria-label="Di quale lavoro">
+          <option value="">Ultimo lavoro</option>
+          @for (l of conWorkflow(); track l.id) { <option [value]="l.id">{{ l.id }} · {{ l.titolo }}</option> }
+        </select>
+      } @else {
       <div class="filtri" role="group" aria-label="Filtro dei messaggi">
         <button [class.attivo]="filtro() === 'normale'" (click)="impostaFiltro('normale')">Normale</button>
         <button [class.attivo]="filtro() === 'problemi'" (click)="impostaFiltro('problemi')">Problemi</button>
@@ -45,11 +57,14 @@
       <input class="cerca" type="search" placeholder="Cerca…" [ngModel]="cerca()" (ngModelChange)="cerca.set($event)" />
       <button mat-icon-button matTooltip="Copia le righe visibili" (click)="copia()"><mat-icon>content_copy</mat-icon></button>
       <button mat-icon-button matTooltip="Svuota la vista" (click)="eventi.pulisciLog()"><mat-icon>delete_sweep</mat-icon></button>
+      }
     </div>
   }
 </header>
 
-@if (aperta()) {
+@if (aperta() && vista() === 'grafo') {
+  <app-grafo class="grafo" [lavoro]="lavoroGrafo()" [n]="nGrafo()" [ingrandibile]="true" (ingrandisci)="ingrandisciGrafo()" />
+} @else if (aperta()) {
   <div class="corpo" #corpo (scroll)="allaRotella()">
     @for (r of righe(); track $index) {
       <div class="riga" [class]="r.livello">
@@ -59,6 +74,10 @@
           <span class="id">{{ r.lavoro }}</span>
         }
         <span class="msg">@for (p of parti(r.msg); track $index) {@if (p.href) {<a [href]="p.href" target="_blank" rel="noopener noreferrer" [class.comfy]="eComfy(p.href)" [matTooltip]="eComfy(p.href) ? 'Apri ComfyUI nel browser' : 'Apri nel browser'">{{ p.testo }}</a>} @else {{{ p.testo }}}}</span>
+        @if (r.grafo && r.lavoro) {
+          <button class="vedi-grafo" (click)="vediGrafo(r.lavoro)" matTooltip="Vedi i nodi collegati, come in ComfyUI">
+            <mat-icon>account_tree</mat-icon> grafo</button>
+        }
       </div>
     } @empty {
       <div class="vuoto">Qui compariranno i messaggi del programma, di ComfyUI e dell'addestramento.</div>

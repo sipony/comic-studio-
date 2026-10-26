@@ -453,6 +453,7 @@ async def prova(pid: str, cid: str, dati: Prova, req: Request):
                     wf, salva = workflow_test_lora(checkpoint, nome, p, negativo, 1000 + i)
                     def avanza(v, t, fatte=fatte):
                         l.avanza((fatte + v) / totale, f"epoca {e['epoca']} · prova {i + 1}/{len(prompt)} · {t}")
+                    l.registra_workflow(wf)
                     uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
                     img = (uscite.get(salva) or next(iter(uscite.values()), [None]))[0]
                     if not img:

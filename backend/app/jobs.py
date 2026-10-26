@@ -56,8 +56,8 @@ class Bus:
         else:
             self._loop.call_soon_threadsafe(self._consegna, evento)
 
-    def log(self, msg: str, livello: Livello = "info", lavoro: str | None = None):
-        self.pubblica({"tipo": "log", "livello": livello, "msg": msg, "lavoro": lavoro})
+    def log(self, msg: str, livello: Livello = "info", lavoro: str | None = None, **extra):
+        self.pubblica({"tipo": "log", "livello": livello, "msg": msg, "lavoro": lavoro, **extra})
 
 
 class Annullato(Exception):
@@ -86,6 +86,9 @@ class Lavoro:
         self.anteprima: tuple[bytes, str] | None = None     # ultima immagine (parziale o finita)
         self.n_anteprima = 0
         self._ultima_anteprima = 0.0
+        self.workflow: dict | None = None       # l'ultimo workflow mandato a ComfyUI (con i titoli dei nodi)
+        self.n_workflow = 0
+        self._firma_workflow: tuple | None = None
 
     # chiamabili dal codice del lavoro, anche da un thread
     def log(self, msg: str, livello: Livello = "info"):
@@ -108,6 +111,19 @@ class Lavoro:
             self.gestore.bus.pubblica({"tipo": "anteprima", "lavoro": self.id, "n": self.n_anteprima,
                                        "finale": finale})
 
+    def registra_workflow(self, wf: dict):
+        """Il workflow che sta per andare a ComfyUI: si tiene l'ultimo (per il grafo nella console) e lo si scrive nei
+        log quando cambia la struttura o un modello (non a ogni immagine, dove cambiano solo prompt e seme)."""
+        import copy
+        from .grafo import firma, riassunto
+        self.workflow = copy.deepcopy(wf)
+        self.n_workflow += 1
+        f = firma(wf)
+        if f != self._firma_workflow:
+            self._firma_workflow = f
+            self.gestore.bus.log(f"Workflow inviato a ComfyUI — {riassunto(wf)}", "info", self.id, grafo=True)
+        self.gestore.bus.pubblica({"tipo": "workflow", "lavoro": self.id, "n": self.n_workflow})
+
     def controlla(self):
         """Da chiamare nei cicli lunghi: interrompe il lavoro se è stato annullato."""
         if self._annulla:
@@ -122,7 +138,8 @@ class Lavoro:
                 "stato": self.stato, "progresso": self.progresso, "testo": self.testo, "errore": self.errore,
                 "codice": self.codice,
                 "creato": self.creato, "iniziato": self.iniziato, "finito": self.finito,
-                "anteprima": self.n_anteprima if self.anteprima else 0, "annullando": self._annulla}
+                "anteprima": self.n_anteprima if self.anteprima else 0, "annullando": self._annulla,
+                "workflow": self.n_workflow}
 
 
 Funzione = Callable[[Lavoro], Awaitable[Any]]

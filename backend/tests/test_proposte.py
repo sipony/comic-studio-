@@ -144,3 +144,42 @@ def test_dataset_come_le_proposte(casa, finto_comfy, cartella_comfy):
         assert pers["origine"] is None
         assert c.get(f"/api/progetti/{p}/personaggi/jack/dataset").json()["origine"] is None
         assert c.post(f"/api/progetti/{p}/personaggi/jack/dataset/come-proposte").status_code == 400
+
+
+def test_workflow_nei_log_e_grafo(casa, finto_comfy, cartella_comfy):
+    """Il workflow che le proposte mandano a ComfyUI: riga nei log (una sola se cambiano solo prompt e seme),
+    grafo con tipi e collegamenti, JSON da aprire in ComfyUI."""
+    stato = App(Archivio(casa / "impostazioni.json"))
+    with TestClient(crea_app(stato, sorveglia=False)) as c:
+        c.post("/api/comfy/usa", json={"url": finto_comfy.url, "cartella": str(cartella_comfy)})
+        p = c.post("/api/progetti", json={"nome": "G"}).json()["id"]
+        c.post(f"/api/progetti/{p}/personaggi", json={"nome": "Ada", "descrizione": "red hair"})
+        base = f"/api/progetti/{p}/personaggi/ada/proposte"
+        l = attendi(c, c.post(base, json={"checkpoint": "ponyDiffusionV6XL.safetensors", "numero": 3,
+                                          "lora_stile": "Comic_Style.safetensors"}).json()["id"])
+        assert l["stato"] == "completato" and l["workflow"] == 3
+        righe = [e for e in stato.bus.storico if e.get("grafo")]
+        assert len(righe) == 1 and righe[0]["lavoro"] == l["id"]
+        assert "CheckpointLoaderSimple ponyDiffusionV6XL → LoraLoader Comic_Style 0.8" in righe[0]["msg"]
+        assert "KSampler (28 passi, CFG 6.0, euler_ancestral karras, denoise 1.0)" in righe[0]["msg"]
+        r = c.get(f"/api/lavori/{l['id']}/workflow").json()
+        g = r["grafo"]
+        assert r["n"] == 3 and len(g["nodi"]) == 8 and g["nodi"][0]["classe"] == "CheckpointLoaderSimple"
+        ck = g["nodi"][0]
+        assert [u["tipo"] for u in ck["uscite"]] == ["MODEL", "CLIP", "VAE"]
+        assert ck["widget"] == [{"nome": "ckpt_name", "valore": "ponyDiffusionV6XL.safetensors"}]
+        ks = next(n for n in g["nodi"] if n["classe"] == "KSampler")
+        assert {i["nome"]: i["tipo"] for i in ks["ingressi"]} == {
+            "model": "MODEL", "positive": "CONDITIONING", "negative": "CONDITIONING", "latent_image": "LATENT"}
+        assert {"da": "10", "uscita": 0, "a": "7", "ingresso": "model", "tipo": "MODEL"} in g["collegamenti"]
+        assert len(g["collegamenti"]) == 11
+        js = c.get(f"/api/lavori/{l['id']}/workflow.json")
+        assert "attachment" in js.headers["content-disposition"]
+        assert js.json()["7"]["class_type"] == "KSampler" and "_meta" not in js.json()["7"]
+        # le varianti (img2img) cambiano la struttura: nuova riga nei log
+        prop = c.get(base).json()[0]["file"]
+        l2 = attendi(c, c.post(base, json={"checkpoint": "ponyDiffusionV6XL.safetensors", "numero": 1,
+                                           "da": prop}).json()["id"])
+        riga = [e for e in stato.bus.storico if e.get("grafo") and e["lavoro"] == l2["id"]][0]
+        assert "LoadImage" in riga["msg"] and "denoise 0.55" in riga["msg"]
+        assert c.get("/api/lavori/L999/workflow").status_code == 404

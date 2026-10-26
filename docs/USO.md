@@ -61,6 +61,12 @@ tutto) e quanto spazio c'è sul disco di ComfyUI. Se non basta te lo dice e non 
 riavviare ComfyUI (se l'ha avviato Comic Studio lo fa da solo). «Non chiedere più» toglie la domanda: puoi installarlo
 quando vuoi da Sistema → Controllo.
 
+**Il workflow che usa Comic Studio.** Ogni volta che un lavoro (proposte, dataset, prova del LoRA, fumetto) manda
+un workflow a ComfyUI, nella console compare una riga «Workflow inviato a ComfyUI» con i nodi e i valori principali e
+il pulsante **grafo**. La scheda **Grafo** della console disegna i nodi collegati come in ComfyUI: rotella per lo
+zoom, trascina lo sfondo o i nodi, clic su un nodo per vedere tutti i suoi valori (anche il prompt intero). Da lì puoi
+scaricare il workflow e trascinarlo in ComfyUI per aprirlo identico, o vederlo a tutto schermo.
+
 ## 4. Step 1 · Dataset
 
 Per ogni personaggio (scegli in alto quale):

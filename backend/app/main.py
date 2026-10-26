@@ -1,6 +1,7 @@
 """Server di Comic Studio: API REST, WebSocket degli eventi e interfaccia Angular compilata."""
 from __future__ import annotations
 
+import json
 import asyncio
 import contextlib
 from pathlib import Path
@@ -258,6 +259,29 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
             raise HTTPException(404, "Nessuna anteprima")
         dati, tipo = l.anteprima
         return Response(dati, media_type=tipo, headers={"Cache-Control": "no-store"})
+
+    @api.get("/api/lavori/{lid}/workflow")
+    async def workflow_lavoro(lid: str):
+        """L'ultimo workflow che il lavoro ha mandato a ComfyUI, descritto per disegnarlo come in ComfyUI."""
+        from .grafo import descrivi, riassunto
+        from .rotte_dataset import _info_nodi
+        l = stato.gestore.lavori.get(lid)
+        if not l or not l.workflow:
+            raise HTTPException(404, "Questo lavoro non ha mandato workflow a ComfyUI")
+        info = await _info_nodi(stato)
+        return {"lavoro": l.dict(), "n": l.n_workflow, "riassunto": riassunto(l.workflow),
+                "workflow": l.workflow, "grafo": descrivi(l.workflow, info)}
+
+    @api.get("/api/lavori/{lid}/workflow.json")
+    async def scarica_workflow_lavoro(lid: str):
+        """Il workflow in formato API: trascinato in ComfyUI si apre lì, uguale."""
+        from .workflows import per_invio
+        l = stato.gestore.lavori.get(lid)
+        if not l or not l.workflow:
+            raise HTTPException(404, "Questo lavoro non ha mandato workflow a ComfyUI")
+        nome = f"comic-studio-{l.tipo}-{l.id}.json"
+        return Response(json.dumps(per_invio(l.workflow), indent=2, ensure_ascii=False), media_type="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="{nome}"'})
 
     @api.post("/api/lavori/annulla")
     async def annulla_tutti():
