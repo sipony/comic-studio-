@@ -223,6 +223,17 @@ export interface DettaglioWorkflow extends RiassuntoWorkflow {
   workflow: Record<string, { class_type: string; inputs: Record<string, unknown>; _meta?: { title?: string } }>;
 }
 
+/** Cosa succede al workflow staccando dei nodi. */
+export interface EsitoEsclusione {
+  ok: boolean;
+  richiesti: string[];
+  esclusi: string[];
+  automatici: { nodo: string; titolo: string; perche: string }[];
+  collegamenti: { nodo: string; titolo: string; ingresso: string; da: string | null; da_titolo: string | null; testo: string }[];
+  problemi: string[];
+  tipi_da_comfy: boolean;
+}
+
 export interface Inquadratura {
   nome: string;
   testo: string;
@@ -251,6 +262,8 @@ export interface ConfigDataset {
   modifiche: Record<string, Record<string, unknown>>;
   /** con un workflow img2img: pose dalle varianti (da zero) o composizione del riferimento */
   composizione?: 'libera' | 'riferimento';
+  /** nodi del workflow staccati per questo personaggio (Comic Studio ricollega il resto) */
+  disattivati?: string[];
   quantita: number;
   da_tenere: number;
 }

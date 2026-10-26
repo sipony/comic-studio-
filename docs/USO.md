@@ -60,6 +60,11 @@ Per ogni personaggio (scegli in alto quale):
    inquadrature**: con **Pose dalle varianti** (predefinito) ogni immagine parte da zero con la posa, l'angolazione e
    le dimensioni della sua variante, e l'aspetto del personaggio viene dai LoRA / IPAdapter del workflow e dal
    prompt; con **Come il riferimento** tutte le immagini hanno la posa del riferimento.
+   In **Nodi e parametri** puoi anche **staccare** un nodo con il pulsante ⏻ (per esempio un LoRA, un IPAdapter,
+   un ControlNet, un upscale): Comic Studio collega direttamente quello che c'era prima e quello che c'era dopo, e
+   stacca da solo i nodi che senza di lui non funzionerebbero (es. staccando il riferimento, l'IPAdapter che lo usava).
+   Il riquadro sopra l'elenco mostra i collegamenti rifatti; se il workflow non può funzionare (es. checkpoint
+   staccato) lo dice e la generazione non parte. Il file del workflow non cambia: il pulsante ⏻ riattacca il nodo.
 2. **Prompt e varianti** — il prompt è un modello: `{descrizione}` diventa i tratti fissi del personaggio,
    `{variante}` cambia a ogni immagine (inquadratura, angolazione, espressione, posa, sfondo), `{qualita}` mette i
    tag giusti per il checkpoint. Sotto vedi esempi dei prompt che verranno usati.

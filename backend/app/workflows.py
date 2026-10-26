@@ -394,7 +394,8 @@ def controlla_ruoli(wf: dict, ruoli: Ruoli) -> list[str]:
 def applica(wf: dict, ruoli: Ruoli, *, riferimento: str | None = None, positivo: str | None = None,
             negativo: str | None = None, seme: int | None = None, dimensioni: tuple[int, int] | None = None,
             prefisso: str | None = None, modifiche: dict[str, dict[str, Any]] | None = None,
-            composizione_libera: bool = False, classe_latente: str = "EmptyLatentImage") -> dict:
+            composizione_libera: bool = False, classe_latente: str = "EmptyLatentImage",
+            disattivati: list[str] | None = None, info: dict | None = None) -> dict:
     """Copia del workflow con i valori di una singola generazione. Con `composizione_libera` un workflow
     img2img parte da un latente vuoto (posa e inquadratura dal prompt, non dal riferimento)."""
     w = copy.deepcopy(wf)
@@ -434,6 +435,13 @@ def applica(wf: dict, ruoli: Ruoli, *, riferimento: str | None = None, positivo:
             libera_composizione(w, info, dimensioni, classe_latente)
     if ruoli.salva and prefisso and ruoli.salva in w and "filename_prefix" in w[ruoli.salva]["inputs"]:
         w[ruoli.salva]["inputs"]["filename_prefix"] = prefisso
+    if disattivati:
+        # alla fine, così un img2img reso libero ha già staccato il VAEEncode del riferimento
+        from .esclusione import escludi
+        e = escludi(w, disattivati, info, protetti=(ruoli.seme, ruoli.salva, ruoli.positivo))
+        if e.problemi:
+            raise ErroreWorkflow("Nodi staccati: " + " ".join(e.problemi))
+        w = e.wf
     # niente _meta nel workflow inviato: ComfyUI lo accetta, ma è inutile
     return w
 

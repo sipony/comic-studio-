@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  CatalogoIA, ConfigAddestramento, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  CatalogoIA, ConfigAddestramento, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -150,6 +150,10 @@ export class ApiService {
   }
   salvaConfig(progetto: string, pers: string, c: ConfigDataset) {
     return this.chiama(firstValueFrom(this.http.put<ConfigDataset>(`${this.ds(progetto, pers)}/config`, c)));
+  }
+  /** Anteprima dei nodi staccati: ricollegamenti, nodi staccati in automatico, problemi. */
+  esclusione(progetto: string, pers: string, c: ConfigDataset) {
+    return this.post<EsitoEsclusione>(`${this.ds(progetto, pers)}/esclusione`, c);
   }
   esempi(progetto: string, pers: string, c: ConfigDataset, n = 4) {
     return this.post<EsempioPrompt[]>(`${this.ds(progetto, pers)}/esempi`, c, { n: String(n) });

@@ -13,7 +13,7 @@ import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
 import {
-  ConfigDataset, DettaglioWorkflow, NodoAnalisi, ParametriIntegrato, RUOLI, RiassuntoWorkflow, Ruoli, Ruolo, SpecIngresso, SpecNodo,
+  ConfigDataset, DettaglioWorkflow, EsitoEsclusione, NodoAnalisi, ParametriIntegrato, RUOLI, RiassuntoWorkflow, Ruoli, Ruolo, SpecIngresso, SpecNodo,
 } from '../../core/modelli';
 
 interface Campo {
@@ -45,6 +45,8 @@ const AUTOMATICI: Partial<Record<Ruolo, string[]>> = {
 })
 export class SezioneWorkflow {
   readonly progetto = input.required<string>();
+  /** id del personaggio (per l'anteprima dei nodi staccati) */
+  readonly personaggio = input<string | null>(null);
   readonly libreria = input.required<RiassuntoWorkflow[]>();
   readonly config = model.required<ConfigDataset | null>();
   readonly libreriaCambiata = output<void>();
@@ -100,7 +102,7 @@ export class SezioneWorkflow {
     return out;
   });
 
-  protected campi = computed<{ nodo: NodoAnalisi; campi: Campo[] }[]>(() => {
+  protected campi = computed<{ nodo: NodoAnalisi; campi: Campo[]; staccato: boolean; automatico: string | null }[]>(() => {
     const d = this.dettaglio();
     const cfg = this.config();
     if (!d || !cfg) return [];
@@ -126,19 +128,62 @@ export class SezioneWorkflow {
               ...tipoCampo(originale, sp),
             };
           });
-        return { nodo: n, campi };
-      })
-      .filter((g) => g.campi.length > 0);
+        return { nodo: n, campi, staccato: this.disattivati().has(n.id), automatico: this.automatici().get(n.id) ?? null };
+      });
   });
 
   protected numeroModifiche = computed(() =>
     Object.values(this.config()?.modifiche ?? {}).reduce((s, m) => s + Object.keys(m).length, 0));
+
+  /** nodi staccati dall'utente e cosa ne segue (ricollegamenti, nodi staccati in automatico, problemi) */
+  protected disattivati = computed(() => new Set(this.config()?.disattivati ?? []));
+  protected esito = signal<EsitoEsclusione | null>(null);
+  protected automatici = computed(() => new Map((this.esito()?.automatici ?? []).map((a) => [a.nodo, a.perche])));
+  private timerEsito?: ReturnType<typeof setTimeout>;
 
   constructor() {
     effect(() => {
       const w = this.scelto();
       untracked(() => void this.caricaDettaglio(w?.id ?? null));
     });
+    // anteprima dei nodi staccati a ogni cambio della configurazione che conta
+    effect(() => {
+      const c = this.config();
+      const pers = this.personaggio();
+      const chiave = c ? JSON.stringify([c.workflow, c.disattivati, c.ruoli, c.composizione, c.modifiche]) : '';
+      clearTimeout(this.timerEsito);
+      if (!c?.workflow || !pers || !c.disattivati?.length) {
+        this.esito.set(null);
+        return;
+      }
+      this.timerEsito = setTimeout(() => void this.aggiornaEsito(c, pers, chiave), 250);
+    });
+  }
+
+  private ultimaChiave = '';
+  private async aggiornaEsito(c: ConfigDataset, pers: string, chiave: string) {
+    this.ultimaChiave = chiave;
+    try {
+      const e = await this.api.esclusione(this.progetto(), pers, c);
+      if (this.ultimaChiave === chiave) this.esito.set(e);
+    } catch {
+      this.esito.set(null);
+    }
+  }
+
+  /** Stacca o riattacca un nodo; i collegamenti li rifà Comic Studio al momento della generazione. */
+  protected stacca(id: string) {
+    this.config.update((c) => {
+      if (!c) return c;
+      const s = new Set(c.disattivati ?? []);
+      if (s.has(id)) s.delete(id);
+      else s.add(id);
+      return { ...c, disattivati: [...s] };
+    });
+  }
+
+  protected riattaccaTutti() {
+    this.config.update((c) => (c ? { ...c, disattivati: [] } : c));
   }
 
   private async caricaDettaglio(id: string | null) {

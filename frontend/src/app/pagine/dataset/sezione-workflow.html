@@ -169,13 +169,38 @@
   <section class="parametri">
     <button class="apri" (click)="parametriAperti.set(!parametriAperti())" [attr.aria-expanded]="parametriAperti()">
       <mat-icon>{{ parametriAperti() ? 'expand_less' : 'expand_more' }}</mat-icon>
-      Parametri dei nodi
+      Nodi e parametri
       @if (numeroModifiche()) { <span class="conta">{{ numeroModifiche() }} modificati</span> }
+      @if (disattivati().size) { <span class="conta staccati">{{ disattivati().size }} staccati</span> }
     </button>
+    @if (esito(); as e) {
+      <div class="esito" [class.male]="!e.ok" role="status">
+        @if (e.ok) {
+          <div class="riga-esito"><mat-icon>link</mat-icon>
+            <span>Workflow a posto senza {{ e.esclusi.length === 1 ? 'il nodo staccato' : 'i ' + e.esclusi.length + ' nodi staccati' }}: Comic Studio lo ricollega a ogni generazione.</span></div>
+        } @else {
+          @for (p of e.problemi; track $index) {
+            <div class="riga-esito problema"><mat-icon>link_off</mat-icon><span>{{ p }}</span></div>
+          }
+          <div class="riga-esito"><mat-icon>info</mat-icon><span>Così la generazione non parte: riattacca qualche nodo.</span></div>
+        }
+        @for (c of e.collegamenti; track $index) {
+          <div class="riga-esito piccola"><mat-icon>subdirectory_arrow_right</mat-icon><span>{{ c.testo }}</span></div>
+        }
+        @for (a of e.automatici; track a.nodo) {
+          <div class="riga-esito piccola"><mat-icon>power_off</mat-icon><span>Staccato anche {{ a.titolo }}: {{ a.perche }}</span></div>
+        }
+        @if (!e.tipi_da_comfy) {
+          <div class="riga-esito piccola nota-tipi"><mat-icon>help</mat-icon><span>ComfyUI non è collegato: i tipi dei nodi meno comuni non si conoscono. Avvialo per un controllo completo.</span></div>
+        }
+      </div>
+    }
     @if (parametriAperti()) {
       <p class="nota">
         Modifica qualunque valore del workflow solo per questo personaggio (il file originale non cambia).
-        Prompt, seme, dimensioni e riferimento li gestisce il programma.
+        Prompt, seme, dimensioni e riferimento li gestisce il programma. Con <mat-icon class="in-linea">power_settings_new</mat-icon>
+        stacchi un nodo: Comic Studio collega direttamente quello che c’era prima e quello che c’era dopo
+        (es. LoRA staccato → il KSampler prende il modello dal checkpoint) e, se serve, stacca i nodi che senza di lui non funzionano.
       </p>
       <div class="riga">
         <mat-form-field class="largo">
@@ -185,10 +210,27 @@
         @if (numeroModifiche()) {
           <button mat-button (click)="azzeraModifiche()">Azzera</button>
         }
+        @if (disattivati().size) {
+          <button mat-button (click)="riattaccaTutti()">Riattacca tutti</button>
+        }
       </div>
       @for (g of campi(); track g.nodo.id) {
-        <div class="nodo">
-          <div class="nome-nodo">#{{ g.nodo.id }} · {{ g.nodo.titolo }} <small>{{ g.nodo.classe }}</small></div>
+        <div class="nodo" [class.staccato]="g.staccato" [class.auto]="!!g.automatico">
+          <div class="nome-nodo">
+            <span class="titolo-nodo">#{{ g.nodo.id }} · {{ g.nodo.titolo }} <small>{{ g.nodo.classe }}</small></span>
+            @if (g.automatico) {
+              <span class="tag-staccato" [matTooltip]="g.automatico">staccato da Comic Studio</span>
+            } @else if (g.staccato) {
+              <span class="tag-staccato">staccato</span>
+            }
+            <button mat-icon-button class="interruttore" (click)="stacca(g.nodo.id)" [class.spento]="g.staccato"
+              [matTooltip]="g.staccato ? 'Riattacca il nodo' : 'Stacca il nodo (Comic Studio ricollega il resto)'"
+              [attr.aria-label]="(g.staccato ? 'Riattacca ' : 'Stacca ') + g.nodo.titolo" [attr.aria-pressed]="g.staccato">
+              <mat-icon>{{ g.staccato ? 'power_off' : 'power_settings_new' }}</mat-icon>
+            </button>
+          </div>
+          @if (g.automatico) { <div class="perche">{{ g.automatico }}</div> }
+          @if (!g.staccato && !g.automatico) {
           @for (c of g.campi; track c.nome) {
             <div class="campo" [class.mod]="c.modificato">
               <label>{{ c.nome }}</label>
@@ -210,6 +252,7 @@
                 }
               }
             </div>
+          }
           }
         </div>
       }
