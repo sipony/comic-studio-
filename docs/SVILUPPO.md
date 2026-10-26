@@ -30,10 +30,11 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 16 | Personaggio dal nulla con più scelte (LoRA di stile, negativo, campionamento, anteprima del prompt) che passano da sole al dataset: stesso checkpoint, LoRA e stile, così il personaggio resta lo stesso | ✅ unita |
 | 17 | IPAdapter Plus proposto all'apertura se manca (nodo e modelli), con il controllo dello spazio su disco, e installato da Comic Studio | ✅ unita |
 | 18 | Workflow nei log e scheda «Grafo» nella console: i nodi collegati di ogni workflow mandato a ComfyUI, disegnati come in ComfyUI; JSON da aprire in ComfyUI | ✅ unita |
-| 19 | Dataset confrontato con la proposta da cui è nato il personaggio: checkpoint, LoRA, stile, campionamento, IPAdapter; tag di stile mancanti rimessi con un clic | ✅ questa PR |
-| 20 | Ritocchi sul grafo (valori dei widget, nodi staccati) e rigenerazione; modifiche strutturali in ComfyUI e ritorno nella libreria | da fare |
-| 21 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 22 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 19 | Dataset confrontato con la proposta da cui è nato il personaggio: checkpoint, LoRA, stile, campionamento, IPAdapter; tag di stile mancanti rimessi con un clic | ✅ unita |
+| 20 | Aggiornare senza confondersi: la versione nuova sostituisce quella vecchia ancora aperta (chiedendo se ha lavori in corso); numero di versione in alto | ✅ questa PR |
+| 21 | Ritocchi sul grafo (valori dei widget, nodi staccati) e rigenerazione; modifiche strutturali in ComfyUI e ritorno nella libreria | da fare |
+| 22 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 23 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -810,4 +811,25 @@ stile di base.
   tutto uguale compreso il campionamento; riferimento caricato a mano → nessun confronto). Collaudo con Chromium
 - Versione 0.19.0
 
-Prossimo passo: PR 20, ritocchi sul grafo.
+Prossimo passo: PR 20, la versione nuova sostituisce quella aperta.
+
+## PR 20 — La versione nuova sostituisce quella aperta
+
+Segnalazione: «dove starebbe il log dei workflow e il grafo dei nodi? non lo vedo», con la console senza «Grafo» e
+senza la riga «Workflow inviato». Stava girando ancora la versione vecchia: l'avvio da installer, se trovava Comic
+Studio già aperto, apriva solo il browser su quello, anche se era un'altra versione (la vecchia era rimasta accesa
+mentre generava un dataset).
+
+- `installato.gia_aperto`: legge versione e lavori in corso del Comic Studio aperto (`/api/sistema`,
+  `/api/lavori`); stessa versione → apre il browser come prima; versione diversa senza lavori → lo chiude
+  (`/api/esci`, ComfyUI resta acceso) e parte questa sulla stessa porta; con lavori in corso → finestra del sistema
+  (zenity / kdialog su Linux, osascript su macOS, MessageBox su Windows) «Chiuderlo (i lavori vengono fermati) e
+  aprire la versione …?» con l'elenco dei lavori: «Lascia quella aperta» apre il browser sulla vecchia; se non si
+  riesce a chiuderla lo dice
+- interfaccia: numero di versione accanto a «Comic Studio» in alto
+- Versione 0.20.0
+- **Test**: versione vecchia aperta → chiusa e sostituita sulla stessa porta; stessa versione → solo il browser; con
+  un lavoro in corso → domanda con il titolo del lavoro, «lascia» e «sostituisci». Collaudo con le AppImage vere: la
+  0.19 aperta, avvio della 0.20 → la 0.19 si chiude e risponde la 0.20
+
+Prossimo passo: PR 21, ritocchi sul grafo.

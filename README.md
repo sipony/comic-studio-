@@ -72,7 +72,9 @@ I progetti eliminati vanno in `ComicStudio/progetti/.cestino`, non vengono cance
 
 ## Aggiornare
 
-Con l'installer: installa la versione nuova sopra la vecchia. Dai sorgenti: `git pull` e riavvia, librerie e
+Con l'installer: installa la versione nuova sopra la vecchia (con l'AppImage sostituisci il file). Se la versione
+vecchia è ancora aperta, la nuova la chiude da sola (se sta lavorando prima te lo chiede); il numero di versione è
+in alto accanto a «Comic Studio». Dai sorgenti: `git pull` e riavvia, librerie e
 interfaccia si aggiornano da sole.
 
 ## Documentazione
