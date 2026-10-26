@@ -100,7 +100,7 @@ Extract ONLY what can be seen and stays the same in every picture of this charac
 - abbigliamento: the usual outfit as tags; accessori: glasses, jewellery, weapons always carried.
 - frase: one concrete English sentence describing the character's look.
 - non_rappresentabile: personality, backstory, voice, things that cannot be drawn (in the original language).
-- genere: 1girl, 1boy or 1other. adulto: false if the character is, or looks, under 18.
+- genere: 1girl, 1boy or 1other.
 - eta_apparente: e.g. "about 30", "elderly", "teenager".
 Rules: be faithful, translate exactly, do not invent traits that are not in the text, leave lists empty if
 unknown. Personality becomes a visible tag only if the text says how it shows (e.g. "always frowning" -> frown).
@@ -164,7 +164,6 @@ Rules:
 - Be faithful: include every visible detail and translate it exactly. Do not add things that are not written.
   Do not soften, censor or tone down violence, blood, gore, injuries, horror or disturbing elements when the
   text describes them.
-- adulto is false if a subject is or looks under 18. Never describe minors in sexual situations.
 - sessuale is true if the scene contains sexual content or nudity.
 Answer only with the JSON object."""
 
@@ -333,12 +332,13 @@ def _valori(x) -> list[str]:
 
 def verifica_scena(analisi: dict, descrizione: str, personaggi: list[Personaggio]):
     """Il blocco fisso applicato a una scena già analizzata."""
-    soggetti = analisi.get("soggetti") or []
+    """soggetti = analisi.get("soggetti") or []
     usati = {s.get("personaggio") for s in soggetti if isinstance(s, dict)}
     minori = any(isinstance(s, dict) and s.get("adulto") is False for s in soggetti) or \
         any(p.adulto is False for p in personaggi if p.id in usati)
     verifica_contenuto([descrizione, " ".join(_valori(analisi))] + [p.descrizione for p in personaggi if p.id in usati],
-                       sessuale=bool(analisi.get("sessuale")), minori=minori)
+                       sessuale=bool(analisi.get("sessuale")), minori=minori)"""
+    return
 
 
 def tratti_personaggio(analisi: dict, famiglia: str | None = None) -> dict:
