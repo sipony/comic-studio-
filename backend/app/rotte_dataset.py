@@ -356,19 +356,75 @@ class Genera(BaseModel):
     una_per_posa: bool = False
 
 
-async def controlnet_posa(app, config: ConfigDataset, checkpoint: str | None) -> str:
-    """Il ControlNet da usare per le pose guidate (quello scelto, altrimenti il primo OpenPose che ComfyUI vede)."""
+async def elenco_controlnet(app, checkpoint: str | None) -> list[dict]:
+    """I ControlNet che ComfyUI vede, con l'architettura (dal file se è nella cartella di ComfyUI, se no dal nome) e
+    se vanno bene con il checkpoint."""
+    from .modelinfo import architettura_checkpoint, architettura_controlnet
     elenco = (await app.modelli()).get("controlnet") or []
+    base = app.impostazioni.valori.comfy_dir or app.comfy.cartella
+    serve = architettura_checkpoint(checkpoint or "")
+    out = []
+    for n in elenco:
+        f = Path(base) / "models" / "controlnet" / n if base else None
+        arch = await asyncio.to_thread(architettura_controlnet, n, f)
+        out.append({"nome": n, "architettura": arch, "compatibile": None if arch is None else arch == serve})
+    return out
+
+
+async def controlnet_posa(app, config: ConfigDataset, checkpoint: str | None) -> str:
+    """Il ControlNet da usare per le pose guidate (quello scelto, altrimenti il primo OpenPose della stessa
+    architettura del checkpoint che ComfyUI vede)."""
+    from .modelinfo import architettura_checkpoint
+    elenco = await elenco_controlnet(app, checkpoint)
+    nomi = [x["nome"] for x in elenco]
+    serve = architettura_checkpoint(checkpoint or "")
     if config.pose.controlnet:
-        if elenco and config.pose.controlnet not in elenco:
+        if nomi and config.pose.controlnet not in nomi:
             raise HTTPException(400, f"Il ControlNet «{config.pose.controlnet}» non c'è più in ComfyUI: scegline un "
                                      "altro in Dataset → Pose guidate.")
+        x = next((x for x in elenco if x["nome"] == config.pose.controlnet), None)
+        if x and x["compatibile"] is False:
+            raise HTTPException(400, f"Il ControlNet «{config.pose.controlnet}» è per {NOMI_ARCH.get(x['architettura'], x['architettura'])}, "
+                                     f"ma il checkpoint ({checkpoint}) è {NOMI_ARCH.get(serve, serve)}: scegli un ControlNet "
+                                     "OpenPose SDXL in Dataset → Pose guidate (o «Automatico»).")
         return config.pose.controlnet
-    scelto = scegli_controlnet_posa(elenco, famiglia_da_nome(checkpoint or ""))
+    scelto = scegli_controlnet_posa(nomi, famiglia_da_nome(checkpoint or ""),
+                                    {x["nome"]: x["architettura"] for x in elenco})
     if not scelto:
-        raise HTTPException(400, "Per le pose guidate serve un ControlNet OpenPose SDXL: installalo da Dataset → Pose "
-                                 "guidate (pulsante «Installa»), oppure mettilo in ComfyUI/models/controlnet.")
+        altri = [x["nome"] for x in elenco if x["compatibile"] is False]
+        raise HTTPException(400, "Per le pose guidate serve un ControlNet OpenPose "
+                                 f"{NOMI_ARCH.get(serve, serve)}: installalo da Dataset → Pose guidate (pulsante "
+                                 "«Installa»), oppure mettilo in ComfyUI/models/controlnet."
+                                 + (f" Quelli che hai ({', '.join(altri)}) sono per un'altra architettura e farebbero "
+                                    "fallire il KSampler." if altri else ""))
     return scelto
+
+
+NOMI_ARCH = {"sd15": "SD 1.5", "sdxl": "SDXL (anche Pony, Illustrious, NoobAI)", "sd2": "SD 2", "flux": "Flux"}
+
+
+def spiega_errore_posa(e: Exception, controlnet: str | None) -> Exception:
+    """«mat1 and mat2 shapes cannot be multiplied (…x2048 and 768x…)»: ControlNet di un'altra architettura."""
+    testo = str(e)
+    if controlnet and "mat1 and mat2 shapes cannot be multiplied" in testo:
+        return ComfyErrore(f"Il ControlNet «{controlnet}» non è per questo checkpoint (di solito: ControlNet per SD 1.5 "
+                           "con un checkpoint SDXL, Pony o Illustrious). Scegli un ControlNet OpenPose SDXL in Dataset "
+                           f"→ Pose guidate, o installalo da lì. Dettaglio di ComfyUI: {testo[:200]}")
+    return e
+
+
+@rotte.get("/personaggi/{cid}/dataset/controlnet")
+async def controlnet_disponibili(pid: str, cid: str, req: Request):
+    """I ControlNet con l'architettura, quali vanno bene con il checkpoint del workflow e quale si userebbe da solo."""
+    a = _archivio(req)
+    c = a.config(pid, cid)
+    checkpoint = analizza(a.leggi_workflow(pid, c.workflow).workflow).checkpoint if c.workflow else None
+    elenco = await elenco_controlnet(_app(req), checkpoint)
+    auto = scegli_controlnet_posa([x["nome"] for x in elenco], famiglia_da_nome(checkpoint or ""),
+                                  {x["nome"]: x["architettura"] for x in elenco})
+    from .modelinfo import architettura_checkpoint
+    return {"elenco": elenco, "automatico": auto, "checkpoint": checkpoint,
+            "serve": architettura_checkpoint(checkpoint or "")}
 
 
 def inquadratura_intera(config: ConfigDataset):
@@ -501,7 +557,10 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                 l.registra_workflow(wf, {"tipo": "dataset", "progetto": pid, "personaggio": cid,
                                          "workflow": config.workflow, "libera": libera,
                                          "posa": posa.id if posa else None})
-                uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
+                try:
+                    uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
+                except ComfyErrore as e:
+                    raise spiega_errore_posa(e, controlnet if posa else None) from None
                 immagini_uscite = uscite.get(ruoli.salva) if ruoli.salva else None
                 immagini_uscite = immagini_uscite or next(iter(uscite.values()), None)
                 if not immagini_uscite:
@@ -768,8 +827,10 @@ async def massima_somiglianza(pid: str, cid: str, req: Request):
             l.log("Nel workflow non c'è IPAdapter: senza, l'aspetto lo tengono solo prompt e seme. Usa «Rendi il "
                   "dataset identico alle proposte» con IPAdapter Plus installato, poi ripeti.", "avviso")
         # 4) pose guidate
-        cn = scegli_controlnet_posa((await app.modelli()).get("controlnet") or [],
-                                    famiglia_da_nome(analizza(voce.workflow).checkpoint or ""))
+        ck = analizza(voce.workflow).checkpoint
+        cn_elenco = await elenco_controlnet(app, ck)
+        cn = scegli_controlnet_posa([x["nome"] for x in cn_elenco], famiglia_da_nome(ck or ""),
+                                    {x["nome"]: x["architettura"] for x in cn_elenco})
         if cn or c.pose.controlnet:
             if not c.pose.attive:
                 c.pose.attive = True

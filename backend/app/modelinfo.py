@@ -124,6 +124,40 @@ def analizza(f: Path) -> InfoModello:
     return info
 
 
+# ---------------------------------------------------------------- ControlNet: per SD 1.5 o per SDXL?
+
+# file di ControlNet / T2I-Adapter per SD 1.5 riconoscibili dal nome (es. control_v11p_sd15_openpose.pth)
+NOME_SD15 = re.compile(r"sd-?_?1[45]|v11[pfe]|control_sd|_sd14|1\.5", re.I)
+NOME_SDXL = re.compile(r"xl|sdxl|pony|illustrious|noob", re.I)
+# dimensione del contesto dei prompt (cross-attention) → architettura
+CONTESTO = {768: "sd15", 1024: "sd2", 2048: "sdxl", 4096: "flux"}
+
+
+def architettura_controlnet(nome: str, file: Path | None = None) -> str | None:
+    """«sd15», «sdxl», «sd2»… Dal file (.safetensors: la forma di un peso di cross-attention, senza caricarlo) se c'è,
+    altrimenti dal nome. None se non si capisce."""
+    if file is not None and file.suffix.lower() == ".safetensors" and file.is_file():
+        intest = leggi_intestazione(file) or {}
+        for k, v in intest.items():
+            if isinstance(v, dict) and k.endswith(("attn2.to_k.weight", "attn2.k_proj.weight")) \
+                    and len(v.get("shape") or []) == 2:
+                arch = CONTESTO.get(int(v["shape"][1]))
+                if arch:
+                    return arch
+    base = Path(nome).name
+    if NOME_SDXL.search(base):
+        return "sdxl"
+    if NOME_SD15.search(base):
+        return "sd15"
+    return None
+
+
+def architettura_checkpoint(nome: str) -> str:
+    """L'architettura per cui serve il ControlNet: le famiglie SDXL (Pony, Illustrious, NoobAI) sono «sdxl»."""
+    fam = famiglia_da_nome(nome or "") or "sdxl"
+    return {"pony": "sdxl", "illustrious": "sdxl", "noobai": "sdxl"}.get(fam, fam)
+
+
 def consiglio_spazio(info: InfoModello) -> str | None:
     """Suggerisce come risparmiare spazio e memoria con lo stesso modello."""
     gb = info.dimensione / GB

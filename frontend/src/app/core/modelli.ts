@@ -295,6 +295,13 @@ export interface PoseGuidate {
   fine: number;
 }
 
+export interface ControlnetDataset {
+  elenco: { nome: string; architettura: string | null; compatibile: boolean | null }[];
+  automatico: string | null;
+  checkpoint: string | null;
+  serve: string;
+}
+
 export interface Posa {
   id: string;
   nome: string;

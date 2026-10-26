@@ -21,6 +21,7 @@ class FintoComfy:
         self.storia: dict[str, dict] = {}
         self.client_ws: dict[str, WebSocket] = {}
         self.errore_nodo: str | None = None     # se impostato, l'esecuzione fallisce
+        self.messaggio_errore = "CUDA out of memory"
         self.object_info: dict | None = None    # definizioni dei nodi restituite da /object_info
         self.modelli = {"checkpoints": ["waiIllustriousSDXL_v170.safetensors", "ponyDiffusionV6XL.safetensors"],
                         "loras": ["Comic_Style.safetensors"]}
@@ -168,9 +169,9 @@ class FintoComfy:
             if self.errore_nodo and n.get("class_type") == self.errore_nodo:
                 await invia({"type": "execution_error", "data": {"prompt_id": pid, "node_id": k,
                                                                  "node_type": self.errore_nodo,
-                                                                 "exception_message": "CUDA out of memory"}})
+                                                                 "exception_message": self.messaggio_errore}})
                 self.storia[pid] = {"status": {"status_str": "error", "completed": False, "messages": [
-                    ["execution_error", {"node_type": self.errore_nodo, "exception_message": "CUDA out of memory"}]]},
+                    ["execution_error", {"node_type": self.errore_nodo, "exception_message": self.messaggio_errore}]]},
                     "outputs": {}}
                 return
         self.storia[pid] = {"status": {"status_str": "success", "completed": True, "messages": []},
