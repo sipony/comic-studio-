@@ -82,6 +82,13 @@ async def scarica_modello(dati: Modello, req: Request):
     return app.ia.scarica_modello(dati.nome.strip()).dict()
 
 
+@rotte_ia.post("/modello/elimina")
+async def elimina_modello(dati: Modello, req: Request):
+    """Cancella dal computer un modello scaricato con Ollama (libera spazio; si può riscaricare)."""
+    trovato, stato = await _app(req).ia.elimina_modello(dati.nome.strip())
+    return {"eliminato": trovato, "stato": stato.dict()}
+
+
 # ---------------------------------------------------------------- scelta del modello
 
 @rotte_ia.get("/catalogo")

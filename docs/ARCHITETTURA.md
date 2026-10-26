@@ -113,10 +113,11 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | GET | `/api/lavori/{id}` | il lavoro con il suo risultato |
 | GET | `/api/lavori/{id}/anteprima` | l'ultima anteprima (parziale o finita) del lavoro |
 | POST | `/api/lavori/annulla` | annulla tutti i lavori attivi |
-| GET | `/api/ia` | stato dell'IA locale, modelli scaricati e consigliati, impostazioni |
+| GET | `/api/ia` | stato dell'IA locale, modelli scaricati (con `dimensioni` in byte) e consigliati, impostazioni |
 | POST | `/api/ia/impostazioni` | `{tipo, url, modello, chiave, libera_gpu}` |
 | POST | `/api/ia/installa` | scarica Ollama portatile e il modello (lavoro) |
 | POST | `/api/ia/modello` | `{nome}` scarica e usa un modello (lavoro) |
+| POST | `/api/ia/modello/elimina` | `{nome}` cancella dal computer un modello di Ollama (`/api/delete`, prima lo toglie dalla memoria); `{eliminato, stato}`; 503 se l'IA sta rispondendo o si sta scaricando un modello |
 | POST | `/api/ia/prova` | `{testo}` analizza una scena di prova (lavoro) |
 | GET | `/api/ia/catalogo` | tutti i modelli (famiglia, dimensione, varianti quantizzate) con memoria che serve, dove girano (`gpu`, `misto`, `cpu`, `troppo`) e punteggio per questo computer; hardware e stato dell'IA |
 | POST | `/api/ia/catalogo/aggiorna` | `{famiglia?}` legge dal registro di Ollama tag e dimensioni vere (lavoro `ia_catalogo`); con `famiglia` aggiunge un modello che non è nell'elenco |

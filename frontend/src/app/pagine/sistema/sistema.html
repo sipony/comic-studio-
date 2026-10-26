@@ -226,9 +226,6 @@
               }
             </div>
           }
-          @if (s?.modelli?.length) {
-            <p class="nota-fine">Già scaricati: {{ s?.modelli?.join(', ') }}</p>
-          }
           <div class="modulo">
             <mat-form-field class="largo">
               <mat-label>Altro modello di Ollama</mat-label>
@@ -239,6 +236,39 @@
             </button>
           </div>
         </section>
+
+        @if (s?.raggiungibile) {
+          <section class="categoria scaricati">
+            <h2>
+              <mat-icon>hard_drive</mat-icon> Modelli scaricati
+              @if (s?.modelli?.length) { <span class="peso-totale">{{ s?.modelli?.length }} · {{ gb(spazioModelli(), 1) }} sul disco</span> }
+            </h2>
+            @for (nome of s?.modelli ?? []; track nome) {
+              <div class="installazione" [class.in-uso]="nome === s?.modello">
+                <mat-icon>deployed_code</mat-icon>
+                <div class="testo">
+                  <div class="nome">{{ nome }}
+                    @if (s?.dimensioni?.[nome]; as peso) { <span class="dettaglio">· {{ gb(peso, 1) }}</span> }
+                  </div>
+                </div>
+                @if (nome === s?.modello) {
+                  <span class="tag">in uso</span>
+                } @else {
+                  <button mat-button (click)="usaModello(nome)" [disabled]="!!eliminando()">Usa questo</button>
+                }
+                <button mat-icon-button class="elimina" (click)="eliminaModello(nome)" [disabled]="!!eliminando() || !!lavoroIA()"
+                  [matTooltip]="lavoroIA() ? 'Aspetta che finisca il lavoro dell’IA' : 'Elimina dal computer'" [attr.aria-label]="'Elimina ' + nome">
+                  <mat-icon>{{ eliminando() === nome ? 'hourglass_top' : 'delete' }}</mat-icon>
+                </button>
+              </div>
+            } @empty {
+              <p class="nota-fine">Nessun modello scaricato in Ollama.</p>
+            }
+            @if (s?.modelli?.length) {
+              <p class="nota-fine">I modelli eliminati non vanno nel cestino: per riaverli basta scaricarli di nuovo.</p>
+            }
+          </section>
+        }
       }
 
       @if (iaTipo() !== 'nessuna') {

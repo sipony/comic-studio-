@@ -141,7 +141,13 @@ Ollama o il modello, si apre la finestra **Scegli l'IA locale**:
   e l'azione che avevi chiesto riparte da sola
 
 La stessa finestra si apre da **Sistema → IA locale → Scegli il modello adatto al tuo computer**. Ollama e i
-modelli finiscono nella cartella `ComicStudio/strumenti/ollama`. Tutto gira sul tuo computer. Se hai già Ollama o LM Studio, Comic Studio usa quelli. Puoi provare l'IA con una scena di esempio e
+modelli finiscono nella cartella `ComicStudio/strumenti/ollama`.
+
+Per liberare spazio: in **Sistema → IA locale → Modelli scaricati** ogni modello ha il suo peso e il pulsante 🗑,
+e nella finestra di scelta, selezionando un modello già scaricato, compare **Elimina dal computer**. I modelli
+eliminati non vanno nel cestino: per riaverli si scaricano di nuovo. Se elimini quello in uso, l'IA non è pronta
+finché non ne scegli un altro.
+ Tutto gira sul tuo computer. Se hai già Ollama o LM Studio, Comic Studio usa quelli. Puoi provare l'IA con una scena di esempio e
 cambiare modello (più leggero o più preciso). Prima di ogni domanda all'IA la memoria della scheda video viene
 liberata, così ComfyUI e l'IA non se la contendono.
 

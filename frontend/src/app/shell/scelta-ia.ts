@@ -44,6 +44,7 @@ export class SceltaIAComponent implements OnInit {
   protected scelta = signal<string | null>(null);
   protected idLavoro = signal<string | null>(null);
   protected errore = signal('');
+  protected eliminando = signal(false);
 
   protected stato = computed(() => this.catalogo()?.stato ?? null);
   protected righe = computed(() => filtraRighe(this.catalogo()?.modelli ?? [], this.tutti(), this.cerca()));
@@ -166,6 +167,27 @@ export class SceltaIAComponent implements OnInit {
       }
     } catch (e) {
       this.errore.set(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  /** Cancella dal computer il modello scelto, se è scaricato (non va nel cestino). */
+  protected async elimina() {
+    const v = this.variante();
+    if (!v?.installato) return;
+    const inUso = v.attuale && !!this.stato()?.pronta;
+    if (!confirm(`Eliminare il modello ${v.nome} dal computer e liberare circa ${v.gb.toFixed(1)} GB?\n\n` +
+      (inUso ? 'È il modello in uso: finché non ne scegli un altro, l’IA locale non sarà pronta.\n' : '') +
+      'Non va nel cestino: per riaverlo dovrai scaricarlo di nuovo.')) return;
+    this.errore.set('');
+    this.eliminando.set(true);
+    try {
+      const r = await this.api.eliminaModelloIA(v.nome);
+      this.avvisi.ok(r.eliminato ? `Modello ${v.nome} eliminato` : `Il modello ${v.nome} non c’era già più`);
+      await this.carica();
+    } catch (e) {
+      this.errore.set(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.eliminando.set(false);
     }
   }
 

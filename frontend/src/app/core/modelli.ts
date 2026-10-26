@@ -569,6 +569,8 @@ export interface StatoIA {
   raggiungibile: boolean;
   versione: string | null;
   modelli: string[];
+  /** byte di ogni modello scaricato (solo Ollama) */
+  dimensioni?: Record<string, number>;
   modello_presente: boolean;
   eseguibile: string | null;
   portatile: boolean;

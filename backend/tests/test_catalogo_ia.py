@@ -144,3 +144,40 @@ def test_lavoro_fallito_perche_manca_il_modello(casa, finto_ollama):
         finto_ollama.scena = {"rotta": True}
         lid = c.post("/api/ia/prova", json={"testo": "una scena"}).json()["id"]
         assert attendi(c, lid)["codice"] is None
+
+
+def test_elimina_modello(casa, finto_ollama):
+    """Un modello scaricato si cancella dal computer; non mentre l'IA lo sta usando."""
+    import time
+    finto_ollama.modelli.append("gemma3:4b")
+    stato, c = prepara(casa, finto_ollama)
+    with c:
+        s = c.get("/api/ia").json()
+        assert s["dimensioni"] == {"qwen3:8b": 5_225_373_696, "gemma3:4b": 2_600_000_000}
+        # un modello che non è quello in uso
+        r = c.post("/api/ia/modello/elimina", json={"nome": "gemma3:4b"}).json()
+        assert r["eliminato"] and r["stato"]["modelli"] == ["qwen3:8b"] and "gemma3:4b" not in r["stato"]["dimensioni"]
+        assert finto_ollama.eliminati == ["gemma3:4b"] and "gemma3:4b" in finto_ollama.scaricati   # tolto dalla memoria
+        assert r["stato"]["pronta"]
+        # uno che non c'è più: nessun errore
+        r = c.post("/api/ia/modello/elimina", json={"nome": "gemma3:4b"}).json()
+        assert not r["eliminato"]
+        # non mentre l'IA sta rispondendo
+        finto_ollama.lento = 1.0
+        lid = c.post("/api/ia/prova", json={"testo": "una scena"}).json()["id"]
+        for _ in range(200):
+            if stato.ia._lock.locked():
+                break
+            time.sleep(0.01)
+        r = c.post("/api/ia/modello/elimina", json={"nome": "qwen3:8b"})
+        assert r.status_code == 503 and "sta lavorando" in r.json()["detail"]
+        assert attendi(c, lid)["stato"] == "completato" and "qwen3:8b" in finto_ollama.modelli
+        finto_ollama.lento = 0
+        # anche quello in uso: l'IA non è più pronta e l'interfaccia lo dice
+        r = c.post("/api/ia/modello/elimina", json={"nome": "qwen3:8b"}).json()
+        assert r["eliminato"] and not r["stato"]["pronta"] and "non è ancora scaricato" in r["stato"]["errore"]
+        # solo con Ollama
+        c.post("/api/ia/impostazioni", json={"tipo": "openai"})
+        r = c.post("/api/ia/modello/elimina", json={"nome": "qwen3:4b"})
+        assert r.status_code == 503 and "solo i modelli di Ollama" in r.json()["detail"]
+        assert c.post("/api/ia/modello/elimina", json={"nome": ""}).status_code == 422

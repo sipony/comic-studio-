@@ -57,6 +57,9 @@ export class ApiService {
   scegliModelloIA(nome: string) { return this.post<{ lavoro: Lavoro | null; stato: StatoIA }>('/api/ia/scegli', { nome }); }
   installaIA() { return this.post<Lavoro>('/api/ia/installa'); }
   scaricaModelloIA(nome: string) { return this.post<Lavoro>('/api/ia/modello', { nome }); }
+  eliminaModelloIA(nome: string) {
+    return this.post<{ eliminato: boolean; stato: StatoIA }>('/api/ia/modello/elimina', { nome });
+  }
   provaIA(testo: string, checkpoint: string | null) { return this.post<Lavoro>('/api/ia/prova', { testo, checkpoint }); }
   ricavaTratti(progetto: string, id: string, storia: string) {
     return this.post<Lavoro>(`/api/progetti/${progetto}/personaggi/${id}/tratti`, { storia });

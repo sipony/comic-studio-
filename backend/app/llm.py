@@ -53,6 +53,7 @@ class StatoIA:
     raggiungibile: bool = False
     versione: str | None = None
     modelli: list[str] = field(default_factory=list)
+    dimensioni: dict[str, int] = field(default_factory=dict)   # byte di ogni modello scaricato (solo Ollama)
     modello_presente: bool = False
     eseguibile: str | None = None     # Ollama trovato sul disco (anche se spento)
     portatile: bool = False           # è quello scaricato da Comic Studio
@@ -264,14 +265,28 @@ class ClientIA:
                 else:
                     avanzamento(-1, f"{nome}: {stato}")
 
-    async def scarica_dalla_memoria(self):
+    async def scarica_dalla_memoria(self, modello: str | None = None):
         """Toglie il modello dalla memoria (Ollama); con gli altri server non si può fare."""
         if self.tipo != "ollama":
             return
         try:
-            await self._http.post("/api/generate", json={"model": self.modello, "keep_alive": 0}, timeout=10)
+            await self._http.post("/api/generate", json={"model": modello or self.modello, "keep_alive": 0},
+                                  timeout=10)
         except httpx.HTTPError:
             pass
+
+    async def elimina_modello(self, nome: str) -> bool:
+        """Cancella dal disco un modello scaricato (Ollama /api/delete); False se non c'era già più.
+        I file che il modello condivide con altri modelli scaricati restano: Ollama li toglie con l'ultimo."""
+        if self.tipo != "ollama":
+            raise ErroreIA("Da Comic Studio si possono eliminare solo i modelli di Ollama.")
+        await self.scarica_dalla_memoria(nome)
+        r = await self._http.request("DELETE", "/api/delete", json={"model": nome, "name": nome}, timeout=60)
+        if r.status_code == 404:
+            return False
+        if r.status_code >= 400:
+            raise ErroreIA(f"Ollama non riesce a eliminare {nome}: {r.text[:300]}")
+        return True
 
     async def chat_json(self, sistema: str, utente: str, schema: dict, contesto: int = 12288,
                         temperatura: float = 0.2) -> dict:

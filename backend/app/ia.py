@@ -46,7 +46,12 @@ class ServizioIA:
                 s.raggiungibile = s.versione is not None
                 if s.raggiungibile:
                     try:
-                        s.modelli = await c.modelli()
+                        if i.ia_tipo == "ollama":
+                            dettagli = await c.modelli_dettagli()
+                            s.modelli = sorted(m["name"] for m in dettagli)
+                            s.dimensioni = {m["name"]: int(m.get("size") or 0) for m in dettagli}
+                        else:
+                            s.modelli = await c.modelli()
                     except Exception as e:  # noqa: BLE001
                         s.errore = f"Elenco dei modelli non disponibile: {e}"
             base = i.ia_modello.split(":")[0]
@@ -125,6 +130,28 @@ class ServizioIA:
         async with self.client(timeout=60) as c:
             await c.scarica_modello(nome, avanza, lambda: l.annullato)
         l.log(f"Modello {nome} pronto", "ok")
+
+    async def elimina_modello(self, nome: str) -> tuple[bool, StatoIA]:
+        """Cancella un modello di Ollama dal disco per liberare spazio; si può riscaricare quando serve.
+        Non si può mentre l'IA sta rispondendo o mentre si scarica un modello o Ollama."""
+        if self.imp.ia_tipo != "ollama":
+            raise ErroreIA("Da Comic Studio si possono eliminare solo i modelli di Ollama.")
+        if any(l.tipo in ("ia_modello", "ia_installa") for l in self.app.gestore.attivi()):
+            raise ErroreIA("Si sta scaricando un modello: aspetta che finisca, oppure fermalo, poi riprova.")
+        if self._lock.locked():
+            raise ErroreIA("L'IA sta lavorando: aspetta che finisca, oppure annulla il lavoro, poi riprova.")
+        async with self._lock:                  # nessuna domanda all'IA parte mentre si cancella
+            async with self.client(timeout=60) as c:
+                if not await c.versione():
+                    raise ErroreIA("Ollama è spento: avvialo (o scegli un modello) e riprova.")
+                try:
+                    trovato = await c.elimina_modello(nome)
+                except httpx.HTTPError as e:
+                    raise ErroreIA(f"Ollama non riesce a eliminare {nome}: {e}") from None
+        stato = await self.aggiorna()
+        self.app.bus.log(f"Modello {nome} eliminato dal computer" if trovato
+                         else f"Il modello {nome} non era più in Ollama", "ok" if trovato else "info")
+        return trovato, stato
 
     # ------------------------------------------------------------ domande
 

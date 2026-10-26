@@ -150,6 +150,30 @@ export class SistemaPage {
     await this.salvaIA({ modello: nome });
   }
 
+  /** Spazio occupato da tutti i modelli scaricati con Ollama. */
+  protected spazioModelli = computed(() => Object.values(this.ia()?.dimensioni ?? {}).reduce((a, b) => a + b, 0));
+  protected eliminando = signal<string | null>(null);
+
+  /** Cancella un modello di Ollama dal computer (non va nel cestino: per riaverlo si riscarica). */
+  protected async eliminaModello(nome: string) {
+    const s = this.ia();
+    const peso = s?.dimensioni?.[nome];
+    const inUso = nome === s?.modello;
+    if (!confirm(`Eliminare il modello ${nome} dal computer${peso ? ` e liberare ${gb(peso, 1)}` : ''}?\n\n` +
+      (inUso ? 'È il modello in uso: finché non ne scegli un altro, l’IA locale non sarà pronta.\n' : '') +
+      'Non va nel cestino: per riaverlo dovrai scaricarlo di nuovo.')) return;
+    this.eliminando.set(nome);
+    try {
+      const r = await this.api.eliminaModelloIA(nome);
+      this.avvisi.ok(r.eliminato ? `Modello ${nome} eliminato` : `Il modello ${nome} non c’era già più`);
+    } catch (e) {
+      this.avvisi.errore(e);
+    } finally {
+      this.eliminando.set(null);
+      await this.caricaIA();
+    }
+  }
+
   protected async prova() {
     this.risultatoProva.set(null);
     try {
