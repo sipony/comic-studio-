@@ -106,6 +106,7 @@ class ModificaPersonaggio(BaseModel):
     storia: str | None = Field(default=None, max_length=20000)
     adulto: bool | None = None
     scelte_proposte: dict | None = None
+    origine: dict | None = None
 
 
 class Archivio:

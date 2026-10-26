@@ -147,6 +147,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `…/proposte/anteprima` | stessa configurazione: il prompt positivo e negativo che verrebbe usato e la famiglia del checkpoint, senza generare |
 | GET | `…/proposte/{file}` | immagine di una proposta |
 | POST | `…/proposte/{file}/scegli` | la proposta diventa l'immagine di riferimento; il personaggio ricorda la ricetta (`origine`) e, se il dataset non ha ancora un workflow, lo prepara come le proposte |
+| POST | `…/proposte/{file}/ricetta` | `{checkpoint}`: completa una proposta fatta prima della 0.16 (stile e inquadratura dal prompt) |
 | POST | `…/proposte/scarta` | sposta nel cestino le proposte non scelte |
 | POST | `…/fumetto/storia` | `{testo, sostituisci}` racconto libero → pagine e vignette (lavoro) |
 | POST | `/api/esci` | `{comfy}` chiude Comic Studio (e, se richiesto, il ComfyUI avviato da lui) |
@@ -171,7 +172,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | GET / PATCH / DELETE | `/api/progetti/{id}/workflows/{wid}` | dettaglio con analisi / nome e ruoli / elimina |
 | GET | `/api/progetti/{id}/workflows/{wid}/scarica` | il workflow in formato API |
 | GET | `/api/progetti/{id}/personaggi/{pid}/dataset` | configurazione, riepilogo e `origine` (ricetta delle proposte, checkpoint del workflow, `coerente`) |
-| POST | `…/dataset/confronto` | la configurazione (anche non salvata) confrontata con la proposta scelta: righe proposta / dataset, tag di stile mancanti, prompt; `null` se il riferimento non è una proposta |
+| POST | `…/dataset/confronto` | la configurazione (anche non salvata) confrontata con la proposta scelta: `prompt` (parti fisse tag per tag), `negativo`, `workflow` (nodi, valori, catene, riferimento), righe, `coerente`; `null` se il riferimento non è una proposta |
 | POST | `…/dataset/come-proposte` | workflow integrato con lo stesso checkpoint, LoRA di stile e campionamento delle proposte (IPAdapter se installato; riusato se è già in libreria), stile e negativo nella configurazione |
 | PUT | `…/dataset/config` | salva la configurazione |
 | POST | `…/dataset/esempi` | esempi dei prompt che verranno generati |

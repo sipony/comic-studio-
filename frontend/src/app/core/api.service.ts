@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  AnteprimaPromptProposte, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, RicettaProposta, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -99,6 +99,10 @@ export class ApiService {
   urlProposta(progetto: string, id: string, file: string) { return `${this.dp(progetto, id)}/${encodeURIComponent(file)}`; }
   scegliProposta(progetto: string, id: string, file: string) {
     return this.post<Personaggio>(`${this.dp(progetto, id)}/${encodeURIComponent(file)}/scegli`);
+  }
+  /** Completa una proposta fatta prima della 0.16 con il checkpoint con cui è stata creata. */
+  ricettaPropostaVecchia(progetto: string, id: string, file: string, checkpoint: string) {
+    return this.post<RicettaProposta>(`${this.dp(progetto, id)}/${encodeURIComponent(file)}/ricetta`, { checkpoint });
   }
   scartaProposte(progetto: string, id: string) {
     return this.post<{ spostate_nel_cestino: number }>(`${this.dp(progetto, id)}/scarta`);

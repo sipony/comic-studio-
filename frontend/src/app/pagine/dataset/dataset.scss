@@ -194,3 +194,50 @@ mat-panel-description {
     color: var(--mat-sys-on-surface-variant);
   }
 }
+
+.confronto {
+  .c-scelta {
+    max-width: 320px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid var(--mat-sys-outline-variant);
+    background: var(--mat-sys-surface-container-high);
+    color: var(--mat-sys-on-surface);
+    font: inherit;
+  }
+  .c-diff {
+    margin: 2px 0 0;
+    padding-left: 18px;
+    color: var(--mat-sys-error);
+  }
+  .c-tag {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    margin-top: 2px;
+    .etichetta {
+      width: 64px;
+      color: var(--mat-sys-on-surface-variant);
+      font-size: 11.5px;
+    }
+    .t {
+      padding: 1px 6px;
+      border-radius: 5px;
+      font-size: 11.5px;
+      background: var(--mat-sys-surface-container-high);
+      &.manca {
+        background: color-mix(in srgb, var(--cs-errore) 30%, transparent);
+        text-decoration: line-through;
+      }
+      &.in-piu {
+        background: color-mix(in srgb, var(--cs-avviso) 30%, transparent);
+      }
+    }
+  }
+}
+.confronto table tbody th {
+  width: 130px;
+  overflow-wrap: normal;
+  word-break: normal;
+}

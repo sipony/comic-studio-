@@ -28,6 +28,21 @@ BASE = "solo, looking at viewer, neutral expression, simple background, white ba
 NEGATIVO = ("{negativo_qualita}, multiple views, 2girls, 2boys, crowd, cropped, out of frame, text, watermark, "
             "signature, bad anatomy, bad hands, extra fingers, deformed, blurry, lowres")
 
+# Il prompt del dataset di un personaggio nato dalle proposte è quello delle proposte, con la sola differenza della
+# parte che descrive inquadratura, sguardo, espressione e sfondo: nelle proposte è fissa (BASE senza «solo» e il tag
+# dell'inquadratura), nel dataset cambia a ogni immagine ({variante}), perché il LoRA impari il personaggio da ogni
+# lato. Tutto il resto (qualità, genere, solo, tratti, tag in più, stile, negativo) è identico e nello stesso ordine.
+PARTE_VARIABILE = {t.strip().lower() for t in BASE.split(",") if t.strip() != "solo"} | \
+    {t.strip().lower() for v in TAG_INQUADRATURA.values() for t in v.split(",")}
+
+
+def modello_dataset(ricetta: dict) -> tuple[str, str]:
+    """I modelli del prompt positivo e negativo del dataset, ricavati dalla ricetta delle proposte."""
+    extra = pulisci(ricetta.get("extra") or "")
+    positivo = "{qualita}, {genere}, solo, {descrizione}" + (f", {extra}" if extra else "") + ", {variante}, {stile}"
+    return positivo, ricetta.get("negativo") or NEGATIVO
+
+
 _lock = threading.Lock()
 
 
@@ -169,6 +184,16 @@ class ArchivioProposte:
 
     def leggi(self, pid: str, cid: str, nome: str) -> Proposta | None:
         return next((p for p in self.elenco(pid, cid) if p.file == nome), None)
+
+    def imposta_ricetta(self, pid: str, cid: str, nome: str, ricetta: "Ricetta") -> Proposta:
+        with _lock:
+            elenco = self.elenco(pid, cid)
+            p = next((x for x in elenco if x.file == nome), None)
+            if p is None:
+                raise ErroreProgetto("Proposta inesistente", 404)
+            p.ricetta = ricetta
+            self._salva(pid, cid, elenco)
+            return p
 
     def segna_scelta(self, pid: str, cid: str, nome: str):
         with _lock:
