@@ -21,6 +21,7 @@ import math
 from typing import Any
 
 from .esclusione import _link
+from .workflows import NODI_POSA
 
 SAMPLER_NOTI = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2", "dpm_2",
                 "dpm_2_ancestral", "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp",
@@ -238,8 +239,9 @@ async def descrivi(app, lavoro, info: dict | None) -> dict:
                 continue
             perche = tutto_bloccato
             if perche is None and sorgente["tipo"] == "dataset":
-                perche = bloccati.get((k, nome)) or (None if k in liberi else
-                                                     "Nodo aggiunto da Comic Studio solo per questa generazione.")
+                perche = bloccati.get((k, nome)) or (None if k in liberi else (
+                    "Nodo delle pose guidate: posa, forza, fine e ControlNet si cambiano in Dataset → Pose guidate."
+                    if k in NODI_POSA.values() else "Nodo aggiunto da Comic Studio solo per questa generazione."))
             elif perche is None:
                 campo = MAPPA_PROPOSTE.get((classe, nome))
                 if campo == "forza_variante" and not ctx.get("variante"):

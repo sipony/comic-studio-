@@ -1,4 +1,5 @@
-"""Componenti di ComfyUI che servono a Comic Studio e che si possono installare da qui: IPAdapter Plus.
+"""Componenti di ComfyUI che servono a Comic Studio e che si possono installare da qui, a gruppi: IPAdapter Plus
+(proposto all'apertura) e il ControlNet OpenPose delle pose guidate (proposto in Dataset → Pose guidate).
 
 Senza IPAdapter il dataset nasce solo dal testo e i volti cambiano da un'immagine all'altra. Servono tre cose:
   - il custom node ComfyUI_IPAdapter_plus      → <ComfyUI>/custom_nodes/ComfyUI_IPAdapter_plus
@@ -61,6 +62,22 @@ IPADAPTER = [
                "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors",
                2_528_373_448, r"vit-?h|laion2b-s32b"),
 ]
+
+
+POSE = [
+    Componente("controlnet_openpose", "ControlNet OpenPose SDXL (xinsir)", "modello",
+               "il ControlNet che fa prendere al personaggio la posa dello scheletro (SDXL, Pony, Illustrious)",
+               "models/controlnet", "controlnet-openpose-sdxl-1.0-xinsir.safetensors",
+               "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
+               2_502_139_104, r"openpose|union.*(sdxl|xl)|promax"),
+]
+GRUPPI = ("ipadapter", "pose")
+NOMI_GRUPPI = {"ipadapter": "IPAdapter Plus", "pose": "ControlNet OpenPose"}
+
+
+def elenco_gruppo(gruppo: str) -> list[Componente]:
+    """I componenti di un gruppo (letti ogni volta: i test li sostituiscono)."""
+    return {"ipadapter": IPADAPTER, "pose": POSE}[gruppo]
 
 
 @dataclass
@@ -245,5 +262,5 @@ def installa_nodo(c: dict, base: Path, avanzamento: Avanzamento) -> str:
     return "dallo ZIP"
 
 
-__all__ = ["IPADAPTER", "Componente", "ErroreComponenti", "StatoComponenti", "controlla", "installa_nodo", "scarica",
+__all__ = ["GRUPPI", "IPADAPTER", "NOMI_GRUPPI", "POSE", "Componente", "elenco_gruppo", "ErroreComponenti", "StatoComponenti", "controlla", "installa_nodo", "scarica",
            "testo_spazio"]

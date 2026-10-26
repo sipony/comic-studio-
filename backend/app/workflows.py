@@ -446,6 +446,42 @@ def applica(wf: dict, ruoli: Ruoli, *, riferimento: str | None = None, positivo:
     return w
 
 
+# ---------------------------------------------------------------- pose guidate
+
+NODI_POSA = {"carica": "cs_posa_controlnet", "immagine": "cs_posa_scheletro", "applica": "cs_posa"}
+
+
+def aggiungi_posa(w: dict, controlnet: str, immagine: str, forza: float = 0.8, inizio: float = 0.0,
+                  fine: float = 0.8) -> list[str]:
+    """Aggiunge al workflow un ControlNet (OpenPose) con lo scheletro `immagine` già caricato in ComfyUI: il
+    condizionamento positivo e negativo del primo campionatore passa per ControlNetApplyAdvanced. Il resto del
+    workflow (checkpoint, LoRA, IPAdapter, prompt) non cambia. Restituisce gli id dei nodi aggiunti."""
+    campionatori = sorted((k for k, n in w.items() if n.get("class_type") in SAMPLER), key=lambda x: (len(x), x))
+    if not campionatori:
+        raise ErroreWorkflow("Pose guidate: nel workflow non c'è un campionatore a cui collegare il ControlNet.")
+    primo = min(campionatori, key=lambda s: len(_a_monte(w, s)))
+    _, pos, neg, _ = SAMPLER[w[primo]["class_type"]]
+    ing = w[primo]["inputs"]
+    if not (isinstance(ing.get(pos), list) and isinstance(ing.get(neg), list)):
+        raise ErroreWorkflow("Pose guidate: il campionatore non ha i prompt positivo e negativo collegati.")
+    c, im, ap = NODI_POSA["carica"], NODI_POSA["immagine"], NODI_POSA["applica"]
+    w[c] = {"class_type": "ControlNetLoader", "inputs": {"control_net_name": controlnet},
+            "_meta": {"title": "ControlNet della posa (Comic Studio)"}}
+    w[im] = {"class_type": "LoadImage", "inputs": {"image": immagine},
+             "_meta": {"title": "Scheletro della posa (Comic Studio)"}}
+    w[ap] = {"class_type": "ControlNetApplyAdvanced",
+             "inputs": {"positive": list(ing[pos]), "negative": list(ing[neg]), "control_net": [c, 0],
+                        "image": [im, 0], "strength": forza, "start_percent": inizio, "end_percent": fine},
+             "_meta": {"title": "Posa guidata (Comic Studio)"}}
+    # anche gli altri campionatori che usano gli stessi prompt (es. il secondo passaggio di un hires fix)
+    for s in campionatori:
+        _, p2, n2, _ = SAMPLER[w[s]["class_type"]]
+        i2 = w[s]["inputs"]
+        if i2.get(p2) == w[ap]["inputs"]["positive"] and i2.get(n2) == w[ap]["inputs"]["negative"]:
+            i2[p2], i2[n2] = [ap, 0], [ap, 1]
+    return [c, im, ap]
+
+
 # ---------------------------------------------------------------- workflow integrato
 
 def integrato(checkpoint: str, ipadapter: str | None, clip_vision: str | None, lora_stile: str | None = None,

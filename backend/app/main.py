@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from . import __version__
 from .comfy.client import ComfyErrore
 from .llm import ErroreIA
-from .rotte_dataset import rotte as rotte_dataset, rotte_comfy
+from .rotte_dataset import rotte as rotte_dataset, rotte_comfy, rotte_pose
 from .rotte_didascalie import rotte as rotte_didascalie
 from .rotte_addestramento import rotte as rotte_addestramento, rotte_kohya
 from .rotte_fumetto import rotte as rotte_fumetto
@@ -349,6 +349,7 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
     api.include_router(rotte_kohya)
     api.include_router(rotte_fumetto)
     api.include_router(rotte_comfy)
+    api.include_router(rotte_pose)
     api.include_router(rotte_ia)
     api.include_router(rotte_testo)
     api.include_router(rotte_proposte)

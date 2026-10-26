@@ -223,6 +223,8 @@
                 <button mat-flat-button (click)="usa(pr.file)" [disabled]="pr.scelta || occupato()">Usa questa</button>
                 <button mat-button (click)="generaProposte(pr.file)" [disabled]="!!lavoroProposte() || !eventi.comfy()?.connesso"
                   matTooltip="Altre immagini simili a questa">Varianti</button>
+                <button mat-icon-button (click)="grafo(pr.file)" matTooltip="Il workflow (grafo dei nodi) con cui è stata fatta"
+                  aria-label="Grafo della proposta"><mat-icon>account_tree</mat-icon></button>
                 @if (pr.ricetta) {
                   <button mat-icon-button (click)="usaScelte(pr)" [matTooltip]="'Riprendi le scelte di questa proposta: ' + pr.ricetta.checkpoint + (pr.ricetta.lora_stile ? ' + ' + pr.ricetta.lora_stile : '')"
                     aria-label="Riprendi le scelte di questa proposta"><mat-icon>settings_backup_restore</mat-icon></button>

@@ -33,9 +33,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 19 | Dataset confrontato con la proposta da cui è nato il personaggio: checkpoint, LoRA, stile, campionamento, IPAdapter; tag di stile mancanti rimessi con un clic | ✅ unita |
 | 20 | Aggiornare senza confondersi: la versione nuova sostituisce quella vecchia ancora aperta (chiedendo se ha lavori in corso); numero di versione in alto | ✅ unita |
 | 21 | Impostazioni dei nodi modificabili dal grafo della console, controllate come in ComfyUI e salvate nel workflow del personaggio (dataset e proposte) | ✅ unita |
-| 22 | Dataset identico alle proposte: stesso workflow con in più solo il riferimento, stesso prompt salvo le varianti, stesso negativo; verifica tag per tag e nodo per nodo; proposte vecchie completate con il checkpoint | ✅ questa PR |
-| 22 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 23 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 22 | Dataset identico alle proposte: stesso workflow con in più solo il riferimento, stesso prompt salvo le varianti, stesso negativo; verifica tag per tag e nodo per nodo; proposte vecchie completate con il checkpoint | ✅ unita |
+| 23 | Pose guidate nel dataset (ControlNet OpenPose con gli scheletri disegnati da Comic Studio, installabile); «Massima somiglianza al riferimento» (aspetto dal tagger, sfondi, IPAdapter più forte su tutta la figura); workflow di ogni proposta e immagine salvato, grafi confrontati fianco a fianco | ✅ questa PR |
+| 24 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 25 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -925,4 +926,64 @@ stile e campionamento.
   aggiornato. Collaudo con Chromium e confronto dei workflow davvero inviati a ComfyUI: stessi nodi più i 5 di
   IPAdapter, KSampler uguale, negativo uguale, positivo uguale salvo la parte variabile
 
-Prossimo passo: PR 23, pose guidate e costruttore di workflow.
+Prossimo passo: PR 23, pose guidate.
+
+## PR 23 — Pose guidate, massima somiglianza, grafi confrontati
+
+Richieste: «un workflow che mi crei diverse immagini dello stesso personaggio identico in diverse pose»; «voglio vedere
+il grafo usato per creare il personaggio e quello del dataset: le immagini sono troppo diverse, è sfuggito qualcosa
+nel codice?»; «si può fare in modo che le immagini in pose diverse vengano quasi identiche all'originale?».
+
+**Indagine.** Ricostruiti con il codice i due workflow con le scelte dell'utente (waiIllustrious v170 + KonicsXL 0,8,
+«western comics», figura intera): nodo per nodo sono uguali (checkpoint, LoRA, KSampler, negativo, prompt fisso), nel
+dataset in più solo i 5 nodi di IPAdapter. Le differenze vengono da (1) la parte variabile: 3 sfondi su 7 erano città,
+notte, interni, che con una LoRA da fumetto trasformano il disegno in una vignetta; angolazioni, espressioni, primi
+piani; (2) il seme: «police uniform» non dice com'è la divisa, ogni seme ne inventa una (anche le 4 proposte erano
+diverse tra loro) e IPAdapter a 0,7 con ritaglio «top» del riferimento a figura intera non vede pantaloni e scarpe;
+(3) un tag «none» lasciato dall'IA nei tratti.
+
+**Pose guidate** (`pose.py`):
+- 19 pose descritte da poche misure (rotazione, inclinazione, angoli di braccia e gambe, accorciamenti) → 18 punti
+  OpenPose (COCO), testa su un cerchio girato (naso, occhi, orecchie visibili solo se rivolti verso di noi), destra /
+  sinistra del personaggio; specchiatura = riflessione + scambio destra/sinistra
+- disegno come i preprocessori di ControlNet (stessi 17 segmenti e colori, ellissi al 60%, giunture), spessore in
+  proporzione alla risoluzione; tagli per inquadratura (primo piano: testa e spalle; mezzo busto; tre quarti; intera)
+- `workflows.aggiungi_posa`: ControlNetLoader + LoadImage + ControlNetApplyAdvanced sul positivo e negativo del primo
+  campionatore (e degli altri con gli stessi prompt, es. hires fix); il resto del workflow non cambia, quindi funziona
+  anche con i workflow caricati dall'utente
+- `ConfigDataset.pose` (attive, ControlNet, pose scelte, specchiate, forza 0,8, fine 0,8); a ogni immagine una posa a
+  turno (la meno usata adatta all'inquadratura; niente pose di spalle nei primi piani), il prompt prende `tag` e
+  `vista` della posa; img2img → composizione libera; lo scheletro si carica in ComfyUI una volta per posa e dimensione
+- «Una immagine per posa» (`genera {una_per_posa}`): una figura intera per ogni posa scelta, nell'ordine
+- ControlNet scelto da solo (OpenPose SDXL; per Illustrious/NoobAI prima quello di NoobAI; poi «union»); componente
+  installabile `controlnet_openpose` (xinsir, 2,5 GB) con i controlli di spazio e impronta di IPAdapter
+  (`componenti` a gruppi: `?gruppo=pose`; la finestra all'apertura resta solo per IPAdapter)
+- confronto con la proposta: riga «Pose guidate»; grafo: i nodi della posa dicono dove si cambiano
+
+**Massima somiglianza al riferimento** (`POST …/dataset/somiglianza`, lavoro): il tagger WD14 legge il riferimento e
+i tag dell'aspetto (vestiti, capelli, occhi, accessori; tolti inquadratura, posa, sguardo, espressione, sfondo, luce,
+tecnica, personaggi noti) che i tratti non dicono vanno in `{aspetto}`, subito dopo `{descrizione}`; sfondi bianchi o
+semplici; IPAdapter peso 0,9, `end_at` 1, `PrepImageForClipVision` con ritaglio `pad` (nelle modifiche del
+personaggio: il workflow della libreria non cambia); pose guidate se c'è il ControlNet. Ogni passo che non si può fare
+è spiegato nella console. L'aspetto non conta nel confronto del prompt (riga a parte).
+
+**Grafi salvati e confrontati**:
+- il workflow di ogni proposta (`proposte/workflow/`) e di ogni immagine (`dataset/workflow/`) si salva, con i titoli
+  dei nodi; va nel cestino con l'immagine. Per quelle di prima si ricostruisce con lo stesso codice (proposte: ricetta,
+  prompt, seme; dataset: configurazione attuale con prompt, seme e dimensioni dell'immagine), segnalato
+- `grafo.confronta`: nodi abbinati per ruolo (percorso più corto dal nodo che salva, per nomi degli ingressi; poi lo
+  stesso percorso senza i nodi che ci sono solo da una parte, così il prompt positivo resta tale anche con il
+  ControlNet in mezzo e la LoRA anche con IPAdapter; poi la classe se è unica); valori diversi (i testi tag per tag),
+  nodi solo da una parte, collegamenti diversi e «passa per» (un nodo inserito prima dello stesso nodo)
+- interfaccia: `GrafoComponent` legge anche un workflow salvato (`url`, sola lettura) ed evidenzia i nodi diversi
+  (bordo arancione, valore in arancione) e quelli solo da una parte (tratteggio); finestra «Confronta con la proposta»
+  con l'elenco delle differenze e i due grafi; pulsanti in galleria, nelle proposte e nel riquadro del confronto;
+  «Sfondi come le proposte»
+- Versione 0.23.0
+- **Test**: `test_pose.py` (destra/sinistra, specchiate, profilo e spalle, disegno e tagli, rotazione, ControlNet nel
+  workflow e nell'hires fix, dataset con pose e una per posa, ControlNet mancante, grafo; massima somiglianza),
+  `test_grafi_salvati.py` (abbinamento per ruolo, proposta e immagine salvate e ricostruite uguali, confronto,
+  cestino), `test_componenti.py` (gruppo pose). Collaudo con Chromium: riquadro delle pose, installazione, una per
+  posa, lightbox con lo scheletro, confronto dei grafi, massima somiglianza
+
+Prossimo passo: PR 24, pose guidate nelle scene di gruppo e costruttore di workflow.

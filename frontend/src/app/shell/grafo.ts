@@ -157,6 +157,7 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
       @if (dati(); as d) {
         <span class="info" [matTooltip]="d.riassunto">
           <strong>{{ d.lavoro.titolo }}</strong> · {{ d.grafo.nodi.length }} nodi
+          @if (d.nota) { · <span class="avviso">{{ d.nota }}</span> }
           @if (d.n > 1) { · inviato {{ d.n }} volte (cambiano prompt e seme: qui c'è l'ultimo) }
           @if (!d.grafo.da_comfy) { · <span class="nota">tipi dai nodi conosciuti (ComfyUI spento)</span> }
         </span>
@@ -170,7 +171,7 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
         @if (d.impostazioni.sorgente; as s) {
           <span class="chip" [matTooltip]="s.descrizione"><mat-icon>tune</mat-icon>
             impostazioni modificabili: {{ s.tipo === 'dataset' ? 'dataset' : 'proposte' }} di {{ s.personaggio }}</span>
-        } @else {
+        } @else if (!url()) {
           <span class="chip spento" matTooltip="Le impostazioni di questo lavoro non si cambiano dal grafo: clic su un nodo per sapere dove si cambiano">
             <mat-icon>lock</mat-icon> sola lettura</span>
         }
@@ -213,7 +214,8 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
           }
           @for (n of nodi(); track n.id) {
             <g [attr.transform]="'translate(' + n.x + ',' + n.y + ')'" class="nodo" [class.scelto]="scelto()?.id === n.id"
-              [class.con-bozze]="!!bozze()[n.id]"
+              [class.con-bozze]="!!bozze()[n.id]" [class.diverso]="!!evidenzia()?.[n.id]"
+              [class.in-piu]="!!evidenzia()?.[n.id]?.includes('*')"
               (pointerdown)="inizioNodo($event, n)">
               <rect [attr.width]="n.w" [attr.height]="n.h" rx="8" class="corpo" />
               <path [attr.d]="'M0,8 a8,8 0 0 1 8,-8 h' + (n.w - 16) + ' a8,8 0 0 1 8,8 v' + (titolo - 8) + ' h-' + n.w + 'z'" class="testa" />
@@ -233,6 +235,7 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
                   <rect [attr.width]="n.w - 20" [attr.height]="alto - 4" rx="9" class="widget" />
                   <text x="10" [attr.y]="(alto - 4) / 2 + 4" class="w-nome">{{ taglia(wg.nome, 16) }}</text>
                   <text [attr.x]="n.w - 30" [attr.y]="(alto - 4) / 2 + 4" class="w-valore" [class.bozza]="haBozza(n.id, wg.nome)"
+                    [class.diverso]="!!evidenzia()?.[n.id]?.includes(wg.nome)"
                     [class.salvato]="!haBozza(n.id, wg.nome) && campo(n.id, wg.nome)?.salvato !== undefined">{{ taglia(valore(valoreAttuale(n.id, wg)), (n.w - 40) / 6.6 - wg.nome.length - 2) }}</text>
                   @if (!campo(n.id, wg.nome)?.modificabile) {
                     <text [attr.x]="n.w - 24" [attr.y]="(alto - 4) / 2 + 4" class="w-lucchetto">•</text>
@@ -340,6 +343,10 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
     .w-valore.salvato { fill: #7fd3ff; }
     .w-lucchetto { fill: #6a6a6a; font: 11px sans-serif; text-anchor: middle; }
     .nodo.con-bozze .corpo { stroke: #ffcc66; stroke-width: 1.5; }
+    .nodo.diverso .corpo { stroke: #ff9e80; stroke-width: 2; }
+    .nodo.in-piu .corpo { stroke: #80cbc4; stroke-width: 2.5; stroke-dasharray: 6 4; }
+    .w-valore.diverso { fill: #ff9e80; font-weight: 600; }
+    .avviso { color: #ffcc66; }
     .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11.5px;
       background: #2f3b2f; color: #b8e0b8; white-space: nowrap;
       mat-icon { font-size: 14px; width: 14px; height: 14px; }
@@ -361,6 +368,10 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
 })
 export class GrafoComponent {
   readonly lavoro = input<string | null>(null);
+  /** in alternativa al lavoro: un workflow salvato (proposta, immagine del dataset), in sola lettura */
+  readonly url = input<string | null>(null);
+  /** nodi da evidenziare: {nodo: [ingressi diversi]} ('*' = nodo che c'è solo qui) */
+  readonly evidenzia = input<Record<string, string[]> | null>(null);
   /** quante volte il lavoro ha mandato un workflow: quando cambia si ricarica */
   readonly n = input(0);
   readonly ingrandibile = input(false);
@@ -419,11 +430,11 @@ export class GrafoComponent {
         d: `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}` }];
     });
   });
-  protected urlJson = computed(() => this.api.urlWorkflowJson(this.dati()?.lavoro.id ?? ''));
+  protected urlJson = computed(() => this.dati()?.url_json ?? this.api.urlWorkflowJson(this.dati()?.lavoro.id ?? ''));
 
   constructor() {
     effect(() => {
-      const id = this.lavoro();
+      const id = this.url() ?? this.lavoro();
       const n = this.n();
       untracked(() => void this.carica(id, n));
     });
@@ -436,8 +447,9 @@ export class GrafoComponent {
       return;
     }
     try {
-      const d = await this.api.workflowLavoro(id);
-      if (this.lavoro() !== id) return;
+      const url = this.url();
+      const d = url ? await this.api.grafoSalvato(url) : await this.api.workflowLavoro(id);
+      if ((this.url() ?? this.lavoro()) !== id) return;
       const nuovo = this.caricato !== id;
       if (nuovo && this.nBozze()) {
         this.avvisi.errore(`${this.nBozze()} modifiche non salvate del grafo precedente sono state scartate`);
@@ -650,12 +662,13 @@ export class GrafoComponent {
 @Component({
   selector: 'app-grafo-dialog',
   imports: [GrafoComponent, MatDialogModule],
-  template: `<app-grafo [lavoro]="dati.lavoro" [n]="n()" [chiudibile]="true" (chiudi)="ref.close()" />`,
+  template: `<app-grafo [lavoro]="dati.lavoro ?? null" [url]="dati.url ?? null" [n]="n()" [chiudibile]="true" (chiudi)="ref.close()" />`,
   styles: `:host { display: block; width: 100%; height: 100%; } app-grafo { height: 100%; }`,
 })
 export class GrafoDialog {
-  protected dati = inject<{ lavoro: string }>(MAT_DIALOG_DATA);
+  /** il grafo di un lavoro oppure un workflow salvato (proposta, immagine del dataset) */
+  protected dati = inject<{ lavoro?: string; url?: string }>(MAT_DIALOG_DATA);
   protected ref = inject(MatDialogRef);
   private eventi = inject(EventiService);
-  protected n = computed(() => this.eventi.lavori()[this.dati.lavoro]?.workflow ?? 0);
+  protected n = computed(() => (this.dati.lavoro ? this.eventi.lavori()[this.dati.lavoro]?.workflow ?? 0 : 0));
 }

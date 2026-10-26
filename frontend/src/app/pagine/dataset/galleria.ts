@@ -1,7 +1,10 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, HostListener, computed, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
+import { apriConfrontoGrafi } from '../../shell/confronto-grafi';
+import { GrafoDialog } from '../../shell/grafo';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatIconModule } from '@angular/material/icon';
@@ -30,10 +33,29 @@ export class Galleria {
   readonly lavoro = input<Lavoro | null>(null);
   readonly ricarica = output<void>();
 
-  private api = inject(ApiService);
+  protected api = inject(ApiService);
   private avvisi = inject(AvvisiService);
   private eventi = inject(EventiService);
   private snack = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
+
+  protected confrontaGrafi(file: string) {
+    apriConfrontoGrafi(this.dialog, { progetto: this.progetto(), personaggio: this.personaggio().id, file, nome: this.personaggio().nome });
+  }
+
+  protected grafo(file: string) {
+    this.dialog.open(GrafoDialog, { data: { url: this.api.urlGrafoImmagine(this.progetto(), this.personaggio().id, file) },
+      width: '96vw', maxWidth: '96vw', height: '90vh', panelClass: 'finestra-grafo' });
+  }
+  private nomiPose = signal<Record<string, string>>({});
+
+  constructor() {
+    this.api.pose().then((r) => this.nomiPose.set(Object.fromEntries(r.pose.map((p) => [p.id, p.nome])))).catch(() => undefined);
+  }
+
+  protected nomePosa(id: string) {
+    return this.nomiPose()[id] ?? id;
+  }
 
   protected filtro = signal<Filtro>('tutte');
   protected ordine = signal<Ordine>('numero');

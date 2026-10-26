@@ -163,3 +163,25 @@ def test_download_rovinato_non_lascia_file(casa, cartella_comfy, download):
         s = c.get("/api/componenti").json()
         assert [m["id"] for m in s["mancanti"]] == ["modello_ipadapter", "clip_vision_vit_h"]
         assert attendi(c, c.post("/api/componenti/installa").json()["id"])["stato"] == "completato"
+
+
+def test_installazione_controlnet_delle_pose(casa, cartella_comfy, download, monkeypatch):
+    """Il gruppo «pose» (ControlNet OpenPose) si installa a parte e non tocca la richiesta di IPAdapter all'apertura."""
+    (cn,) = comp.POSE
+    monkeypatch.setattr(comp, "POSE", [dataclasses.replace(cn, url=f"{download.url}/hf/clip.safetensors",
+                                                           byte=len(CLIP))])
+    stato, c = prepara(casa, cartella_comfy)
+    with c:
+        prima = c.get("/api/componenti").json()
+        s = c.get("/api/componenti?gruppo=pose").json()
+        assert [m["id"] for m in s["mancanti"]] == ["controlnet_openpose"] and s["gruppo"] == "pose"
+        assert stato.componenti == prima                    # lo stato di IPAdapter (finestra all'apertura) non cambia
+        l = attendi(c, c.post("/api/componenti/installa?gruppo=pose").json()["id"])
+        assert l["stato"] == "completato", l["errore"] and l["titolo"] == "Installazione di ControlNet OpenPose"
+        f = cartella_comfy / "models" / "controlnet" / "controlnet-openpose-sdxl-1.0-xinsir.safetensors"
+        assert f.read_bytes() == CLIP
+        assert c.get("/api/componenti?gruppo=pose").json()["mancanti"] == []
+        assert len(c.get("/api/componenti").json()["mancanti"]) == 3      # IPAdapter ancora da installare
+        r = c.post("/api/componenti/installa?gruppo=pose")
+        assert r.status_code == 400 and "ControlNet OpenPose è già installato" in r.json()["detail"]
+        assert "controlnet-openpose-sdxl-1.0-xinsir.safetensors" in c.get("/api/comfy/modelli").json()["controlnet"]

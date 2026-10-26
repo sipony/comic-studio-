@@ -257,6 +257,17 @@ dl {
   .mono {
     font-family: 'JetBrains Mono', Consolas, Menlo, monospace;
   }
+  .posa {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    img {
+      width: 40px;
+      height: 58px;
+      border-radius: 4px;
+      background: #000;
+    }
+  }
 }
 .scelta {
   display: flex;
@@ -300,4 +311,11 @@ dl {
   width: 14px;
   height: 14px;
   vertical-align: -2px;
+}
+
+.grafi {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
 }

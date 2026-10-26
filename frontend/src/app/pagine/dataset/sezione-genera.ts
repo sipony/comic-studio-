@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, input, model, signal } from '@angular/core';
+import { Component, computed, inject, input, model, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -58,6 +58,8 @@ import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
             </button>
           }
         </div>
+        <button mat-button class="massima" (click)="massima.emit()" [disabled]="avvio()">
+          <mat-icon>person_search</mat-icon> Massima somiglianza al riferimento</button>
         <p class="nota">Puoi fermarla quando vuoi: le immagini già fatte restano. Su una GPU da 8 GB conta circa 15-30 secondi a immagine.</p>
       }
     }
@@ -66,6 +68,7 @@ import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
     :host { display: flex; flex-direction: column; gap: 12px; }
     .due { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .pulsanti { display: flex; gap: 8px; flex-wrap: wrap; }
+    .massima { align-self: flex-start; }
     .nota { margin: 0; font-size: 12.5px; color: var(--mat-sys-on-surface-variant); }
     .problema { display: flex; gap: 6px; margin: 0; font-size: 13px; color: var(--cs-errore-testo); }
     .problema mat-icon { font-size: 18px; width: 18px; height: 18px; flex: 0 0 auto; }
@@ -83,6 +86,8 @@ export class SezioneGenera {
   readonly riepilogo = input<RiepilogoDataset | null>(null);
   readonly lavoro = input<Lavoro | null>(null);
   readonly prima = input<() => Promise<boolean>>(async () => true);
+  /** «Massima somiglianza al riferimento» (la prepara la pagina) */
+  readonly massima = output<void>();
 
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);

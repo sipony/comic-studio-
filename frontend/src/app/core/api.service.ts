@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  AnteprimaPromptProposte, RicettaProposta, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, ConfrontoGrafi, Posa, RicettaProposta, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -47,6 +47,14 @@ export class ApiService {
       if (e instanceof HttpErrorResponse && Array.isArray(e.error?.errori)) err.errori = e.error.errori;
       throw err;
     }
+  }
+  grafoSalvato(url: string) { return this.get<WorkflowLavoro>(url); }
+  urlGrafoProposta(progetto: string, pers: string, file: string) {
+    return `/api/progetti/${progetto}/personaggi/${pers}/proposte/${file}/workflow`;
+  }
+  urlGrafoImmagine(progetto: string, pers: string, file: string) { return `${this.ds(progetto, pers)}/immagini/${file}/workflow`; }
+  confrontoGrafi(progetto: string, pers: string, file: string) {
+    return this.get<ConfrontoGrafi>(`${this.ds(progetto, pers)}/immagini/${file}/confronto`);
   }
   urlWorkflowJson(id: string) { return `/api/lavori/${id}/workflow.json`; }
   annulla(id: string) { return this.post(`/api/lavori/${id}/annulla`); }
@@ -108,8 +116,12 @@ export class ApiService {
     return this.post<{ spostate_nel_cestino: number }>(`${this.dp(progetto, id)}/scarta`);
   }
 
-  componenti() { return this.get<StatoComponenti>('/api/componenti'); }
-  installaComponenti() { return this.post<Lavoro>('/api/componenti/installa'); }
+  componenti(gruppo: 'ipadapter' | 'pose' = 'ipadapter') { return this.get<StatoComponenti>(`/api/componenti?gruppo=${gruppo}`); }
+  installaComponenti(gruppo: 'ipadapter' | 'pose' = 'ipadapter') { return this.post<Lavoro>(`/api/componenti/installa?gruppo=${gruppo}`); }
+  pose() { return this.get<{ pose: Posa[]; tagli: string[] }>('/api/pose'); }
+  urlScheletro(id: string, larghezza = 208, altezza = 304, taglio = 'intera') {
+    return `/api/pose/${encodeURIComponent(id)}/scheletro?larghezza=${larghezza}&altezza=${altezza}&taglio=${taglio}`;
+  }
   chiediComponenti(chiedi: boolean) { return this.post<StatoComponenti>('/api/componenti/chiedi', { chiedi }); }
 
   avviaComfy() { return this.post<Lavoro>('/api/comfy/avvia'); }
@@ -203,8 +215,9 @@ export class ApiService {
   statoImmagine(progetto: string, pers: string, file: string, stato: StatoImmagine) {
     return this.patch<ImmagineDataset>(`${this.ds(progetto, pers)}/immagini/${file}`, { stato });
   }
-  genera(progetto: string, pers: string, quantita: number, sostituisci = false) {
-    return this.post<Lavoro>(`${this.ds(progetto, pers)}/genera`, { quantita, sostituisci });
+  massimaSomiglianza(progetto: string, pers: string) { return this.post<Lavoro>(`${this.ds(progetto, pers)}/somiglianza`); }
+  genera(progetto: string, pers: string, quantita: number, sostituisci = false, una_per_posa = false) {
+    return this.post<Lavoro>(`${this.ds(progetto, pers)}/genera`, { quantita, sostituisci, una_per_posa });
   }
   selezionaAuto(progetto: string, pers: string, quante: number) {
     return this.post<Lavoro>(`${this.ds(progetto, pers)}/seleziona`, { quante });

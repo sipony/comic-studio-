@@ -162,13 +162,17 @@ class ArchivioProposte:
         tmp.replace(d / "proposte.json")
 
     def aggiungi(self, pid: str, cid: str, dati: bytes, seme: int, prompt: str, da: str | None,
-                 ricetta: Ricetta | None = None) -> Proposta:
+                 ricetta: Ricetta | None = None, wf: dict | None = None) -> Proposta:
         with _lock:
             d = self.cartella(pid, cid)
             d.mkdir(parents=True, exist_ok=True)
             elenco = self.elenco(pid, cid)
             nome = f"proposta_{len(elenco) + 1:03d}_{int(time.time() * 1000) % 100000:05d}.png"
             (d / nome).write_bytes(dati)
+            if wf is not None:            # il workflow esatto mandato a ComfyUI, per rivederne il grafo
+                (d / "workflow").mkdir(exist_ok=True)
+                (d / "workflow" / (Path(nome).stem + ".json")).write_text(json.dumps(wf, ensure_ascii=False),
+                                                                          encoding="utf-8")
             p = Proposta(file=nome, seme=seme, prompt=prompt, da=da, ricetta=ricetta)
             elenco.append(p)
             self._salva(pid, cid, elenco)
@@ -181,6 +185,28 @@ class ArchivioProposte:
         if not f.exists():
             raise ErroreProgetto("Proposta inesistente", 404)
         return f
+
+    def workflow_di(self, pid: str, cid: str, nome: str) -> tuple[dict, bool]:
+        """Il workflow con cui è stata fatta la proposta: quello salvato (dalla 0.23) oppure ricostruito dalla ricetta,
+        dal prompt e dal seme (stesso codice che la genera). Restituisce (workflow, ricostruito)."""
+        self.file(pid, cid, nome)
+        f = self.cartella(pid, cid) / "workflow" / (Path(nome).stem + ".json")
+        if f.is_file():
+            return json.loads(f.read_text(encoding="utf-8")), False
+        p = self.leggi(pid, cid, nome)
+        if p is None or p.ricetta is None:
+            raise ErroreProgetto("Questa proposta è stata fatta prima della versione 0.16 e non ricorda come: indica il "
+                                 "checkpoint nel riquadro del dataset per ricostruirla.", 404)
+        from .modelinfo import TAG_QUALITA, famiglia_da_nome
+        r = p.ricetta
+        c = ConfigProposte(checkpoint=r.checkpoint, inquadratura=r.inquadratura if r.inquadratura in DIMENSIONI
+                           else "mezzo_busto", stile=r.stile, extra=r.extra, negativo=r.negativo or NEGATIVO,
+                           passi=r.passi, cfg=r.cfg, sampler=r.sampler, scheduler=r.scheduler, lora_stile=r.lora_stile,
+                           forza_lora=r.forza_lora, da=p.da, forza_variante=r.forza_variante)
+        q = TAG_QUALITA.get(famiglia_da_nome(r.checkpoint) or "sdxl", TAG_QUALITA["sdxl"])
+        negativo = pulisci(c.negativo.replace("{negativo_qualita}", q[1]))
+        wf, _ = workflow(c, p.prompt, negativo, p.seme, p.da)
+        return wf, True
 
     def leggi(self, pid: str, cid: str, nome: str) -> Proposta | None:
         return next((p for p in self.elenco(pid, cid) if p.file == nome), None)
@@ -216,5 +242,8 @@ class ArchivioProposte:
                 f = self.cartella(pid, cid) / p.file
                 if f.exists():
                     shutil.move(str(f), str(cestino / p.file))
+                w = self.cartella(pid, cid) / "workflow" / (Path(p.file).stem + ".json")
+                if w.exists():
+                    shutil.move(str(w), str(cestino / w.name))
             self._salva(pid, cid, restano)
             return len(via)

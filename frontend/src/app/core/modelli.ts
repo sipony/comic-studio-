@@ -270,14 +270,39 @@ export interface ConfigDataset {
   tag_qualita_negativi: string | null;
   /** {stile}: tag di stile (presi dalle proposte, se ci sono) */
   stile?: string;
+  /** {aspetto}: vestiti, capelli, accessori letti dal tagger sull'immagine di riferimento */
+  aspetto?: string;
   varianti: Varianti;
   modifiche: Record<string, Record<string, unknown>>;
   /** con un workflow img2img: pose dalle varianti (da zero) o composizione del riferimento */
   composizione?: 'libera' | 'riferimento';
   /** nodi del workflow staccati per questo personaggio (Comic Studio ricollega il resto) */
   disattivati?: string[];
+  /** pose guidate (ControlNet OpenPose con gli scheletri della libreria) */
+  pose?: PoseGuidate;
   quantita: number;
   da_tenere: number;
+}
+
+export interface PoseGuidate {
+  attive: boolean;
+  /** null = il primo ControlNet OpenPose trovato */
+  controlnet: string | null;
+  /** id delle pose scelte; vuoto = tutte */
+  pose: string[];
+  specchiate: boolean;
+  forza: number;
+  fine: number;
+}
+
+export interface Posa {
+  id: string;
+  nome: string;
+  tag: string;
+  vista: string;
+  di_spalle: boolean;
+  figura_intera: boolean;
+  specchiata: boolean;
 }
 
 export interface RiepilogoDataset {
@@ -305,10 +330,13 @@ export interface ImmagineDataset {
   stato: StatoImmagine;
   manuale: boolean;
   punteggio: number | null;
+  /** id della posa guidata, se c'era */
+  posa?: string;
 }
 
 export interface EsempioPrompt {
   inquadratura: string;
+  posa?: string | null;
   dimensioni: string;
   positivo: string;
   negativo: string;
@@ -765,6 +793,8 @@ export interface StatoComponenti {
   comfy_avviato_da_noi: boolean;
   comfy_connesso: boolean;
   messaggio_spazio: string | null;
+  gruppo?: 'ipadapter' | 'pose';
+  nome?: string;
 }
 
 // ------------------------------------------------------------ grafo del workflow mandato a ComfyUI
@@ -787,6 +817,34 @@ export interface WorkflowLavoro {
   workflow: Record<string, unknown>;
   grafo: { nodi: NodoGrafo[]; collegamenti: CollegamentoGrafo[]; da_comfy: boolean };
   impostazioni: ImpostazioniGrafo;
+  /** workflow salvati (proposte, dataset): dove scaricare il JSON e se è stato ricostruito */
+  url_json?: string;
+  ricostruito?: boolean;
+  nota?: string | null;
+}
+
+export interface RigaConfrontoGrafi {
+  tipo: 'solo_a' | 'solo_b' | 'collegamento' | 'passa_per' | 'valore';
+  nodo_a: string | null;
+  nodo_b: string | null;
+  classe: string;
+  titolo: string;
+  campo: string | null;
+  a: unknown;
+  b: unknown;
+  testo: string;
+  solo_a?: string[];
+  solo_b?: string[];
+}
+
+export interface ConfrontoGrafi {
+  proposta: WorkflowLavoro;
+  immagine: WorkflowLavoro;
+  file_proposta: string;
+  righe: RigaConfrontoGrafi[];
+  evidenzia_a: Record<string, string[]>;
+  evidenzia_b: Record<string, string[]>;
+  uguali: boolean;
 }
 
 /** Tipo e limiti di un'impostazione di un nodo (da /object_info di ComfyUI o dagli elenchi noti). */

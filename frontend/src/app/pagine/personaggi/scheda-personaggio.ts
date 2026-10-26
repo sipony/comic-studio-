@@ -1,6 +1,8 @@
 import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
+import { GrafoDialog } from '../../shell/grafo';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -32,6 +34,7 @@ export class SchedaPersonaggio {
 
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);
+  private dialog = inject(MatDialog);
   protected eventi = inject(EventiService);
   private sceltaIA = inject(SceltaIAService);
   protected generi = GENERI;
@@ -303,6 +306,11 @@ export class SchedaPersonaggio {
 
   protected async ferma(id: string) {
     await this.api.annulla(id).catch((e) => this.avvisi.errore(e));
+  }
+
+  protected grafo(file: string) {
+    this.dialog.open(GrafoDialog, { data: { url: this.api.urlGrafoProposta(this.progetto(), this.personaggio().id, file) },
+      width: '96vw', maxWidth: '96vw', height: '90vh', panelClass: 'finestra-grafo' });
   }
 
   protected urlProposta(file: string) {
