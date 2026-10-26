@@ -11,6 +11,8 @@ export interface RigaLog {
   msg: string;
   lavoro: string | null;
   ts: number;
+  /** la riga dice quale workflow il lavoro ha mandato a ComfyUI: si può vedere il grafo */
+  grafo?: boolean;
 }
 
 export interface Lavoro {
@@ -29,6 +31,8 @@ export interface Lavoro {
   finito: number | null;
   anteprima?: number;          // numero dell'ultima anteprima (0 = nessuna)
   annullando?: boolean;
+  /** quante volte ha mandato un workflow a ComfyUI (0 = mai) */
+  workflow?: number;
 }
 
 export interface StatoComfy {
@@ -159,6 +163,7 @@ export type Evento =
   | { tipo: 'diagnostica'; dati: Rapporto; ts: number }
   | { tipo: 'benvenuto'; comfy: StatoComfy; lavori: Lavoro[]; componenti?: StatoComponenti | null; ts?: number }
   | { tipo: 'componenti'; dati: StatoComponenti; ts: number }
+  | { tipo: 'workflow'; lavoro: string; n: number; ts: number }
   | EventoDataset
   | EventoDidascalie
   | EventoAddestramento
@@ -756,4 +761,25 @@ export interface StatoComponenti {
   comfy_avviato_da_noi: boolean;
   comfy_connesso: boolean;
   messaggio_spazio: string | null;
+}
+
+// ------------------------------------------------------------ grafo del workflow mandato a ComfyUI
+
+export interface IngressoGrafo { nome: string; tipo: string; da: string; uscita: number }
+export interface UscitaGrafo { nome: string; tipo: string }
+export interface NodoGrafo {
+  id: string;
+  classe: string;
+  titolo: string;
+  ingressi: IngressoGrafo[];
+  widget: { nome: string; valore: unknown }[];
+  uscite: UscitaGrafo[];
+}
+export interface CollegamentoGrafo { da: string; uscita: number; a: string; ingresso: string; tipo: string }
+export interface WorkflowLavoro {
+  lavoro: Lavoro;
+  n: number;
+  riassunto: string;
+  workflow: Record<string, unknown>;
+  grafo: { nodi: NodoGrafo[]; collegamenti: CollegamentoGrafo[]; da_comfy: boolean };
 }

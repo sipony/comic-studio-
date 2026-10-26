@@ -138,6 +138,12 @@ export class EventiService {
       case 'componenti':
         this.componenti.set(e.dati);
         break;
+      case 'workflow':
+        this.lavori.update((l) => {
+          const x = l[e.lavoro];
+          return x ? { ...l, [e.lavoro]: { ...x, workflow: e.n } } : l;
+        });
+        break;
       case 'chiusura':
         this.chiuso.set(true);
         break;

@@ -100,3 +100,10 @@ a {
     padding: 20px 16px 40px;
   }
 }
+
+// grafo del workflow a tutto schermo
+.finestra-grafo .mat-mdc-dialog-surface {
+  background: #202020;
+  overflow: hidden;
+  padding: 0;
+}

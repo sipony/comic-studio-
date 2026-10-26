@@ -194,6 +194,7 @@ async def genera(pid: str, dati: Genera, req: Request):
 
                 def avanza(x, t, k=k):
                     l.avanza(quota + (1 - quota) * (k + x) / len(da_fare), f"vignetta {k + 1}/{len(da_fare)} · {t}")
+                l.registra_workflow(wf)
                 uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
                 img = (uscite.get(salva_id) or next(iter(uscite.values()), [None]))[0]
                 if not img:

@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  AnteprimaPromptProposte, CatalogoIA, StatoComponenti, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, CatalogoIA, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -37,6 +37,8 @@ export class ApiService {
   sistema() { return this.get<Sistema>('/api/sistema'); }
   log(n = 1000) { return this.get<RigaLog[]>('/api/log', { n: String(n) }); }
   lavori() { return this.get<Lavoro[]>('/api/lavori'); }
+  workflowLavoro(id: string) { return this.get<WorkflowLavoro>(`/api/lavori/${id}/workflow`); }
+  urlWorkflowJson(id: string) { return `/api/lavori/${id}/workflow.json`; }
   annulla(id: string) { return this.post(`/api/lavori/${id}/annulla`); }
   annullaTutti() { return this.post<{ annullati: number }>('/api/lavori/annulla'); }
 

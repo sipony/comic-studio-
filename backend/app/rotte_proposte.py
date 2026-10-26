@@ -73,6 +73,7 @@ async def genera(pid: str, cid: str, c: ConfigProposte, req: Request):
 
                 def avanza(x, t, i=i):
                     l.avanza(0.05 + 0.95 * (i + x) / c.numero, f"proposta {i + 1}/{c.numero} · {t}")
+                l.registra_workflow(wf)
                 uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
                 img = (uscite.get(salva) or next(iter(uscite.values()), [None]))[0]
                 if not img:
