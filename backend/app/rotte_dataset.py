@@ -4,26 +4,29 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import re
 import time
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 
 from .comfy.client import ComfyErrore
-from .dataset import (ArchivioDataset, ConfigDataset, InfoImmagine, componi, crea_variante, modello_positivo,
-                      tag_qualita, valori_prompt)
+from . import pose as libreria_pose
+from .dataset import (ArchivioDataset, ConfigDataset, InfoImmagine, componi, con_posa, crea_variante,
+                      modello_positivo, pose_scelte, scegli_controlnet_posa, tag_qualita, valori_prompt)
 from .jobs import Lavoro
 from .projects import ErroreProgetto
 from .settings import cartella_dati
 from .somiglianza import scegli, valutatore
 from .esclusione import escludi, titolo as titolo_nodo
 from .modelinfo import famiglia_da_nome
-from .workflows import ErroreWorkflow, analizza, applica, controlla_ruoli, guide_identita, img2img, normalizza, per_invio
+from .workflows import (ErroreWorkflow, aggiungi_posa, analizza, applica, controlla_ruoli, guide_identita, img2img,
+                        normalizza, per_invio)
 
 rotte = APIRouter(prefix="/api/progetti/{pid}")
 
@@ -349,6 +352,31 @@ async def esclusione(pid: str, cid: str, c: ConfigDataset, req: Request):
 class Genera(BaseModel):
     quantita: int = Field(ge=1, le=2000)
     sostituisci: bool = False
+    # «una immagine per posa»: una figura intera per ognuna delle pose scelte (la quantità non conta)
+    una_per_posa: bool = False
+
+
+async def controlnet_posa(app, config: ConfigDataset, checkpoint: str | None) -> str:
+    """Il ControlNet da usare per le pose guidate (quello scelto, altrimenti il primo OpenPose che ComfyUI vede)."""
+    elenco = (await app.modelli()).get("controlnet") or []
+    if config.pose.controlnet:
+        if elenco and config.pose.controlnet not in elenco:
+            raise HTTPException(400, f"Il ControlNet «{config.pose.controlnet}» non c'è più in ComfyUI: scegline un "
+                                     "altro in Dataset → Pose guidate.")
+        return config.pose.controlnet
+    scelto = scegli_controlnet_posa(elenco, famiglia_da_nome(checkpoint or ""))
+    if not scelto:
+        raise HTTPException(400, "Per le pose guidate serve un ControlNet OpenPose SDXL: installalo da Dataset → Pose "
+                                 "guidate (pulsante «Installa»), oppure mettilo in ComfyUI/models/controlnet.")
+    return scelto
+
+
+def inquadratura_intera(config: ConfigDataset):
+    """L'inquadratura della figura intera (per «una immagine per posa»): quella che lo dice, altrimenti la più alta."""
+    inq = config.varianti.inquadrature
+    return next((i for i in inq if libreria_pose.taglio(f"{i.testo} {i.nome}") == "intera"
+                 and re.search(r"full body|figura intera", f"{i.testo} {i.nome}", re.I)),
+                max(inq, key=lambda i: i.altezza / i.larghezza))
 
 
 @rotte.post("/personaggi/{cid}/dataset/genera")
@@ -372,6 +400,14 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
         usa_riferimento = usa_riferimento and ruoli.riferimento not in prova.esclusi
     if usa_riferimento and not pers.riferimento:
         raise HTTPException(400, f"{pers.nome} non ha un'immagine di riferimento: caricala nella pagina Personaggi.")
+    con_pose = config.pose.attive or dati.una_per_posa
+    pose = pose_scelte(config.pose) if con_pose else []
+    controlnet = None
+    if con_pose:
+        if not pose:
+            raise HTTPException(400, "Scegli almeno una posa in Dataset → Pose guidate.")
+        controlnet = await controlnet_posa(app, config, analizza(voce.workflow).checkpoint)
+    quantita = len(pose) if dati.una_per_posa else dati.quantita
 
     async def lavoro(l: Lavoro):
         if dati.sostituisci:
@@ -383,11 +419,19 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
         checkpoint = analisi.checkpoint
         qualita = tag_qualita(checkpoint, config)
         da_rif = img2img(voce.workflow, ruoli.riferimento)
-        libera = bool(da_rif) and config.composizione == "libera"
+        libera = bool(da_rif) and (config.composizione == "libera" or con_pose)
         classe_latente = _classe_latente(checkpoint)
         if config.disattivati:
             l.log(f"Nodi staccati: {', '.join(titolo_nodo(voce.workflow, n) for n in prova.esclusi)}. "
                   + (f"Ricollegati: {'; '.join(x['testo'] for x in prova.collegamenti)}." if prova.collegamenti else ""))
+        if con_pose:
+            l.log(f"Pose guidate con {controlnet} (forza {config.pose.forza}, fino al {round(config.pose.fine * 100)}% "
+                  f"dei passi): {len(pose)} pose"
+                  + (", una immagine per posa a figura intera" if dati.una_per_posa else ", a turno"))
+            if not guide_identita(voce.workflow, ruoli.riferimento) and not analisi.lora:
+                l.log("Senza IPAdapter né LoRA del personaggio lo scheletro decide la posa ma non l'aspetto: per un "
+                      "personaggio identico usa il workflow con IPAdapter («Rendi il dataset identico alle proposte»).",
+                      "avviso")
         if libera:
             l.log("Il workflow è img2img: ogni immagine parte da zero con la posa e l'inquadratura della "
                   "variante, non da quelle del riferimento.")
@@ -412,12 +456,25 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                 nome_rif = await client.carica_immagine(copia)
                 copia.unlink(missing_ok=True)
                 l.log(f"Immagine di riferimento caricata in ComfyUI ({nome_rif})")
+            rotazione = libreria_pose.Rotazione(pose)
+            scheletri: dict[tuple, str] = {}
+            cartella_pose = cartella_dati() / "tmp" / "pose"
+            intera = inquadratura_intera(config) if dati.una_per_posa else None
             inizio = time.time()
-            for k in range(dati.quantita):
+            for k in range(quantita):
                 l.controlla()
                 numero = a.prossimo_numero(pid, cid)
-                var = crea_variante(config.varianti, conteggio, rng)
-                val = valori_prompt(pers, var, qualita, config.stile)
+                if intera:
+                    var = crea_variante(config.varianti.model_copy(update={"inquadrature": [intera]}), conteggio, rng)
+                else:
+                    var = crea_variante(config.varianti, conteggio, rng)
+                posa = None
+                if con_pose:
+                    t = libreria_pose.taglio(f"{var['inquadratura']} {var['_nome_inquadratura']}")
+                    posa = pose[k % len(pose)] if intera else rotazione.prossima(t)
+                    if posa:
+                        var = con_posa(var, posa)
+                val = valori_prompt(pers, var, qualita, config.stile, config.aspetto)
                 positivo = componi(modello_positivo(config), val)
                 negativo = componi(config.prompt_negativo, val)
                 larghezza, altezza = (int(x) for x in var["_dimensioni"].split("x"))
@@ -427,12 +484,23 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                              prefisso=f"comic_studio/{pid}/{cid}/dataset", modifiche=config.modifiche,
                              composizione_libera=libera, classe_latente=classe_latente,
                              disattivati=config.disattivati, info=info_nodi)
-                l.log(f"Immagine {k + 1}/{dati.quantita} · {var['_nome_inquadratura']}: {var['variante']}")
+                if posa:
+                    chiave = (posa.id, larghezza, altezza, t)
+                    if chiave not in scheletri:
+                        cartella_pose.mkdir(parents=True, exist_ok=True)
+                        f = cartella_pose / f"{pid}_{cid}_posa_{posa.id}_{larghezza}x{altezza}_{t}.png"
+                        f.write_bytes(libreria_pose.png(posa, larghezza, altezza, t))
+                        scheletri[chiave] = await client.carica_immagine(f)
+                        f.unlink(missing_ok=True)
+                    aggiungi_posa(wf, controlnet, scheletri[chiave], config.pose.forza, 0.0, config.pose.fine)
+                l.log(f"Immagine {k + 1}/{quantita} · {var['_nome_inquadratura']}"
+                      + (f" · posa «{posa.nome}»" if posa else "") + f": {var['variante']}")
 
                 def avanza(v, t, k=k):
-                    l.avanza((k + v) / dati.quantita, f"immagine {k + 1}/{dati.quantita} · {t}")
+                    l.avanza((k + v) / quantita, f"immagine {k + 1}/{quantita} · {t}")
                 l.registra_workflow(wf, {"tipo": "dataset", "progetto": pid, "personaggio": cid,
-                                         "workflow": config.workflow, "libera": libera})
+                                         "workflow": config.workflow, "libera": libera,
+                                         "posa": posa.id if posa else None})
                 uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
                 immagini_uscite = uscite.get(ruoli.salva) if ruoli.salva else None
                 immagini_uscite = immagini_uscite or next(iter(uscite.values()), None)
@@ -443,17 +511,19 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                 l.imposta_anteprima(dati_img, "image/png", finale=True)
                 info = InfoImmagine(file=f"{numero:04d}.png", numero=numero, inquadratura=var["_nome_inquadratura"],
                                     variante=var["variante"], prompt=positivo, seme=seme,
-                                    larghezza=larghezza, altezza=altezza)
-                await asyncio.to_thread(a.aggiungi_immagine, pid, cid, dati_img, info)
+                                    larghezza=larghezza, altezza=altezza, posa=posa.id if posa else "")
+                await asyncio.to_thread(a.aggiungi_immagine, pid, cid, dati_img, info, wf)
                 app.bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "nuova",
                                   "immagine": info.model_dump()})
                 trascorso = time.time() - inizio
-                resto = trascorso / (k + 1) * (dati.quantita - k - 1)
-                l.avanza((k + 1) / dati.quantita, f"{k + 1}/{dati.quantita} fatte · mancano circa {_durata(resto)}")
-        l.log(f"Generate {dati.quantita} immagini di {pers.nome} in {_durata(time.time() - inizio)}", "ok")
-        return {"generate": dati.quantita}
+                resto = trascorso / (k + 1) * (quantita - k - 1)
+                l.avanza((k + 1) / quantita, f"{k + 1}/{quantita} fatte · mancano circa {_durata(resto)}")
+        l.log(f"Generate {quantita} immagini di {pers.nome} in {_durata(time.time() - inizio)}", "ok")
+        return {"generate": quantita}
 
-    l = app.gestore.avvia("dataset_genera", f"Dataset di {pers.nome}: {dati.quantita} immagini", lavoro,
+    titolo = f"Dataset di {pers.nome}: " + (f"una immagine per posa ({quantita})" if dati.una_per_posa
+                                             else f"{quantita} immagini")
+    l = app.gestore.avvia("dataset_genera", titolo, lavoro,
                           progetto=pid, esclusivo=True)
     return l.dict()
 
@@ -541,3 +611,179 @@ async def nodi(req: Request, classi: str, ricarica: bool = False):
             out[c] = {"input": d.get("input", {}), "input_order": d.get("input_order"),
                       "display_name": d.get("display_name"), "category": d.get("category")}
     return out
+
+
+# ---------------------------------------------------------------- libreria delle pose
+
+rotte_pose = APIRouter(prefix="/api/pose")
+
+
+@rotte_pose.get("")
+async def elenco_pose():
+    return {"pose": [libreria_pose.info(p) for p in libreria_pose.elenco(con_specchiate=True)],
+            "tagli": list(libreria_pose.TAGLI)}
+
+
+@rotte_pose.get("/{id_posa}/scheletro")
+async def scheletro(id_posa: str, larghezza: int = 416, altezza: int = 608, taglio: str = "intera"):
+    """Lo scheletro OpenPose di una posa (PNG), come quello che riceve il ControlNet."""
+    try:
+        p = libreria_pose.trova(id_posa)
+    except KeyError:
+        raise HTTPException(404, f"Posa «{id_posa}» non trovata") from None
+    if taglio not in libreria_pose.TAGLI:
+        raise HTTPException(400, f"Taglio non valido: {', '.join(libreria_pose.TAGLI)}")
+    if not (64 <= larghezza <= 2048 and 64 <= altezza <= 2048):
+        raise HTTPException(400, "Dimensioni tra 64 e 2048")
+    dati = await asyncio.to_thread(libreria_pose.png, p, larghezza, altezza, taglio)
+    return Response(dati, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
+
+
+# ---------------------------------------------------------------- grafi salvati e confronto con la proposta
+
+NOTA_RICOSTRUITO = {
+    "proposta": "Proposta fatta prima della 0.23: il workflow è ricostruito dalla sua ricetta, dal prompt e dal seme con "
+                "lo stesso codice che l'ha generata.",
+    "immagine": "Immagine fatta prima della 0.23: il workflow è ricostruito con la configurazione attuale del dataset e "
+                "il prompt, il seme e le dimensioni dell'immagine (se nel frattempo hai cambiato workflow o nodi, "
+                "allora era diverso).",
+}
+
+
+async def pacchetto_grafo(app, wf: dict, titolo: str, ricostruito: bool, tipo: str, url_json: str) -> dict:
+    """Un workflow salvato nella stessa forma del grafo di un lavoro (sola lettura), per la stessa vista."""
+    from .grafo import descrivi, riassunto
+    info = await _info_nodi(app)
+    return {"lavoro": {"id": "", "titolo": titolo, "tipo": tipo}, "n": 1, "riassunto": riassunto(wf), "workflow": wf,
+            "grafo": descrivi(wf, info), "url_json": url_json,
+            "impostazioni": {"sorgente": None, "campi": {}}, "ricostruito": ricostruito,
+            "nota": NOTA_RICOSTRUITO[tipo] if ricostruito else None}
+
+
+def _json_scaricabile(wf: dict, nome: str) -> Response:
+    return Response(json.dumps(per_invio(wf), indent=2, ensure_ascii=False), media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{nome}"'})
+
+
+@rotte.get("/personaggi/{cid}/dataset/immagini/{file}/workflow")
+async def workflow_immagine(pid: str, cid: str, file: str, req: Request, formato: str = "grafo"):
+    a = _archivio(req)
+    wf, ricostruito = a.workflow_immagine(pid, cid, file)
+    if formato == "json":
+        return _json_scaricabile(wf, f"comic-studio-{cid}-dataset-{Path(file).stem}.json")
+    _, pers = a.personaggio(pid, cid)
+    return await pacchetto_grafo(_app(req), wf, f"Dataset di {pers.nome} · immagine {Path(file).stem}", ricostruito,
+                                 "immagine", f"/api/progetti/{pid}/personaggi/{cid}/dataset/immagini/{file}/workflow"
+                                             "?formato=json")
+
+
+@rotte.get("/personaggi/{cid}/dataset/immagini/{file}/confronto")
+async def confronto_grafi(pid: str, cid: str, file: str, req: Request):
+    """Il grafo della proposta da cui è nato il personaggio (il riferimento) e quello di questa immagine del dataset,
+    con le differenze nodo per nodo (i prompt tag per tag). Seme e nome dei file cambiano sempre e non si contano."""
+    from .grafo import confronta
+    from .proposte import ArchivioProposte
+    app = _app(req)
+    a = _archivio(req)
+    _, pers = a.personaggio(pid, cid)
+    ap = ArchivioProposte(app.progetti)
+    scelta = next((p for p in ap.elenco(pid, cid) if p.scelta), None)
+    if scelta is None:
+        raise HTTPException(404, f"L'immagine di riferimento di {pers.nome} non viene da una proposta: non c'è un "
+                                 "workflow di partenza da confrontare.")
+    wp, rp = ap.workflow_di(pid, cid, scelta.file)
+    wd, rd = a.workflow_immagine(pid, cid, file)
+    d = confronta(wp, wd, "proposta", "dataset", ignora=("seed", "noise_seed", "filename_prefix", "image"))
+    base = f"/api/progetti/{pid}/personaggi/{cid}"
+    return {"proposta": await pacchetto_grafo(app, wp, f"Proposta scelta come riferimento · {scelta.file}", rp,
+                                              "proposta", f"{base}/proposte/{scelta.file}/workflow?formato=json"),
+            "immagine": await pacchetto_grafo(app, wd, f"Dataset · immagine {Path(file).stem}", rd, "immagine",
+                                              f"{base}/dataset/immagini/{file}/workflow?formato=json"),
+            "file_proposta": scelta.file, **d}
+
+
+# ---------------------------------------------------------------- massima somiglianza al riferimento
+
+SFONDI_PROPOSTE = ["white background", "white background", "simple background"]
+
+
+def carica_tagger(*a, **k):
+    from .didascalie import carica_tagger as carica
+    return carica(*a, **k)
+
+
+@rotte.post("/personaggi/{cid}/dataset/somiglianza")
+async def massima_somiglianza(pid: str, cid: str, req: Request):
+    """Prepara il dataset perché le immagini, in pose diverse, vengano il più possibile uguali al riferimento:
+    aspetto del riferimento nel prompt (tagger), sfondi come le proposte, IPAdapter più forte e su tutta la figura,
+    pose guidate (se c'è il ControlNet). Cambia solo la configurazione del personaggio, il workflow resta com'è."""
+    app = _app(req)
+    a = _archivio(req)
+    _, pers = a.personaggio(pid, cid)
+    if not pers.riferimento:
+        raise HTTPException(400, f"{pers.nome} non ha un'immagine di riferimento: caricala o scegli una proposta.")
+    config = a.config(pid, cid)
+    if not config.workflow:
+        raise HTTPException(400, "Scegli prima un workflow (o «Rendi il dataset identico alle proposte»).")
+
+    async def lavoro(l: Lavoro):
+        from .dataset import aspetto_da_tag
+        from .didascalie import ConfigDidascalie
+        fatto: list[str] = []
+        c = a.config(pid, cid)
+        voce, _ = a.ruoli_effettivi(pid, c)
+        # 1) aspetto dal riferimento
+        l.avanza(0.02, "preparo il tagger")
+        try:
+            tagger = await asyncio.to_thread(carica_tagger, cartella_dati() / "modelli", ConfigDidascalie().modello,
+                                             lambda v, t: l.avanza(0.02 + v * 0.6, t), l.log)
+            rif = app.progetti.file_riferimento(pid, cid)
+            tag = (await asyncio.to_thread(tagger.tagga, [rif])).get(rif.name, {})
+            aspetto = aspetto_da_tag(tag, pers, c.stile)
+            c.aspetto = ", ".join(aspetto)
+            if aspetto:
+                fatto.append(f"aspetto del riferimento nel prompt: {c.aspetto}")
+            else:
+                l.log("Il tagger non ha trovato nel riferimento tratti che la descrizione non dica già.", "info")
+        except ErroreProgetto as e:
+            l.log(f"Aspetto dal riferimento saltato: {e}", "avviso")
+        l.controlla()
+        # 2) sfondi come le proposte
+        if any(s.strip().lower() not in ("white background", "simple background") for s in c.varianti.sfondi):
+            c.varianti.sfondi = list(SFONDI_PROPOSTE)
+            fatto.append("sfondi bianchi o semplici come nelle proposte")
+        # 3) IPAdapter più forte e su tutta la figura
+        mod = {k: dict(v) for k, v in c.modifiche.items()}
+        ip = [k for k, n in voce.workflow.items() if n.get("class_type") in ("IPAdapterAdvanced", "IPAdapter")]
+        prep = [k for k, n in voce.workflow.items() if n.get("class_type") == "PrepImageForClipVision"]
+        for k in ip:
+            ing = voce.workflow[k]["inputs"]
+            mod.setdefault(k, {}).update({x: v for x, v in (("weight", 0.9), ("end_at", 1.0)) if x in ing})
+        for k in prep:
+            mod.setdefault(k, {})["crop_position"] = "pad"
+        if ip:
+            c.modifiche = mod
+            fatto.append("IPAdapter con peso 0,9 fino all'ultimo passo, sul riferimento intero (ritaglio «pad»)")
+        else:
+            l.log("Nel workflow non c'è IPAdapter: senza, l'aspetto lo tengono solo prompt e seme. Usa «Rendi il "
+                  "dataset identico alle proposte» con IPAdapter Plus installato, poi ripeti.", "avviso")
+        # 4) pose guidate
+        cn = scegli_controlnet_posa((await app.modelli()).get("controlnet") or [],
+                                    famiglia_da_nome(analizza(voce.workflow).checkpoint or ""))
+        if cn or c.pose.controlnet:
+            if not c.pose.attive:
+                c.pose.attive = True
+                fatto.append("pose guidate dallo scheletro (ControlNet OpenPose)")
+        else:
+            l.log("Per le pose guidate manca il ControlNet OpenPose: installalo da Dataset → Pose guidate.", "avviso")
+        a.salva_config(pid, cid, c)
+        app.bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "config"})
+        for x in fatto:
+            l.log(f"Massima somiglianza · {x}", "ok")
+        l.log("Fatto. Le immagini già generate restano: rigenera (o «Rifai da capo») per vedere la differenza. "
+              "Per un personaggio identico al 100%: addestra un primo LoRA sulle migliori e rigenera il dataset con "
+              "quel LoRA.", "ok")
+        return {"fatto": fatto, "aspetto": c.aspetto}
+
+    return app.gestore.avvia("dataset_somiglianza", f"Massima somiglianza per {pers.nome}", lavoro,
+                             progetto=pid).dict()

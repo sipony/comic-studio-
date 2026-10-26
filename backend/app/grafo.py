@@ -117,4 +117,145 @@ def firma(wf: dict) -> tuple:
                         for k, n in wf.items()))
 
 
-__all__ = ["USCITE_NOTE", "descrivi", "firma", "riassunto"]
+# ---------------------------------------------------------------- confronto di due workflow
+
+def _percorsi(wf: dict) -> dict[str, str]:
+    """Per ogni nodo, il percorso più corto (per nomi degli ingressi) dal nodo che salva: identifica il «ruolo» del
+    nodo indipendentemente dai numeri. Es. «SaveImage.images ← VAEDecode.samples ← KSampler.positive ←
+    CLIPTextEncode» è il prompt positivo in qualunque workflow."""
+    from collections import deque
+    pozzi = [k for k, n in wf.items() if n.get("class_type") in ("SaveImage", "PreviewImage")] or \
+        [k for k in wf if not any(_link(v) and str(v[0]) == k for n in wf.values() for v in n.get("inputs", {}).values())]
+    out: dict[str, str] = {}
+    coda = deque((k, wf[k].get("class_type", "?")) for k in sorted(pozzi))
+    while coda:
+        k, percorso = coda.popleft()
+        if k in out:
+            continue
+        out[k] = percorso
+        for nome in sorted(wf[k].get("inputs", {})):
+            v = wf[k]["inputs"][nome]
+            if _link(v) and str(v[0]) in wf and str(v[0]) not in out:
+                coda.append((str(v[0]), f"{percorso}.{nome} ← {wf[str(v[0])].get('class_type', '?')}"))
+    for k, n in wf.items():                              # nodi staccati da tutto
+        out.setdefault(k, f"staccato ← {n.get('class_type', '?')}")
+    return out
+
+
+def _tag(t: str) -> list[str]:
+    return [x.strip() for x in str(t).split(",") if x.strip()]
+
+
+def abbina(a: dict, b: dict) -> list[tuple[str | None, str | None]]:
+    """Coppie di nodi (a, b) con lo stesso ruolo: prima per percorso dal salvataggio, poi per classe se è unica."""
+    pa, pb = _percorsi(a), _percorsi(b)
+    comuni = {n.get("class_type") for n in a.values()} & {n.get("class_type") for n in b.values()}
+
+    def ridotto(percorso: str) -> str:
+        """Il percorso senza i nodi che ci sono solo in uno dei due (IPAdapter, ControlNet…): la LoRA resta «quella che
+        arriva al modello del campionatore» anche se nel mezzo c'è un IPAdapter."""
+        pezzi, tenuti = percorso.split(" ← "), []
+        for x in pezzi[:-1]:
+            classe, _, ingresso = x.partition(".")
+            if classe in comuni:
+                tenuti.append(x)
+            elif tenuti:          # conta l'ingresso del nodo tolto: ControlNet.positive → è il prompt positivo
+                tenuti[-1] = tenuti[-1].split(".")[0] + "." + ingresso
+        return " ← ".join(tenuti + pezzi[-1:])
+
+    coppie, usati_a, usati_b = [], set(), set()
+    for chiave in (lambda x: x, ridotto):
+        per_b: dict[str, list[str]] = {}
+        for k in sorted(b, key=lambda x: (len(x), x)):
+            if k not in usati_b:
+                per_b.setdefault(chiave(pb[k]), []).append(k)
+        for k in sorted(a, key=lambda x: (len(x), x)):
+            if k in usati_a:
+                continue
+            cand = [x for x in per_b.get(chiave(pa[k]), []) if x not in usati_b]
+            if cand:
+                coppie.append((k, cand[0]))
+                usati_a.add(k)
+                usati_b.add(cand[0])
+    soli_a = [k for k in a if k not in usati_a]
+    for k in list(soli_a):
+        classe = a[k].get("class_type")
+        cand = [x for x in b if x not in usati_b and b[x].get("class_type") == classe]
+        if len(cand) == 1 and sum(1 for x in soli_a if a[x].get("class_type") == classe) == 1:
+            coppie.append((k, cand[0]))
+            usati_b.add(cand[0])
+            soli_a.remove(k)
+    return coppie + [(k, None) for k in soli_a] + [(None, k) for k in b if k not in usati_b]
+
+
+def _classi_a_monte(wf: dict, k: str) -> set[str]:
+    visti, pila = set(), [k]
+    while pila:
+        x = pila.pop()
+        if x in visti or x not in wf:
+            continue
+        visti.add(x)
+        pila += [str(v[0]) for v in wf[x].get("inputs", {}).values() if _link(v)]
+    return {wf[x].get("class_type") for x in visti if x != k}
+
+
+def confronta(a: dict, b: dict, nome_a: str = "A", nome_b: str = "B", ignora: tuple[str, ...] = ()) -> dict:
+    """Le differenze tra due workflow, nodo per nodo: valori diversi (i testi anche tag per tag), nodi solo in uno dei
+    due, collegamenti diversi. `ignora`: ingressi che si sa che cambiano (es. seed, filename_prefix)."""
+    righe: list[dict] = []
+    classi_a = {n.get("class_type") for n in a.values()}
+    evid_a: dict[str, list[str]] = {}
+    evid_b: dict[str, list[str]] = {}
+    for ka, kb in abbina(a, b):
+        na, nb = a.get(ka) if ka else None, b.get(kb) if kb else None
+        classe = (na or nb).get("class_type", "?")
+        titolo = ((na or nb).get("_meta") or {}).get("title") or classe
+        if na is None or nb is None:
+            dove = nome_b if nb else nome_a
+            righe.append({"tipo": "solo_b" if nb else "solo_a", "nodo_a": ka, "nodo_b": kb, "classe": classe,
+                          "titolo": titolo, "campo": None, "a": None, "b": None,
+                          "testo": f"{titolo} ({classe}) c'è solo in {dove}"})
+            (evid_b if nb else evid_a).setdefault(kb or ka, []).append("*")
+            continue
+        ia, ib = na.get("inputs", {}), nb.get("inputs", {})
+        for campo in list(dict.fromkeys([*ia, *ib])):
+            va, vb = ia.get(campo), ib.get(campo)
+            if _link(va) or _link(vb):
+                ca = a.get(str(va[0]), {}).get("class_type") if _link(va) else None
+                cb = b.get(str(vb[0]), {}).get("class_type") if _link(vb) else None
+                if ca != cb and cb and cb not in classi_a and ca and ca in _classi_a_monte(b, str(vb[0])):
+                    righe.append({"tipo": "passa_per", "nodo_a": ka, "nodo_b": kb, "classe": classe, "titolo": titolo,
+                                  "campo": campo, "a": ca, "b": cb,
+                                  "testo": f"{titolo} · {campo}: in {nome_b} passa prima per {cb}, poi arriva da {ca} "
+                                           f"come in {nome_a}"})
+                    evid_b.setdefault(kb, []).append(campo)
+                elif ca != cb:
+                    righe.append({"tipo": "collegamento", "nodo_a": ka, "nodo_b": kb, "classe": classe, "titolo": titolo,
+                                  "campo": campo, "a": ca, "b": cb,
+                                  "testo": f"{titolo} · {campo}: in {nome_a} arriva da {ca or 'niente'}, in {nome_b} "
+                                           f"da {cb or 'niente'}"})
+                    evid_a.setdefault(ka, []).append(campo)
+                    evid_b.setdefault(kb, []).append(campo)
+                continue
+            if va == vb or campo in ignora:
+                continue
+            riga = {"tipo": "valore", "nodo_a": ka, "nodo_b": kb, "classe": classe, "titolo": titolo, "campo": campo,
+                    "a": va, "b": vb, "testo": f"{titolo} · {campo}: {nome_a} {va!r}, {nome_b} {vb!r}"}
+            if isinstance(va, str) and isinstance(vb, str) and ("," in va or "," in vb):
+                ta, tb = _tag(va), _tag(vb)
+                sa, sb = {x.lower() for x in ta}, {x.lower() for x in tb}
+                riga["solo_a"] = [x for x in ta if x.lower() not in sb]
+                riga["solo_b"] = [x for x in tb if x.lower() not in sa]
+                riga["testo"] = (f"{titolo} · {campo}: " + "; ".join(x for x in (
+                    f"solo in {nome_a}: {', '.join(riga['solo_a'])}" if riga["solo_a"] else "",
+                    f"solo in {nome_b}: {', '.join(riga['solo_b'])}" if riga["solo_b"] else "",
+                    "stessi tag in un altro ordine" if not riga["solo_a"] and not riga["solo_b"] else "") if x))
+            righe.append(riga)
+            evid_a.setdefault(ka, []).append(campo)
+            evid_b.setdefault(kb, []).append(campo)
+    ordine = {"solo_a": 0, "solo_b": 1, "collegamento": 2, "passa_per": 3, "valore": 4}
+    righe.sort(key=lambda r: ordine[r["tipo"]])
+    return {"righe": righe, "evidenzia_a": evid_a, "evidenzia_b": evid_b, "uguali": not righe}
+
+
+__all__ = ["USCITE_NOTE", "abbina", "confronta", "descrivi", "firma", "riassunto"]

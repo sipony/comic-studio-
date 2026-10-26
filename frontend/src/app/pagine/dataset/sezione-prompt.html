@@ -20,6 +20,13 @@
     <mat-hint>Gli stessi tag di stile delle proposte, così il personaggio resta uguale</mat-hint>
   </mat-form-field>
 
+  <mat-form-field>
+    <mat-label>Aspetto dal riferimento ({{ '{' }}aspetto{{ '}' }})</mat-label>
+    <textarea matInput rows="2" [ngModel]="cfg.aspetto ?? ''" (ngModelChange)="imposta('aspetto', $event)"
+      placeholder="vuoto: lo riempie «Massima somiglianza al riferimento»"></textarea>
+    <mat-hint>Vestiti, capelli e accessori dell'immagine di riferimento: va subito dopo i tratti in ogni prompt</mat-hint>
+  </mat-form-field>
+
   <div class="due">
     <mat-form-field>
       <mat-label>Tag di qualità</mat-label>
@@ -76,7 +83,7 @@
     <div class="esempi">
       @for (e of esempi(); track $index) {
         <div class="esempio">
-          <div class="testa">{{ e.inquadratura }} · {{ e.dimensioni.replace('x', '×') }}</div>
+          <div class="testa">{{ e.inquadratura }} · {{ e.dimensioni.replace('x', '×') }}@if (e.posa) { · posa {{ e.posa }} }</div>
           <div class="pos">{{ e.positivo }}</div>
           <div class="neg">{{ e.negativo }}</div>
         </div>

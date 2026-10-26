@@ -99,11 +99,20 @@
         </div>
         <dl>
           <dt>Inquadratura</dt><dd>{{ c.inquadratura || '—' }}</dd>
+          @if (c.posa) {
+            <dt>Posa</dt><dd class="posa"><img [src]="api.urlScheletro(c.posa, 104, 152)" alt="Scheletro della posa" />{{ nomePosa(c.posa) }}</dd>
+          }
           <dt>Dimensioni</dt><dd>{{ c.larghezza }}×{{ c.altezza }}</dd>
           <dt>Seme</dt><dd class="mono">{{ c.seme }}</dd>
           @if (c.punteggio !== null) { <dt>Somiglianza</dt><dd>{{ c.punteggio | number: '1.3-3' }}</dd> }
           <dt>Prompt</dt><dd class="prompt">{{ c.prompt }}</dd>
         </dl>
+        <div class="grafi">
+          <button mat-stroked-button (click)="confrontaGrafi(c.file)" matTooltip="Il grafo della proposta da cui è nato il personaggio accanto a quello di questa immagine, con le differenze">
+            <mat-icon>compare</mat-icon> Confronta con la proposta</button>
+          <button mat-button (click)="grafo(c.file)" matTooltip="Il workflow con cui è stata generata questa immagine">
+            <mat-icon>account_tree</mat-icon> Grafo</button>
+        </div>
         <div class="scelta">
           <button mat-flat-button [class.tenuta]="c.stato === 'tenuta'" (click)="stato(c, 'tenuta')"><mat-icon>check</mat-icon> Tieni (T)</button>
           <button mat-stroked-button [class.scartata]="c.stato === 'scartata'" (click)="stato(c, 'scartata')"><mat-icon>close</mat-icon> Scarta (S)</button>

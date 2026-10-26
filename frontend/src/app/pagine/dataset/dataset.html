@@ -59,6 +59,24 @@
                   <mat-icon>sync_alt</mat-icon> Rendi il dataset identico alle proposte</button>
               </div>
             }
+            <div class="c-azioni">
+              @if (k.coerente) {
+                <span class="nota">Stesso prompt e stesso workflow: a ogni immagine cambiano solo inquadratura, angolazione,
+                  espressione, posa e sfondo (sezione 2) e il seme.</span>
+              }
+              <span class="spazio"></span>
+              <button mat-flat-button (click)="massimaSomiglianza()" [disabled]="preparando() || !!lavoro()"
+                matTooltip="Aspetto del riferimento nel prompt (tagger), sfondi come le proposte, IPAdapter più forte su tutta la figura, pose guidate">
+                <mat-icon>person_search</mat-icon> Massima somiglianza al riferimento</button>
+              @if (sfondiDiversi()) {
+                <button mat-button (click)="sfondiComeProposte()" matTooltip="Solo sfondo bianco o semplice, come nelle proposte: con le LoRA da fumetto gli sfondi di città o interni cambiano anche il tratto">
+                  <mat-icon>wallpaper</mat-icon> Sfondi come le proposte</button>
+              }
+              @if (immagini().length) {
+                <button mat-stroked-button (click)="confrontaGrafi()" matTooltip="Il grafo della proposta accanto a quello dell'ultima immagine del dataset, con le differenze">
+                  <mat-icon>compare</mat-icon> Confronta i grafi</button>
+              }
+            </div>
             @if (confrontoAperto()) {
               <table>
                 <thead><tr><th></th><th>Proposta</th><th>Dataset</th><th></th></tr></thead>
@@ -125,13 +143,24 @@
                 <app-sezione-prompt [progetto]="progetto().id" [personaggio]="pers" [(config)]="config" />
               </mat-expansion-panel>
 
+              <mat-expansion-panel>
+                <mat-expansion-panel-header>
+                  <mat-panel-title><span class="n">3</span> Pose guidate</mat-panel-title>
+                  <mat-panel-description>{{ cfg.pose?.attive ? 'attive' : 'spente' }}</mat-panel-description>
+                </mat-expansion-panel-header>
+                <ng-template matExpansionPanelContent>
+                  <app-sezione-pose [progetto]="progetto().id" [personaggio]="pers" [(config)]="config"
+                    [lavoro]="lavoro()" [prima]="primaDiGenerare" />
+                </ng-template>
+              </mat-expansion-panel>
+
               <mat-expansion-panel [expanded]="!!cfg.workflow">
                 <mat-expansion-panel-header>
-                  <mat-panel-title><span class="n">3</span> Generazione</mat-panel-title>
+                  <mat-panel-title><span class="n">4</span> Generazione</mat-panel-title>
                   <mat-panel-description>{{ riepilogo()?.totale ?? 0 }} immagini</mat-panel-description>
                 </mat-expansion-panel-header>
                 <app-sezione-genera [progetto]="progetto().id" [personaggio]="pers" [(config)]="config"
-                  [riepilogo]="riepilogo()" [lavoro]="lavoro()" [prima]="primaDiGenerare" />
+                  [riepilogo]="riepilogo()" [lavoro]="lavoro()" [prima]="primaDiGenerare" (massima)="massimaSomiglianza()" />
               </mat-expansion-panel>
             </mat-accordion>
           </div>

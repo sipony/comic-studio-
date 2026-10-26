@@ -194,7 +194,7 @@ def confronta(proposta: Proposta, pers, config: ConfigDataset, wf: dict | None, 
     prompt = {"proposta": fp, "dataset": fd, **_confronta_liste(fp, fd)}
     rng, conteggio = random.Random(3), {}
     v = crea_variante(config.varianti, conteggio, rng)
-    esempio = componi(modello_positivo(config), valori_prompt(pers, v, q, config.stile))
+    esempio = componi(modello_positivo(config), valori_prompt(pers, v, q, config.stile, config.aspetto))
     neg_dataset = componi(config.prompt_negativo, valori_prompt(pers, v, q, config.stile))
     mancanti = [t for t in stile_proposta if norm(t) not in {norm(x) for x in fd}]
 
@@ -231,6 +231,15 @@ def confronta(proposta: Proposta, pers, config: ConfigDataset, wf: dict | None, 
     if r:
         riga("LoRA di stile", f"{r['lora_stile']} ({r['forza_lora']})" if r.get("lora_stile") else "nessuna",
              ", ".join(lora) or "nessuna", (not r.get("lora_stile")) or r["lora_stile"] in lora)
+    if config.aspetto.strip():
+        riga("Aspetto dal riferimento", "nessuno (vestiti decisi dal seme)", config.aspetto, True,
+             "Tag letti dal tagger sull'immagine di riferimento e aggiunti dopo i tratti: ogni immagine chiede gli stessi "
+             "vestiti, capelli e accessori della proposta scelta. Non contano nel confronto del prompt.")
+    if config.pose.attive:
+        riga("Pose guidate", "nessuna (posa dal prompt)",
+             f"ControlNet OpenPose, forza {config.pose.forza}, fino al {round(config.pose.fine * 100)}% dei passi", True,
+             "In più rispetto alle proposte c'è solo lo scheletro della posa (aggiunto a ogni immagine): decide braccia, "
+             "gambe e angolazione; aspetto, stile e prompt restano quelli delle proposte.")
     coerente = bool(prompt["uguale"] and negativo["uguale"] and workflow["uguale"])
     return {"proposta": {"file": proposta.file, "prompt": proposta.prompt, "ricetta": r},
             "famiglia_proposta": famiglia_proposta, "stile_proposta": stile_proposta, "mancanti": mancanti,

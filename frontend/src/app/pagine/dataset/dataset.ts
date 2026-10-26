@@ -1,5 +1,7 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
+import { apriConfrontoGrafi } from '../../shell/confronto-grafi';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -13,6 +15,7 @@ import { ProgettoService } from '../../core/progetto.service';
 import { SceltaPersonaggio } from '../../shell/scelta-personaggio';
 import { Galleria } from './galleria';
 import { SezioneGenera } from './sezione-genera';
+import { SezionePose } from './sezione-pose';
 import { SezionePrompt } from './sezione-prompt';
 import { SezioneWorkflow } from './sezione-workflow';
 
@@ -21,7 +24,7 @@ type StatoSalvataggio = 'salvato' | 'modificato' | 'salvataggio' | 'errore';
 @Component({
   selector: 'app-dataset',
   imports: [MatButtonModule, MatExpansionModule, MatIconModule, MatProgressBarModule, MatTooltipModule, RouterLink,
-    SceltaPersonaggio, SezioneWorkflow, SezionePrompt, SezioneGenera, Galleria],
+    SceltaPersonaggio, SezioneWorkflow, SezionePrompt, SezionePose, SezioneGenera, Galleria],
   templateUrl: './dataset.html',
   styleUrl: './dataset.scss',
 })
@@ -107,6 +110,27 @@ export class DatasetPage {
     if (!c || !m.length) return;
     this.config.set({ ...c, stile: [c.stile ?? '', ...m].map((x) => x.trim()).filter(Boolean).join(', ') });
     this.avvisi.ok(`Aggiunti allo stile: ${m.join(', ')}`);
+  }
+
+  private dialog = inject(MatDialog);
+  private static SFONDI_PROPOSTE = ['white background', 'simple background'];
+
+  /** gli sfondi delle varianti non sono solo quelli delle proposte (bianco, semplice) */
+  protected sfondiDiversi = computed(() =>
+    (this.config()?.varianti.sfondi ?? []).some((s) => !DatasetPage.SFONDI_PROPOSTE.includes(s.trim().toLowerCase())));
+
+  protected sfondiComeProposte() {
+    const c = this.config();
+    if (!c) return;
+    this.config.set({ ...c, varianti: { ...c.varianti, sfondi: ['white background', 'white background', 'simple background'] } });
+    this.avvisi.ok('Sfondi come nelle proposte: bianco o semplice. Vale dalle prossime immagini.');
+  }
+
+  protected confrontaGrafi() {
+    const p = this.personaggio();
+    const ultima = this.immagini().at(-1);
+    if (!p || !ultima) return;
+    apriConfrontoGrafi(this.dialog, { progetto: this.progetto().id, personaggio: p.id, file: ultima.file, nome: p.nome });
   }
 
   /** Lavoro del dataset in corso per questo personaggio (generazione o selezione). */
@@ -231,6 +255,22 @@ export class DatasetPage {
       this.riepilogo.set(stato.riepilogo);         // conteggi, spazio occupato e cestino
     } catch (e) {
       this.avvisi.errore(e);
+    }
+  }
+
+  /** Immagini il più possibile uguali al riferimento: aspetto (tagger), sfondi, IPAdapter, pose guidate. */
+  protected async massimaSomiglianza() {
+    const id = this.sceltoId();
+    if (!id) return;
+    this.preparando.set(true);
+    try {
+      if (!(await this.salvaSubito())) return;
+      await this.api.massimaSomiglianza(this.progetto().id, id);
+      this.avvisi.ok('Preparo il dataset per la massima somiglianza: i dettagli nella console');
+    } catch (e) {
+      this.avvisi.errore(e);
+    } finally {
+      this.preparando.set(false);
     }
   }
 

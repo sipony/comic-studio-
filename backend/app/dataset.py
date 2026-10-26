@@ -76,6 +76,17 @@ NEGATIVO_PREDEFINITO = ("{negativo_qualita}, lowres, blurry, bad anatomy, bad ha
                         "multiple people, 2girls, 2boys, text, watermark, signature, speech bubble, frame")
 
 
+class PoseGuidate(BaseModel):
+    """Pose guidate: a ogni immagine uno scheletro OpenPose della libreria (pose.py) passa per un ControlNet; il
+    prompt prende la posa e l'angolazione dello scheletro. L'aspetto resta quello del workflow (IPAdapter, LoRA)."""
+    attive: bool = False
+    controlnet: str | None = None                    # None = il primo ControlNet OpenPose trovato in ComfyUI
+    pose: list[str] = Field(default_factory=list)    # id delle pose (pose.py); vuoto = tutte
+    specchiate: bool = True                          # anche le pose specchiate (il doppio delle pose)
+    forza: float = Field(default=0.8, ge=0, le=2)
+    fine: float = Field(default=0.8, ge=0.05, le=1)
+
+
 class ConfigDataset(BaseModel):
     workflow: str | None = None
     ruoli: dict[str, str | None] | None = None      # None = quelli trovati dall'analisi
@@ -84,6 +95,9 @@ class ConfigDataset(BaseModel):
     tag_qualita: str | None = None                   # None = automatici in base al checkpoint
     tag_qualita_negativi: str | None = None
     stile: str = ""                                  # {stile}: tag di stile (presi dalle proposte, se ci sono)
+    # {aspetto}: vestiti, capelli, occhi, accessori letti dal tagger sull'immagine di riferimento e che i tratti non
+    # dicono (es. «police uniform» → «blue pants, necktie, belt…»): ogni immagine chiede lo stesso aspetto
+    aspetto: str = ""
     varianti: Varianti = Field(default_factory=varianti_predefinite)
     modifiche: dict[str, dict[str, Any]] = Field(default_factory=dict)
     # con un workflow img2img: "libera" genera ogni immagine da zero con la posa e l'inquadratura della variante,
@@ -91,6 +105,7 @@ class ConfigDataset(BaseModel):
     composizione: Literal["libera", "riferimento"] = "libera"
     # nodi del workflow staccati per questo personaggio (Comic Studio ricollega il resto)
     disattivati: list[str] = Field(default_factory=list)
+    pose: PoseGuidate = Field(default_factory=PoseGuidate)
     quantita: int = Field(default=100, ge=1, le=2000)
     da_tenere: int = Field(default=30, ge=1, le=500)
 
@@ -117,6 +132,7 @@ class InfoImmagine(BaseModel):
     altezza: int | None = None
     creato: float = Field(default_factory=time.time)
     stato: StatoImmagine = None
+    posa: str = ""                   # id della posa guidata (pose.py), se c'era
     manuale: bool = False            # stato scelto a mano (la selezione automatica non lo cambia)
     punteggio: float | None = None
 
@@ -171,21 +187,79 @@ def crea_variante(varianti: Varianti, conteggio: dict[str, int], rng: random.Ran
 def modello_positivo(c: "ConfigDataset") -> str:
     """Il modello del prompt positivo; se c'è uno stile ma il modello non ha {stile} (configurazioni di prima della
     0.16) lo si aggiunge in fondo, così lo stile delle proposte non si perde."""
-    if c.stile.strip() and "{stile}" not in c.prompt_positivo:
-        return c.prompt_positivo + ", {stile}"
-    return c.prompt_positivo
+    m = c.prompt_positivo
+    if c.aspetto.strip() and "{aspetto}" not in m:
+        m = m.replace("{descrizione}", "{descrizione}, {aspetto}") if "{descrizione}" in m else m + ", {aspetto}"
+    if c.stile.strip() and "{stile}" not in m:
+        return m + ", {stile}"
+    return m
 
 
 def valori_prompt(p: Personaggio, variante: dict[str, str], qualita: tuple[str, str],
-                  stile: str = "") -> dict[str, str]:
+                  stile: str = "", aspetto: str = "") -> dict[str, str]:
     return {**{k: v for k, v in variante.items() if not k.startswith("_")},
             "nome": p.nome, "genere": p.genere, "descrizione": p.descrizione, "trigger": p.trigger,
-            "qualita": qualita[0], "negativo_qualita": qualita[1], "stile": stile}
+            "qualita": qualita[0], "negativo_qualita": qualita[1], "stile": stile, "aspetto": aspetto}
+
+
+# ---------------------------------------------------------------- aspetto dal riferimento
+
+# tag del tagger che non sono aspetto: inquadratura, posa, sguardo, espressione, sfondo, luce, tecnica, metadati
+NON_ASPETTO = re.compile(
+    r"background|\bviews?\b|from (side|behind|above|below)|\bprofile\b|standing|sitting|kneeling|squatting|lying|"
+    r"walking|running|jumping|leaning|looking|facing|smil|grin|frown|\bmouth\b|closed eyes|expression|blush|"
+    r"\bsolo\b|^\d+(girl|boy|other)s?$|^(girl|boy)$|full body|upper body|lower body|cowboy shot|portrait|close-up|"
+    r"\bpose\b|contrapposto|\barms?\b|\bhands?\b|\bfingers?\b|legs? (apart|together|up)|crossed|on hip|at sides|"
+    r"outstretched|spread|holding|pointing|waving|^v$|salute|\bfeet\b|\btoes\b|shadow|lighting|light rays|"
+    r"sunlight|realistic|monochrome|greyscale|\bcomic\b|sketch|signature|watermark|\btext\b|english|artist|parody|"
+    r"official|multiple|simple|white theme|border|cropped|out of frame|solo focus|motion|blurry|depth of field|"
+    r"turnaround|reference sheet")
+
+
+def aspetto_da_tag(tag: dict[str, float], p: Personaggio, gia: str = "", soglia: float = 0.35,
+                   massimo: int = 25) -> list[str]:
+    """I tag dell'aspetto del riferimento che i tratti (e lo stile) non dicono già, dai più sicuri."""
+    def norm(t: str) -> str:
+        return re.sub(r"\s+", " ", t.replace("_", " ").strip().lower())
+    noti = {norm(x) for x in f"{p.descrizione},{p.genere},{gia}".split(",") if x.strip()}
+    scelti = [norm(t) for t, v in sorted(tag.items(), key=lambda kv: -kv[1])
+              if v >= soglia and not NON_ASPETTO.search(norm(t)) and norm(t) not in noti and "(" not in t]
+    return list(dict.fromkeys(scelti))[:massimo]
 
 
 # preferenze per scegliere da soli i modelli di IPAdapter (come nell'interfaccia)
 PREFERENZE_IPADAPTER = [r"plus.*sdxl.*vit-?h", r"sdxl.*vit-?h", r"sdxl|xl"]
 PREFERENZE_CLIP_VISION = [r"vit-?h", r"laion"]
+
+
+# ControlNet per le pose: OpenPose SDXL (per Illustrious / NoobAI prima quello di NoobAI, se c'è), poi gli «union»
+PREFERENZE_CONTROLNET_POSA = [r"openpose.*(sdxl|xl)|(sdxl|xl).*openpose", r"openpose", r"union.*(sdxl|xl)|promax",
+                              r"pose"]
+
+
+def scegli_controlnet_posa(elenco: list[str], famiglia: str | None = None) -> str | None:
+    if famiglia in ("illustrious", "noobai"):
+        noob = scegli_primo(elenco, [r"noob.*openpose|openpose.*noob", r"illustrious.*openpose"])
+        if noob:
+            return noob
+    return scegli_primo(elenco, PREFERENZE_CONTROLNET_POSA)
+
+
+def pose_scelte(c: "PoseGuidate") -> list:
+    """Le pose da usare, nell'ordine della libreria (con le specchiate subito dopo l'originale)."""
+    from . import pose as libreria
+    scelte = [p for p in libreria.POSE if not c.pose or p.id in c.pose]
+    return [q for p in scelte for q in ((p, libreria.specchia(p)) if c.specchiate else (p,))]
+
+
+def con_posa(variante: dict[str, str], posa) -> dict[str, str]:
+    """La variante con la posa e l'angolazione dello scheletro, così prompt e ControlNet dicono la stessa cosa."""
+    v = dict(variante)
+    v["posa"], v["angolazione"] = posa.tag, posa.vista
+    v["variante"] = pulisci_prompt(", ".join(v[k] for k in ("inquadratura", "angolazione", "espressione", "posa",
+                                                            "sfondo")))
+    v["_posa"] = posa.id
+    return v
 
 
 def scegli_primo(elenco: list[str], preferenze: list[str]) -> str | None:
@@ -359,10 +433,17 @@ class ArchivioDataset:
                 pass
         q = tag_qualita(checkpoint, c)
         rng, conteggio, out = random.Random(7), {}, []
+        from . import pose as libreria
+        rotazione = libreria.Rotazione(pose_scelte(c.pose)) if c.pose.attive else None
         for _ in range(n):
             v = crea_variante(c.varianti, conteggio, rng)
-            val = valori_prompt(pers, v, q, c.stile)
+            posa = rotazione.prossima(libreria.taglio(f"{v['inquadratura']} {v['_nome_inquadratura']}")) \
+                if rotazione else None
+            if posa:
+                v = con_posa(v, posa)
+            val = valori_prompt(pers, v, q, c.stile, c.aspetto)
             out.append({"inquadratura": v["_nome_inquadratura"], "dimensioni": v["_dimensioni"],
+                        "posa": posa.id if posa else None,
                         "positivo": componi(modello_positivo(c), val), "negativo": componi(c.prompt_negativo, val)})
         return out
 
@@ -391,15 +472,47 @@ class ArchivioDataset:
     def _salva_immagini(self, pid, cid, voci: list[InfoImmagine]):
         _scrivi_json(self._file_meta(pid, cid), [v.model_dump() for v in voci])
 
-    def aggiungi_immagine(self, pid: str, cid: str, dati: bytes, info: InfoImmagine) -> InfoImmagine:
+    def aggiungi_immagine(self, pid: str, cid: str, dati: bytes, info: InfoImmagine,
+                          wf: dict | None = None) -> InfoImmagine:
         with _lock:
             d = self.cartella(pid, cid)
             (d / "generate").mkdir(parents=True, exist_ok=True)
             (d / "generate" / info.file).write_bytes(dati)
+            if wf is not None:            # il workflow esatto mandato a ComfyUI, per rivederne il grafo
+                (d / "workflow").mkdir(exist_ok=True)
+                (d / "workflow" / (Path(info.file).stem + ".json")).write_text(json.dumps(wf, ensure_ascii=False),
+                                                                               encoding="utf-8")
             crea_anteprima(d / "generate" / info.file, d / "anteprime" / (Path(info.file).stem + ".jpg"))
             voci = [v for v in self.immagini(pid, cid) if v.file != info.file] + [info]
             self._salva_immagini(pid, cid, voci)
             return info
+
+    def workflow_immagine(self, pid: str, cid: str, file: str) -> tuple[dict, bool]:
+        """Il workflow con cui è stata generata l'immagine: quello salvato (dalla 0.23) oppure ricostruito con la
+        configurazione attuale del dataset e il prompt, il seme e le dimensioni dell'immagine. (workflow, ricostruito)"""
+        from .workflows import aggiungi_posa, applica, img2img
+        self.file_immagine(pid, cid, file)
+        f = self.cartella(pid, cid) / "workflow" / (Path(file).stem + ".json")
+        if f.is_file():
+            return json.loads(f.read_text(encoding="utf-8")), False
+        info = next((v for v in self.immagini(pid, cid) if v.file == file), None)
+        if info is None:
+            raise ErroreProgetto("Immagine non trovata", 404)
+        _, pers = self.personaggio(pid, cid)
+        c = self.config(pid, cid)
+        voce, ruoli = self.ruoli_effettivi(pid, c)
+        q = tag_qualita(analizza(voce.workflow).checkpoint, c)
+        val = valori_prompt(pers, {"variante": info.variante}, q, c.stile)
+        libera = bool(img2img(voce.workflow, ruoli.riferimento)) and (c.composizione == "libera" or bool(info.posa))
+        wf = applica(voce.workflow, ruoli, riferimento="riferimento.png" if ruoli.riferimento else None,
+                     positivo=info.prompt, negativo=componi(c.prompt_negativo, val), seme=info.seme,
+                     dimensioni=(info.larghezza, info.altezza) if info.larghezza and info.altezza else None,
+                     prefisso=f"comic_studio/{pid}/{cid}/dataset", modifiche=c.modifiche, composizione_libera=libera,
+                     disattivati=c.disattivati)
+        if info.posa:
+            aggiungi_posa(wf, c.pose.controlnet or "ControlNet OpenPose", f"posa_{info.posa}.png", c.pose.forza, 0.0,
+                          c.pose.fine)
+        return wf, True
 
     def prossimo_numero(self, pid: str, cid: str) -> int:
         voci = self.immagini(pid, cid)
@@ -441,7 +554,8 @@ class ArchivioDataset:
                 cestino = self.progetti.radice / ".cestino" / f"{pid}-{cid}-dataset-{int(time.time())}"
                 cestino.mkdir(parents=True, exist_ok=True)
             for v in via:
-                for f in (d / "generate" / v.file, d / "anteprime" / (Path(v.file).stem + ".jpg")):
+                for f in (d / "generate" / v.file, d / "anteprime" / (Path(v.file).stem + ".jpg"),
+                          d / "workflow" / (Path(v.file).stem + ".json")):
                     if not f.exists():
                         continue
                     if cestino:
@@ -564,5 +678,5 @@ def _scrivi_json(f: Path, dati):
     tmp.replace(f)
 
 
-__all__ = ["ArchivioDataset", "ConfigDataset", "InfoImmagine", "VoceWorkflow", "Varianti", "Inquadratura",
+__all__ = ["ArchivioDataset", "ConfigDataset", "InfoImmagine", "PoseGuidate", "VoceWorkflow", "Varianti", "Inquadratura",
            "componi", "crea_variante", "tag_qualita", "valori_prompt"]

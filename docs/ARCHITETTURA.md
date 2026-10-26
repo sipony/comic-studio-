@@ -45,8 +45,11 @@ backend/app/
   proposte.py             personaggio dal nulla: proposte d'immagine di riferimento dal testo
   grafo.py                workflow mandato a ComfyUI: riassunto per i log e grafo da disegnare
   coerenza.py             dataset confrontato con la proposta da cui è nato il personaggio
+  pose.py                 pose guidate: scheletri OpenPose (18 punti) da poche misure, specchiati, tagliati per
+                          inquadratura, disegnati come i preprocessori di ControlNet
   ritocchi.py             impostazioni dei nodi cambiate dal grafo: cosa si può cambiare e dove si salva
-  componenti.py           IPAdapter Plus (nodo e modelli): cosa manca, spazio su disco, download controllati
+  componenti.py           componenti da installare a gruppi: IPAdapter Plus (nodo e modelli), ControlNet OpenPose;
+                          cosa manca, spazio su disco, download controllati
   rotte_componenti.py     API dei componenti da installare
   rotte_proposte.py       API delle proposte
   rotte_testo.py          API dell'IA, tratti dei personaggi, analisi delle vignette, storia → vignette
@@ -59,7 +62,8 @@ frontend/src/app/
                           link.ts: indirizzi cliccabili nella console
   shell/console.*         console in basso con avanzamento
   pagine/                 sistema, progetti, progetto (contenitore), personaggi, dataset, in-arrivo
-  pagine/dataset/         sezione-workflow, sezione-prompt, sezione-genera, galleria
+  pagine/dataset/         sezione-workflow, sezione-prompt, sezione-pose, sezione-genera, galleria
+  shell/confronto-grafi   proposta e immagine del dataset: due grafi con le differenze evidenziate
   pagine/didascalie/      Step 2
   shell/scelta-personaggio  selettore del personaggio comune agli step
   shell/scelta-ia.*       finestra per scegliere e installare il modello dell'IA (core/scelta-ia.service.ts la
@@ -90,11 +94,13 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
       workflows/<id>.json            libreria dei workflow (formato API + ruoli)
       personaggi/<id>/riferimento.png
       personaggi/<id>/proposte/          proposte generate dal testo (proposte.json con la ricetta di ognuna + png)
+        workflow/<proposta>.json     il workflow mandato a ComfyUI per quella proposta (dalla 0.23)
       personaggi/<id>/dataset/
         config.json                  workflow, ruoli, prompt, varianti, parametri dei nodi, quantità
         immagini.json                variante, prompt, seme, stato (tenuta/scartata), punteggio
         generate/0001.png …          immagini generate
         anteprime/0001.jpg …         miniature
+        workflow/0001.json …         il workflow mandato a ComfyUI per ogni immagine (dalla 0.23)
       personaggi/<id>/didascalie/
         config.json                  fonte dei tag, soglia, tag tolti/aggiunti/sostituiti, massimo
         tag.json                     tag del tagger con probabilità, per immagine
@@ -139,8 +145,10 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `/api/progetti/{p}/personaggi/{c}/tratti` | `{storia}` ricava i tratti fissi dalla descrizione (lavoro) |
 | POST | `…/fumetto/vignette/{v}/analizza` | descrizione → analisi → prompt (lavoro) |
 | GET | `…/fumetto/vignette/{v}/prompt` | il prompt dall'ultima analisi e se è ancora valida |
-| GET | `/api/componenti` | IPAdapter Plus: componenti mancanti con il peso, spazio per disco (`basta_spazio`, `messaggio_spazio`), `chiedi` |
-| POST | `/api/componenti/installa` | installa quelli che mancano (lavoro `componenti`); 409 con il messaggio se non c'è spazio |
+| GET | `/api/pose` | libreria delle pose guidate (anche specchiate) e tagli |
+| GET | `/api/pose/{id}/scheletro` | `?larghezza&altezza&taglio=intera\|tre_quarti\|mezzo_busto\|primo_piano`: PNG dello scheletro OpenPose |
+| GET | `/api/componenti` | `?gruppo=ipadapter` (predefinito) o `pose` (ControlNet OpenPose): componenti mancanti con il peso, spazio per disco (`basta_spazio`, `messaggio_spazio`), `chiedi` |
+| POST | `/api/componenti/installa` | `?gruppo=`: installa quelli che mancano (lavoro `componenti`); 409 con il messaggio se non c'è spazio |
 | POST | `/api/componenti/chiedi` | `{chiedi}`: proporlo o no all'apertura |
 | GET | `/api/progetti/{p}/personaggi/{c}/proposte` | proposte d'immagine di riferimento |
 | POST | `…/personaggi/{c}/proposte` | `{checkpoint, numero, inquadratura, stile, extra, negativo, passi, cfg, sampler, scheduler, lora_stile, forza_lora, da}` genera proposte o varianti (lavoro GPU); ogni proposta ricorda la sua `ricetta` |
@@ -148,7 +156,8 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | GET | `…/proposte/{file}` | immagine di una proposta |
 | POST | `…/proposte/{file}/scegli` | la proposta diventa l'immagine di riferimento; il personaggio ricorda la ricetta (`origine`) e, se il dataset non ha ancora un workflow, lo prepara come le proposte |
 | POST | `…/proposte/{file}/ricetta` | `{checkpoint}`: completa una proposta fatta prima della 0.16 (stile e inquadratura dal prompt) |
-| POST | `…/proposte/scarta` | sposta nel cestino le proposte non scelte |
+| POST | `…/proposte/scarta` | sposta nel cestino le proposte non scelte (con i loro workflow) |
+| GET | `…/proposte/{file}/workflow` | grafo (sola lettura) del workflow della proposta, salvato o ricostruito dalla ricetta; `?formato=json` per ComfyUI |
 | POST | `…/fumetto/storia` | `{testo, sostituisci}` racconto libero → pagine e vignette (lavoro) |
 | POST | `/api/esci` | `{comfy}` chiude Comic Studio (e, se richiesto, il ComfyUI avviato da lui) |
 | GET | `/api/sistema` | versione, impostazioni, stato ComfyUI, installazioni trovate, ultimo controllo |
@@ -176,7 +185,10 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `…/dataset/come-proposte` | workflow integrato con lo stesso checkpoint, LoRA di stile e campionamento delle proposte (IPAdapter se installato; riusato se è già in libreria), stile e negativo nella configurazione |
 | PUT | `…/dataset/config` | salva la configurazione |
 | POST | `…/dataset/esempi` | esempi dei prompt che verranno generati |
-| POST | `…/dataset/genera` | `{quantita, sostituisci}` avvia la generazione (lavoro GPU) |
+| POST | `…/dataset/genera` | `{quantita, sostituisci, una_per_posa}` avvia la generazione (lavoro GPU); con le pose guidate (`config.pose`) a ogni immagine si aggiunge il ControlNet con lo scheletro |
+| POST | `…/dataset/somiglianza` | «massima somiglianza al riferimento» (lavoro `dataset_somiglianza`): `aspetto` dal tagger, sfondi come le proposte, IPAdapter 0,9 / fine 1 / ritaglio pad, pose guidate |
+| GET | `…/dataset/immagini/{file}/workflow` | grafo del workflow dell'immagine, salvato o ricostruito; `?formato=json` |
+| GET | `…/dataset/immagini/{file}/confronto` | grafo della proposta di riferimento e dell'immagine, `righe` delle differenze (nodi abbinati per ruolo), `evidenzia_a/_b` |
 | GET | `…/dataset/immagini` | elenco con metadati e stato |
 | GET / PATCH | `…/dataset/immagini/{file}` | immagine (`?anteprima=true` per la miniatura) / `{stato}` |
 | POST | `…/dataset/seleziona` | `{quante}` selezione automatica (lavoro) |

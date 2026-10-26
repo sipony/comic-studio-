@@ -100,12 +100,32 @@ Per ogni personaggio (scegli in alto quale):
 2. **Prompt e varianti** — il prompt è un modello: `{descrizione}` diventa i tratti fissi del personaggio,
    `{variante}` cambia a ogni immagine (inquadratura, angolazione, espressione, posa, sfondo), `{qualita}` mette i
    tag giusti per il checkpoint. Sotto vedi esempi dei prompt che verranno usati.
-3. **Generazione** — scegli quante immagini (80-120) e quante tenerne (20-40), poi **Genera**. Segui
+   **Aspetto dal riferimento** (`{aspetto}`): vestiti, capelli e accessori dell'immagine di riferimento, subito dopo
+   i tratti in ogni prompt (lo riempie «Massima somiglianza al riferimento»).
+3. **Pose guidate** — Comic Studio disegna lo scheletro OpenPose di ogni posa (in piedi, tre quarti, profilo, di
+   spalle, mani sui fianchi, braccia conserte, saluto, corsa, seduta, in ginocchio…, anche specchiate) e lo passa a
+   un **ControlNet OpenPose SDXL**: il personaggio prende la posa dello scheletro, aspetto e stile restano quelli del
+   workflow e del riferimento. Se il ControlNet manca, **Installa** lo scarica (2,5 GB, con il controllo dello
+   spazio). Scegli le pose cliccando sulle miniature, la **forza** (0,7-0,9) e fino a che punto dei passi vale.
+   **Una immagine per posa** genera subito una figura intera per ogni posa scelta; con l'interruttore acceso anche
+   «Genera» usa le pose, a turno, tagliate per ogni inquadratura. Il prompt prende da solo posa e angolazione.
+4. **Generazione** — scegli quante immagini (80-120) e quante tenerne (20-40), poi **Genera**. Segui
    l'avanzamento qui e nella console; puoi fermarla quando vuoi.
-4. **Galleria** — **Tieni le N migliori** sceglie da sola le più somiglianti al riferimento, varie e senza doppioni.
+
+   **Massima somiglianza al riferimento** (nel riquadro in alto e qui) prepara il dataset perché le immagini, in pose
+   diverse, vengano il più possibile uguali al riferimento: il tagger legge l'aspetto del riferimento e lo mette nel
+   prompt, sfondi bianchi o semplici come nelle proposte, IPAdapter con peso 0,9 fino all'ultimo passo e sul
+   riferimento intero (ritaglio «pad», così vede anche scarpe e pantaloni), pose guidate se c'è il ControlNet. Per un
+   personaggio identico al 100%: addestra un primo LoRA sulle migliori e rigenera il dataset con quel LoRA.
+
+   **Grafi**: nella proposta (pagina Personaggi) il pulsante 🌳 mostra il workflow con cui è stata fatta; aprendo
+   un'immagine del dataset, **Grafo** mostra il suo e **Confronta con la proposta** mette i due grafi fianco a fianco
+   con le differenze nodo per nodo e i prompt tag per tag (in rosso solo nella proposta, in verde solo nel dataset).
+   Lo stesso dal riquadro in alto, **Confronta i grafi** (ultima immagine).
+5. **Galleria** — **Tieni le N migliori** sceglie da sola le più somiglianti al riferimento, varie e senza doppioni.
    Poi rifinisci a mano: passa sopra un'immagine e premi ✓ o ✕, oppure aprila e usa **T** (tieni), **S** (scarta)
    e le frecce. Le tue scelte manuali non vengono più toccate dalla selezione automatica.
-5. **Scarica ed Elimina** — agiscono sulle immagini del filtro scelto (Tutte, Tenute, Da decidere, Scartate):
+6. **Scarica ed Elimina** — agiscono sulle immagini del filtro scelto (Tutte, Tenute, Da decidere, Scartate):
    - **Scarica → ZIP**: le immagini con il prompt di ognuna in un `.txt`
    - **Scarica → … e cancellale dal computer**: dopo il download completo le immagini vengono cancellate dal disco
      (non passano dal cestino), così non occupano più spazio

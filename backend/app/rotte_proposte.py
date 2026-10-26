@@ -82,7 +82,7 @@ async def genera(pid: str, cid: str, c: ConfigProposte, req: Request):
                     raise ComfyErrore("ComfyUI non ha restituito l'immagine.")
                 dati = await client.scarica(img)
                 l.imposta_anteprima(dati, "image/png", finale=True)
-                await asyncio.to_thread(archivio.aggiungi, pid, cid, dati, seme, positivo, c.da, ricetta)
+                await asyncio.to_thread(archivio.aggiungi, pid, cid, dati, seme, positivo, c.da, ricetta, wf)
                 app.bus.pubblica({"tipo": "proposte", "progetto": pid, "personaggio": cid})
         l.log(f"{c.numero} proposte per {p.nome}: scegli quella giusta come immagine di riferimento", "ok")
         return {"generate": c.numero}
@@ -107,6 +107,19 @@ async def anteprima(pid: str, cid: str, c: ConfigProposte, req: Request):
 async def immagine(pid: str, cid: str, nome: str, req: Request):
     return FileResponse(ArchivioProposte(_app(req).progetti).file(pid, cid, nome),
                         headers={"Cache-Control": "max-age=86400"})
+
+
+@rotte.get("/{nome}/workflow")
+async def workflow_proposta(pid: str, cid: str, nome: str, req: Request, formato: str = "grafo"):
+    """Il workflow con cui è stata fatta la proposta (salvato, o ricostruito per quelle vecchie)."""
+    from .rotte_dataset import _json_scaricabile, pacchetto_grafo
+    app = _app(req)
+    pers = _personaggio(app, pid, cid)
+    wf, ricostruito = ArchivioProposte(app.progetti).workflow_di(pid, cid, nome)
+    if formato == "json":
+        return _json_scaricabile(wf, f"comic-studio-{cid}-{nome.removesuffix('.png')}.json")
+    return await pacchetto_grafo(app, wf, f"Proposta di {pers.nome} · {nome}", ricostruito, "proposta",
+                                 f"/api/progetti/{pid}/personaggi/{cid}/proposte/{nome}/workflow?formato=json")
 
 
 @rotte.post("/{nome}/scegli")

@@ -1,10 +1,11 @@
-"""API dei componenti di ComfyUI che Comic Studio installa da solo (IPAdapter Plus), dopo conferma."""
+"""API dei componenti di ComfyUI che Comic Studio installa da solo (IPAdapter Plus, ControlNet OpenPose), dopo
+conferma. `gruppo` sceglie quali: «ipadapter» (predefinito, proposto all'apertura) o «pose»."""
 from __future__ import annotations
 
 import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from . import componenti as comp
@@ -17,7 +18,10 @@ def _app(req: Request):
     return req.app.state.app
 
 
-async def controlla(app, pubblica: bool = True) -> dict:
+Gruppo = Query("ipadapter", pattern="^(ipadapter|pose)$")
+
+
+async def controlla(app, pubblica: bool = True, gruppo: str = "ipadapter") -> dict:
     """Quali componenti mancano (sul disco e, se ComfyUI è acceso, tra quelli che ComfyUI vede)."""
     comfy_dir = app.impostazioni.valori.comfy_dir or app.comfy.cartella
     modelli = nodi = None
@@ -27,11 +31,14 @@ async def controlla(app, pubblica: bool = True) -> dict:
             nodi = set((await app.object_info(ricarica=True)).keys())
         except Exception:  # noqa: BLE001 - si guarda solo il disco
             modelli = nodi = None
-    s = await asyncio.to_thread(comp.controlla, comfy_dir, modelli, nodi)
+    s = await asyncio.to_thread(comp.controlla, comfy_dir, modelli, nodi, comp.elenco_gruppo(gruppo))
     lavoro = next((l for l in app.gestore.attivi() if l.tipo == "componenti"), None)
     dati = s.dict() | {"chiedi": app.impostazioni.valori.chiedi_componenti, "lavoro": lavoro.id if lavoro else None,
                        "comfy_avviato_da_noi": app.comfy_pid is not None, "comfy_connesso": app.comfy.connesso,
-                       "messaggio_spazio": comp.testo_spazio(s) if not s.basta_spazio else None}
+                       "messaggio_spazio": comp.testo_spazio(s) if not s.basta_spazio else None,
+                       "gruppo": gruppo, "nome": comp.NOMI_GRUPPI[gruppo]}
+    if gruppo != "ipadapter":
+        return dati
     app.componenti = dati
     if pubblica:
         app.bus.pubblica({"tipo": "componenti", "dati": dati})
@@ -39,8 +46,8 @@ async def controlla(app, pubblica: bool = True) -> dict:
 
 
 @rotte.get("")
-async def stato(req: Request):
-    return await controlla(_app(req))
+async def stato(req: Request, gruppo: str = Gruppo):
+    return await controlla(_app(req), gruppo=gruppo)
 
 
 class Chiedi(BaseModel):
@@ -56,23 +63,24 @@ async def chiedi(dati: Chiedi, req: Request):
 
 
 @rotte.post("/installa")
-async def installa(req: Request):
+async def installa(req: Request, gruppo: str = Gruppo):
     app = _app(req)
-    s = await controlla(app, pubblica=False)
+    s = await controlla(app, pubblica=False, gruppo=gruppo)
+    nome = comp.NOMI_GRUPPI[gruppo]
     if s["errore"]:
         raise HTTPException(409, s["errore"])
     if not s["mancanti"]:
-        raise HTTPException(400, "IPAdapter Plus è già installato.")
+        raise HTTPException(400, f"{nome} è già installato.")
     if not s["basta_spazio"]:
         raise HTTPException(409, s["messaggio_spazio"])
     attivo = next((l for l in app.gestore.attivi() if l.tipo == "componenti"), None)
     if attivo:
         return attivo.dict()
-    return app.gestore.avvia("componenti", "Installazione di IPAdapter Plus", lambda l: _installa(app, l)).dict()
+    return app.gestore.avvia("componenti", f"Installazione di {nome}", lambda l: _installa(app, l, gruppo)).dict()
 
 
-async def _installa(app, l: Lavoro):
-    s = await controlla(app, pubblica=False)          # di nuovo: nel frattempo può essere cambiato qualcosa
+async def _installa(app, l: Lavoro, gruppo: str = "ipadapter"):
+    s = await controlla(app, pubblica=False, gruppo=gruppo)   # di nuovo: nel frattempo può essere cambiato qualcosa
     if not s["basta_spazio"]:
         raise comp.ErroreComponenti(s["messaggio_spazio"])
     base = Path(s["comfy_dir"])
@@ -110,7 +118,10 @@ async def _installa(app, l: Lavoro):
                   + (" quando finiscono gli altri lavori." if app.comfy_pid else
                      ": è aperto fuori da Comic Studio, chiudilo e riaprilo (o premi Avvia in Sistema → Connessione)."),
                   "avviso")
-    dopo = await controlla(app)
+    dopo = await controlla(app, gruppo=gruppo)
+    if gruppo == "ipadapter":
+        await controlla(app)
     if not dopo["mancanti"] and not dopo["da_caricare"]:
-        l.log("IPAdapter Plus pronto: il dataset userà il riferimento per far somigliare i volti", "ok")
+        l.log("IPAdapter Plus pronto: il dataset userà il riferimento per far somigliare i volti" if gruppo == "ipadapter"
+              else "ControlNet OpenPose pronto: attiva le pose guidate in Dataset → Pose guidate", "ok")
     return {"installati": [c["id"] for c in mancanti], "riavvio": riavvio, "stato": dopo}
