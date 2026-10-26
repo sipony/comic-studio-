@@ -988,7 +988,7 @@ personaggio: il workflow della libreria non cambia); pose guidate se c'è il Con
   (bordo arancione, valore in arancione) e quelli solo da una parte (tratteggio); finestra «Confronta con la proposta»
   con l'elenco delle differenze e i due grafi; pulsanti in galleria, nelle proposte e nel riquadro del confronto;
   «Sfondi come le proposte»
-- Versione 0.23.0
+- Versione 0.23.0, poi 0.23.1 con la correzione dell'architettura del ControlNet
 - **Test**: `test_pose.py` (destra/sinistra, specchiate, profilo e spalle, disegno e tagli, rotazione, ControlNet nel
   workflow e nell'hires fix, dataset con pose e una per posa, ControlNet mancante, grafo; massima somiglianza),
   `test_grafi_salvati.py` (abbinamento per ruolo, proposta e immagine salvate e ricostruite uguali, confronto,
