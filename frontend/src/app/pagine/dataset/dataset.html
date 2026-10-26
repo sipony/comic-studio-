@@ -37,7 +37,7 @@
                   <mat-panel-title><span class="n">1</span> Workflow</mat-panel-title>
                   <mat-panel-description>{{ workflowScelto()?.nome ?? 'da scegliere' }}</mat-panel-description>
                 </mat-expansion-panel-header>
-                <app-sezione-workflow [progetto]="progetto().id" [libreria]="libreria()" [(config)]="config"
+                <app-sezione-workflow [progetto]="progetto().id" [personaggio]="pers.id" [libreria]="libreria()" [(config)]="config"
                   (libreriaCambiata)="ricaricaLibreria()" />
               </mat-expansion-panel>
 

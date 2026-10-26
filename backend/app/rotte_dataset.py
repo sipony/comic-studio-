@@ -20,6 +20,7 @@ from .jobs import Lavoro
 from .projects import ErroreProgetto
 from .settings import cartella_dati
 from .somiglianza import scegli, valutatore
+from .esclusione import escludi, titolo as titolo_nodo
 from .modelinfo import famiglia_da_nome
 from .workflows import ErroreWorkflow, analizza, applica, controlla_ruoli, guide_identita, img2img, normalizza, per_invio
 
@@ -242,6 +243,40 @@ async def scarica_esportazione(pid: str, cid: str, nome: str, req: Request):
                         background=BackgroundTask(f.unlink, missing_ok=True))
 
 
+# ---------------------------------------------------------------- nodi staccati
+
+async def _info_nodi(app) -> dict | None:
+    """Definizioni dei nodi di ComfyUI (tipi di ingressi e uscite), se è collegato."""
+    if not app.comfy.connesso:
+        return None
+    try:
+        return await app.object_info()
+    except Exception:  # noqa: BLE001 - senza si usano i nodi più comuni
+        return None
+
+
+def _classe_latente(checkpoint: str | None) -> str:
+    return "EmptySD3LatentImage" if famiglia_da_nome(checkpoint or "") in ("flux", "sd3") else "EmptyLatentImage"
+
+
+def prova_esclusione(a: ArchivioDataset, pid: str, config: ConfigDataset, info: dict | None):
+    """Cosa succede al workflow staccando i nodi scelti: ricollegamenti, nodi staccati in automatico, problemi."""
+    voce, ruoli = a.ruoli_effettivi(pid, config)
+    libera = bool(img2img(voce.workflow, ruoli.riferimento)) and config.composizione == "libera"
+    w = applica(voce.workflow, ruoli, dimensioni=(1024, 1024), modifiche=config.modifiche, composizione_libera=libera,
+                classe_latente=_classe_latente(analizza(voce.workflow).checkpoint))
+    return escludi(w, config.disattivati, info, protetti=(ruoli.seme, ruoli.salva, ruoli.positivo))
+
+
+@rotte.post("/personaggi/{cid}/dataset/esclusione")
+async def esclusione(pid: str, cid: str, c: ConfigDataset, req: Request):
+    """Anteprima dei nodi staccati con la configurazione indicata (anche non ancora salvata)."""
+    if not c.workflow:
+        raise HTTPException(400, "Scegli prima un workflow.")
+    info = await _info_nodi(_app(req))
+    return prova_esclusione(_archivio(req), pid, c, info).dict() | {"tipi_da_comfy": info is not None}
+
+
 # ---------------------------------------------------------------- generazione
 
 class Genera(BaseModel):
@@ -259,10 +294,17 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
     errori = controlla_ruoli(voce.workflow, ruoli)
     if errori:
         raise HTTPException(400, "Ruoli del workflow non validi: " + "; ".join(errori))
-    if ruoli.riferimento and not pers.riferimento:
-        raise HTTPException(400, f"{pers.nome} non ha un'immagine di riferimento: caricala nella pagina Personaggi.")
     if not app.comfy.connesso:
         raise HTTPException(409, "ComfyUI non è connesso: avvialo e riprova.")
+    info_nodi = await _info_nodi(app) if config.disattivati else None
+    usa_riferimento = bool(ruoli.riferimento)
+    if config.disattivati:
+        prova = prova_esclusione(a, pid, config, info_nodi)
+        if prova.problemi:
+            raise HTTPException(400, "Con i nodi staccati il workflow non funziona: " + " ".join(prova.problemi))
+        usa_riferimento = usa_riferimento and ruoli.riferimento not in prova.esclusi
+    if usa_riferimento and not pers.riferimento:
+        raise HTTPException(400, f"{pers.nome} non ha un'immagine di riferimento: caricala nella pagina Personaggi.")
 
     async def lavoro(l: Lavoro):
         if dati.sostituisci:
@@ -275,8 +317,10 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
         qualita = tag_qualita(checkpoint, config)
         da_rif = img2img(voce.workflow, ruoli.riferimento)
         libera = bool(da_rif) and config.composizione == "libera"
-        classe_latente = ("EmptySD3LatentImage" if famiglia_da_nome(checkpoint or "") in ("flux", "sd3")
-                          else "EmptyLatentImage")
+        classe_latente = _classe_latente(checkpoint)
+        if config.disattivati:
+            l.log(f"Nodi staccati: {', '.join(titolo_nodo(voce.workflow, n) for n in prova.esclusi)}. "
+                  + (f"Ricollegati: {'; '.join(x['testo'] for x in prova.collegamenti)}." if prova.collegamenti else ""))
         if libera:
             l.log("Il workflow è img2img: ogni immagine parte da zero con la posa e l'inquadratura della "
                   "variante, non da quelle del riferimento.")
@@ -294,7 +338,7 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                 conteggio[v.inquadratura] = conteggio.get(v.inquadratura, 0) + 1
         nome_rif = None
         async with app.client() as client:
-            if ruoli.riferimento:
+            if usa_riferimento:
                 rif = app.progetti.file_riferimento(pid, cid)
                 copia = rif.with_name(f"{pid}_{cid}_riferimento.png")
                 copia.write_bytes(rif.read_bytes())
@@ -314,7 +358,8 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                 wf = applica(voce.workflow, ruoli, riferimento=nome_rif, positivo=positivo, negativo=negativo,
                              seme=seme, dimensioni=(larghezza, altezza),
                              prefisso=f"comic_studio/{pid}/{cid}/dataset", modifiche=config.modifiche,
-                             composizione_libera=libera, classe_latente=classe_latente)
+                             composizione_libera=libera, classe_latente=classe_latente,
+                             disattivati=config.disattivati, info=info_nodi)
                 l.log(f"Immagine {k + 1}/{dati.quantita} · {var['_nome_inquadratura']}: {var['variante']}")
 
                 def avanza(v, t, k=k):

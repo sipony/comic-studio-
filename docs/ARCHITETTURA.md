@@ -35,6 +35,8 @@ backend/app/
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
   llm.py                  client dell'IA locale (Ollama / compatibile OpenAI), Ollama portatile
   ia.py                   servizio dell'IA: stato, installazione, avvio, modelli, domande
+  esclusione.py           nodi staccati: ricollegamento per tipo (come il bypass di ComfyUI), nodi staccati a
+                          cascata, problemi spiegati
   catalogo_ia.py          catalogo dei modelli (registro di Ollama, quantizzazioni, dimensioni) valutato
                           per la VRAM e la RAM di questo computer
   testo_prompt.py         dal testo in linguaggio naturale al prompt: schemi, composizione, blocco, aderenza
@@ -159,6 +161,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `…/dataset/elimina` | `{file: [...]}` o `{scartate: true}` nel cestino; con `definitivo: true` cancella dal disco (dopo il download) e restituisce i byte liberati |
 | POST | `…/dataset/esporta` | `{file: [...] \| null}` prepara lo ZIP (lavoro `dataset_esporta`): immagini, prompt in `.txt`, `immagini.json` |
 | GET | `…/dataset/esportazioni/{nome}` | scarica lo ZIP, che poi viene tolto dal disco |
+| POST | `…/dataset/esclusione` | `ConfigDataset` → anteprima dei nodi staccati: `{ok, esclusi, automatici, collegamenti, problemi, tipi_da_comfy}` |
 | GET | `…/dataset/cestino` | immagini del dataset nel cestino e byte |
 | POST | `…/dataset/cestino/svuota` | cancella dal disco le immagini del dataset nel cestino |
 | GET | `…/didascalie` | configurazione, didascalie di ogni immagine, frequenze dei tag |

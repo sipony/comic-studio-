@@ -88,6 +88,8 @@ class ConfigDataset(BaseModel):
     # con un workflow img2img: "libera" genera ogni immagine da zero con la posa e l'inquadratura della variante,
     # "riferimento" tiene la composizione dell'immagine di riferimento (tutte nella stessa posa)
     composizione: Literal["libera", "riferimento"] = "libera"
+    # nodi del workflow staccati per questo personaggio (Comic Studio ricollega il resto)
+    disattivati: list[str] = Field(default_factory=list)
     quantita: int = Field(default=100, ge=1, le=2000)
     da_tenere: int = Field(default=30, ge=1, le=500)
 

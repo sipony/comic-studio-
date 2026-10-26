@@ -24,9 +24,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 10 | Indirizzi cliccabili nella console (ComfyUI si apre nel browser) e pulsanti «Apri ComfyUI» | ✅ unita |
 | 11 | Annullamento in qualsiasi momento con le risorse liberate (coda di ComfyUI, VRAM, processi, IA) e anteprime dal vivo delle immagini in generazione | ✅ unita |
 | 12 | Scelta del modello dell'IA: finestra che si apre quando manca Ollama o il modello, elenco dal registro di Ollama con le quantizzazioni, ordinato per la VRAM e la RAM del computer | ✅ unita |
-| 13 | Dataset: pose e inquadrature diverse anche con i workflow img2img; Scarica (ZIP), Scarica e cancella, Elimina e Svuota il cestino per liberare spazio | ✅ questa PR |
-| 14 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 15 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 13 | Dataset: pose e inquadrature diverse anche con i workflow img2img; Scarica (ZIP), Scarica e cancella, Elimina e Svuota il cestino per liberare spazio | ✅ unita |
+| 14 | Staccare i nodi del workflow dall'interfaccia: Comic Studio ricollega il resto da solo, stacca a cascata i nodi che non possono più funzionare e spiega quando non si può | ✅ questa PR |
+| 15 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 16 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -546,4 +547,39 @@ Spazio su disco:
   Chromium: riquadro img2img, menu, «Scarica e cancellale» con ZIP salvato e galleria vuota, 100 immagini generate
   nelle 4 inquadrature
 
-Prossimo passo: PR 14, pose guidate e costruttore di workflow.
+Prossimo passo: PR 14, nodi staccati.
+
+## PR 14 — Staccare i nodi del workflow
+
+Richiesta: «poter staccare un nodo disattivandolo a video senza compromettere il workflow: il sistema dovrebbe
+essere in grado, dove è possibile, di rimediare in autonomia all'esclusione di un nodo riorganizzando in automatico
+e sensatamente il collegamento tra i nodi».
+
+- `esclusione.py` — `escludi(wf, nodi, info, protetti)`, sulla copia del workflow pronta da inviare:
+  - chi usava un'uscita del nodo staccato viene ricollegato all'ingresso dello **stesso tipo** del nodo staccato,
+    come il bypass di ComfyUI: prima quello nella stessa posizione dell'uscita, poi quello con lo stesso nome, poi il
+    primo del tipo (LoRA → MODEL e CLIP dal nodo prima; ControlNetApplyAdvanced → positive e negative ognuno al suo
+    posto); le catene di nodi staccati si attraversano
+  - un ingresso facoltativo che non si può ricollegare viene tolto
+  - un nodo che perde un ingresso indispensabile viene **staccato anche lui** e si continua a valle (riferimento
+    staccato → l'IPAdapter perde l'immagine e si stacca → il KSampler prende il modello che entrava nell'IPAdapter;
+    un'anteprima del nodo staccato sparisce con lui), con il motivo per ognuno
+  - i nodi riconosciuti (campionatore, prompt positivo, immagine finale) non si staccano mai da soli: se la catena
+    arriva a loro, il risultato è un problema spiegato in italiano
+  - tipi delle uscite e degli ingressi da `/object_info` di ComfyUI; senza ComfyUI, quelli dei nodi più comuni e il
+    nome dell'ingresso (model → MODEL, clip → CLIP…)
+- `ConfigDataset.disattivati`; `applica(..., disattivati, info)` stacca per ultimo, così un img2img con le pose dalle
+  varianti ha già lasciato libero il VAEEncode del riferimento
+- `POST …/dataset/esclusione`: anteprima con la configurazione ancora da salvare; la generazione non parte se ci
+  sono problemi, scrive nel registro cosa è stato staccato e ricollegato, e non chiede il riferimento se è staccato
+- interfaccia: «Nodi e parametri» mostra tutti i nodi, ognuno con ⏻ per staccarlo o riattaccarlo; i nodi staccati
+  (da te o da Comic Studio, con il motivo) sono tratteggiati e barrati; sopra l'elenco il riquadro con i
+  collegamenti rifatti, i nodi staccati in automatico o i problemi; «Riattacca tutti»
+- Versione 0.14.0
+- **Test**: 121 test backend (LoRA singolo e in catena, ControlNet con positive / negative, riferimento → IPAdapter e
+  anteprima a cascata, checkpoint e nodi riconosciuti non staccabili, ingresso facoltativo tolto, nodo sconosciuto
+  con e senza i tipi di ComfyUI, img2img con il riferimento staccato, API di anteprima e generazione); collaudo
+  con Chromium: LoRA staccato → KSampler ricollegato al checkpoint; riferimento staccato → ImageScale e VAEEncode
+  staccati da soli; checkpoint staccato → problemi spiegati
+
+Prossimo passo: PR 15, pose guidate e costruttore di workflow.
