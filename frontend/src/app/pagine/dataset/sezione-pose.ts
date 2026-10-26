@@ -10,7 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
-import { ConfigDataset, Lavoro, Personaggio, Posa, PoseGuidate, StatoComponenti } from '../../core/modelli';
+import { ConfigDataset, ControlnetDataset, Lavoro, Personaggio, Posa, PoseGuidate, StatoComponenti } from '../../core/modelli';
 
 export const POSE_PREDEFINITE: PoseGuidate = { attive: false, controlnet: null, pose: [], specchiate: true, forza: 0.8, fine: 0.8 };
 
@@ -33,17 +33,23 @@ export const POSE_PREDEFINITE: PoseGuidate = { attive: false, controlnet: null, 
       @if (stato(); as s) {
         @if (s.errore) {
           <p class="problema"><mat-icon>error</mat-icon> {{ s.errore }}</p>
-        } @else if (s.mancanti.length && !controlnet().length) {
+        } @else if (!controlnet().length) {
           <div class="manca">
             <mat-icon>download</mat-icon>
             <div>
-              <strong>Manca il ControlNet OpenPose SDXL</strong>
+              <strong>Manca il ControlNet OpenPose {{ cn()?.serve === 'sd15' ? 'SD 1.5' : 'SDXL' }}</strong>
+              @if (incompatibili().length) {
+                <span class="errore">Quelli che hai ({{ incompatibili().join(', ') }}) sono per un'altra architettura
+                  (di solito SD 1.5): con questo checkpoint farebbero fallire il KSampler.</span>
+              }
               <span>{{ s.mancanti[0].nome }}, {{ gb(s.totale) }} GB in {{ s.mancanti[0].cartella }}. Va bene per Pony,
                 Illustrious e gli altri SDXL.
                 @if (s.spazio.length) { Liberi sul disco: {{ gb(s.spazio[0].libero) }} GB. }</span>
               @if (s.messaggio_spazio) { <span class="errore">{{ s.messaggio_spazio }}</span> }
             </div>
-            @if (installazione(); as l) {
+            @if (!s.mancanti.length) {
+              <span class="nota">Mettilo in ComfyUI/models/controlnet (per esempio controlnet-openpose-sdxl-1.0 di xinsir).</span>
+            } @else if (installazione(); as l) {
               <div class="avanzamento">
                 <span>{{ l.testo || 'in coda' }}</span>
                 <mat-progress-bar [mode]="l.progresso >= 0 ? 'determinate' : 'indeterminate'" [value]="l.progresso * 100" />
@@ -67,6 +73,7 @@ export const POSE_PREDEFINITE: PoseGuidate = { attive: false, controlnet: null, 
             aria-label="ControlNet delle pose">
             <option value="">Automatico{{ automatico() ? ' (' + automatico() + ')' : '' }}</option>
             @for (m of controlnet(); track m) { <option [value]="m">{{ m }}</option> }
+            @for (m of incompatibili(); track m) { <option [value]="m" disabled>{{ m }} (altra architettura)</option> }
           </select>
         </label>
       </div>
@@ -127,6 +134,7 @@ export const POSE_PREDEFINITE: PoseGuidate = { attive: false, controlnet: null, 
     .manca > div { display: flex; flex-direction: column; gap: 2px; }
     .manca span { color: var(--mat-sys-on-surface-variant); }
     .manca .errore { color: var(--cs-errore-testo); }
+    .manca .nota { grid-column: 1 / -1; }
     .manca > button, .manca .avanzamento { grid-column: 1 / -1; justify-self: start; }
     .manca .avanzamento { justify-self: stretch; display: flex; flex-direction: column; gap: 4px; }
     .riga-campi { display: flex; gap: 8px; }
@@ -166,8 +174,10 @@ export class SezionePose {
 
   protected tutte = signal<Posa[]>([]);
   protected stato = signal<StatoComponenti | null>(null);
-  private elencoCn = signal<string[]>([]);
-  protected controlnet = this.elencoCn.asReadonly();
+  protected cn = signal<ControlnetDataset | null>(null);
+  /** i ControlNet che vanno bene con il checkpoint del workflow (o di cui non si sa) */
+  protected controlnet = computed(() => (this.cn()?.elenco ?? []).filter((x) => x.compatibile !== false).map((x) => x.nome));
+  protected incompatibili = computed(() => (this.cn()?.elenco ?? []).filter((x) => x.compatibile === false).map((x) => x.nome));
   protected occupato = signal(false);
   private idInstallazione = signal<string | null>(null);
 
@@ -177,11 +187,7 @@ export class SezionePose {
   protected scelte = computed(() => (this.p().pose.length ? this.base().filter((x) => this.p().pose.includes(x.id)) : this.base()));
   protected sceltaSet = computed(() => new Set(this.scelte().map((x) => x.id)));
   protected quante = computed(() => this.scelte().length * (this.p().specchiate ? 2 : 1));
-  protected automatico = computed(() => {
-    const l = this.controlnet();
-    return [/openpose.*(sdxl|xl)|(sdxl|xl).*openpose/i, /openpose/i, /union.*(sdxl|xl)|promax/i, /pose/i]
-      .map((r) => l.find((m) => r.test(m))).find(Boolean) ?? null;
-  });
+  protected automatico = computed(() => this.cn()?.automatico ?? null);
   protected installazione = computed(() => {
     const id = this.idInstallazione();
     const l = id ? this.eventi.lavori()[id] : this.eventi.attivi().find((x) => x.tipo === 'componenti');
@@ -193,7 +199,7 @@ export class SezionePose {
     if (!this.config()?.workflow) out.push('Scegli o crea un workflow nella sezione 1.');
     if (!this.personaggio().riferimento) out.push(`${this.personaggio().nome} non ha un'immagine di riferimento (pagina Personaggi).`);
     if (!this.eventi.comfy()?.connesso) out.push('ComfyUI non è connesso: avvialo (vedi pagina Sistema).');
-    if (!this.controlnet().length && this.stato()?.mancanti.length) out.push('Installa prima il ControlNet OpenPose (qui sopra).');
+    if (!this.automatico() && !this.controlnet().includes(this.p().controlnet ?? '')) out.push('Serve un ControlNet OpenPose adatto al checkpoint (qui sopra).');
     return out;
   });
 
@@ -212,6 +218,13 @@ export class SezionePose {
         if (vecchia !== undefined && st !== 'in_coda' && st !== 'in_corso') untracked(() => this.controlla());
       }
     });
+    // cambiando workflow cambia il checkpoint, e con lui i ControlNet che vanno bene
+    let wfPrima: string | null | undefined;
+    effect(() => {
+      const wf = this.config()?.workflow ?? null;
+      if (wfPrima !== undefined && wf !== wfPrima) untracked(() => this.controlla());
+      wfPrima = wf;
+    });
   }
 
   private async carica() {
@@ -225,9 +238,9 @@ export class SezionePose {
 
   private async controlla() {
     try {
-      const [s, m] = await Promise.all([this.api.componenti('pose'), this.api.modelli()]);
+      const [s, cn] = await Promise.all([this.api.componenti('pose'), this.api.controlnetDataset(this.progetto(), this.personaggio().id)]);
       this.stato.set(s);
-      this.elencoCn.set((m['controlnet'] ?? []).filter((x) => !/sd15|v11p|sd_15|1\.5/i.test(x) || /xl/i.test(x)));
+      this.cn.set(cn);
     } catch {
       /* ComfyUI spento o cartella sconosciuta: il riquadro lo dice quando c'è */
     }

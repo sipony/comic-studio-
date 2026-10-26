@@ -199,3 +199,63 @@ def test_massima_somiglianza(ambiente, monkeypatch):
     w = finto.ricevuti[-1]
     assert w["7"]["inputs"]["weight"] == 0.9 and w["6"]["inputs"]["crop_position"] == "pad"
     assert "blue pants" in w["8"]["inputs"]["text"]
+
+
+def _safetensors(f, contesto: int):
+    """Un file .safetensors con la sola intestazione di un peso di cross-attention (contesto 768 = SD 1.5, 2048 = SDXL)."""
+    import json as _json
+    import struct
+    intest = _json.dumps({"input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight":
+                          {"dtype": "F16", "shape": [320, contesto], "data_offsets": [0, 0]}}).encode()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_bytes(struct.pack("<Q", len(intest)) + intest)
+
+
+def test_controlnet_della_stessa_architettura(ambiente, cartella_comfy):
+    """Un ControlNet per SD 1.5 con un checkpoint SDXL fa fallire il KSampler (mat1 and mat2 … 2048 and 768): non si
+    sceglie da solo, se scelto a mano si spiega, e l'errore di ComfyUI si traduce."""
+    from app.modelinfo import architettura_controlnet
+    c, p, stato, finto = ambiente
+    base = f"/api/progetti/{p}/personaggi/agente/dataset"
+    c.put(f"/api/progetti/{p}/personaggi/agente/riferimento", files={"file": ("r.png", png(), "image/png")})
+    wf = c.post(f"/api/progetti/{p}/workflows/integrato", json={"checkpoint": "waiIllustriousSDXL_v170.safetensors",
+                                                               "ipadapter": "ip.safetensors",
+                                                               "clip_vision": "cv.safetensors"}).json()
+    cfg = c.get(base).json()["config"]
+    cfg["workflow"] = wf["id"]
+    cfg["pose"] = {"attive": True, "pose": ["saluto"], "specchiate": False}
+    c.put(f"{base}/config", json=cfg)
+    cartella = cartella_comfy / "models" / "controlnet"
+    _safetensors(cartella / "openpose_misterioso.safetensors", 768)       # dal nome non si capisce: dal file sì
+    _safetensors(cartella / "openpose_buono.safetensors", 2048)
+    assert architettura_controlnet("x", cartella / "openpose_misterioso.safetensors") == "sd15"
+    assert architettura_controlnet("control_v11p_sd15_openpose.pth") == "sd15"
+    assert architettura_controlnet("OpenPoseXL2.safetensors") == "sdxl"
+
+    finto.modelli["controlnet"] = ["control_v11p_sd15_openpose.pth", "openpose_misterioso.safetensors"]
+    r = c.post(f"{base}/genera", json={"quantita": 1})
+    assert r.status_code == 400 and "altra architettura" in r.json()["detail"]
+    d = c.get(f"{base}/controlnet").json()
+    assert d["automatico"] is None and d["serve"] == "sdxl"
+    assert {x["nome"]: x["compatibile"] for x in d["elenco"]} == {"control_v11p_sd15_openpose.pth": False,
+                                                                  "openpose_misterioso.safetensors": False}
+
+    finto.modelli["controlnet"].append("openpose_buono.safetensors")
+    assert c.get(f"{base}/controlnet").json()["automatico"] == "openpose_buono.safetensors"
+    l = attendi(c, c.post(f"{base}/genera", json={"quantita": 1}).json()["id"])
+    assert l["stato"] == "completato", l["errore"]
+    assert finto.ricevuti[-1][NODI_POSA["carica"]]["inputs"]["control_net_name"] == "openpose_buono.safetensors"
+
+    # scelto a mano quello sbagliato: non parte e dice perché
+    cfg["pose"]["controlnet"] = "control_v11p_sd15_openpose.pth"
+    c.put(f"{base}/config", json=cfg)
+    r = c.post(f"{base}/genera", json={"quantita": 1})
+    assert r.status_code == 400 and "SD 1.5" in r.json()["detail"]
+
+    # l'errore di ComfyUI tradotto
+    cfg["pose"]["controlnet"] = None
+    c.put(f"{base}/config", json=cfg)
+    finto.errore_nodo = "KSampler"
+    finto.messaggio_errore = "mat1 and mat2 shapes cannot be multiplied (308x2048 and 768x320)"
+    l = attendi(c, c.post(f"{base}/genera", json={"quantita": 1}).json()["id"])
+    assert l["stato"] == "errore" and "non è per questo checkpoint" in l["errore"]

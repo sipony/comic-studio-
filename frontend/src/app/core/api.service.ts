@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  AnteprimaPromptProposte, ConfrontoGrafi, Posa, RicettaProposta, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, ConfrontoGrafi, ControlnetDataset, Posa, RicettaProposta, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -215,6 +215,7 @@ export class ApiService {
   statoImmagine(progetto: string, pers: string, file: string, stato: StatoImmagine) {
     return this.patch<ImmagineDataset>(`${this.ds(progetto, pers)}/immagini/${file}`, { stato });
   }
+  controlnetDataset(progetto: string, pers: string) { return this.get<ControlnetDataset>(`${this.ds(progetto, pers)}/controlnet`); }
   massimaSomiglianza(progetto: string, pers: string) { return this.post<Lavoro>(`${this.ds(progetto, pers)}/somiglianza`); }
   genera(progetto: string, pers: string, quantita: number, sostituisci = false, una_per_posa = false) {
     return this.post<Lavoro>(`${this.ds(progetto, pers)}/genera`, { quantita, sostituisci, una_per_posa });

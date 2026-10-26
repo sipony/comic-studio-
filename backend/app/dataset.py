@@ -237,12 +237,25 @@ PREFERENZE_CONTROLNET_POSA = [r"openpose.*(sdxl|xl)|(sdxl|xl).*openpose", r"open
                               r"pose"]
 
 
-def scegli_controlnet_posa(elenco: list[str], famiglia: str | None = None) -> str | None:
-    if famiglia in ("illustrious", "noobai"):
-        noob = scegli_primo(elenco, [r"noob.*openpose|openpose.*noob", r"illustrious.*openpose"])
-        if noob:
-            return noob
-    return scegli_primo(elenco, PREFERENZE_CONTROLNET_POSA)
+def scegli_controlnet_posa(elenco: list[str], famiglia: str | None = None,
+                           architetture: dict[str, str | None] | None = None) -> str | None:
+    """Il ControlNet per le pose, solo tra quelli della stessa architettura del checkpoint: un ControlNet per SD 1.5
+    con un checkpoint SDXL fa fallire il KSampler («mat1 and mat2 shapes cannot be multiplied … 2048 and 768»).
+    `architetture`: nome → «sd15»/«sdxl»/None (dal file); senza, si guarda il nome."""
+    from .modelinfo import architettura_controlnet
+    serve = "sd15" if famiglia == "sd15" else "sdxl"
+    arch = {n: (architetture or {}).get(n) or architettura_controlnet(n) for n in elenco}
+    sicuri = [n for n in elenco if arch[n] == serve]
+    dubbi = [n for n in elenco if arch[n] is None]
+    for gruppo in (sicuri, dubbi):
+        if famiglia in ("illustrious", "noobai"):
+            noob = scegli_primo(gruppo, [r"noob.*openpose|openpose.*noob", r"illustrious.*openpose"])
+            if noob:
+                return noob
+        scelto = scegli_primo(gruppo, PREFERENZE_CONTROLNET_POSA)
+        if scelto:
+            return scelto
+    return None
 
 
 def pose_scelte(c: "PoseGuidate") -> list:

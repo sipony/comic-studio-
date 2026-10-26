@@ -34,9 +34,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 20 | Aggiornare senza confondersi: la versione nuova sostituisce quella vecchia ancora aperta (chiedendo se ha lavori in corso); numero di versione in alto | ✅ unita |
 | 21 | Impostazioni dei nodi modificabili dal grafo della console, controllate come in ComfyUI e salvate nel workflow del personaggio (dataset e proposte) | ✅ unita |
 | 22 | Dataset identico alle proposte: stesso workflow con in più solo il riferimento, stesso prompt salvo le varianti, stesso negativo; verifica tag per tag e nodo per nodo; proposte vecchie completate con il checkpoint | ✅ unita |
-| 23 | Pose guidate nel dataset (ControlNet OpenPose con gli scheletri disegnati da Comic Studio, installabile); «Massima somiglianza al riferimento» (aspetto dal tagger, sfondi, IPAdapter più forte su tutta la figura); workflow di ogni proposta e immagine salvato, grafi confrontati fianco a fianco | ✅ questa PR |
-| 24 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 25 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 23 | Pose guidate nel dataset (ControlNet OpenPose con gli scheletri disegnati da Comic Studio, installabile); «Massima somiglianza al riferimento» (aspetto dal tagger, sfondi, IPAdapter più forte su tutta la figura); workflow di ogni proposta e immagine salvato, grafi confrontati fianco a fianco | ✅ unita |
+| 24 | Pose guidate: solo ControlNet della stessa architettura del checkpoint (un OpenPose per SD 1.5 con Pony / Illustrious faceva fallire il KSampler) | ✅ questa PR |
+| 25 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 26 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -959,6 +960,15 @@ diverse tra loro) e IPAdapter a 0,7 con ritaglio «top» del riferimento a figur
   installabile `controlnet_openpose` (xinsir, 2,5 GB) con i controlli di spazio e impronta di IPAdapter
   (`componenti` a gruppi: `?gruppo=pose`; la finestra all'apertura resta solo per IPAdapter)
 - confronto con la proposta: riga «Pose guidate»; grafo: i nodi della posa dicono dove si cambiano
+- **ControlNet della stessa architettura del checkpoint.** Primo collaudo dell'utente: «mat1 and mat2 shapes cannot be
+  multiplied (308x2048 and 768x320)» nel KSampler. Era un ControlNet OpenPose per SD 1.5 (contesto 768) con un
+  checkpoint SDXL (2048): la scelta automatica lo prendeva, e il componente «ControlNet OpenPose» lo contava come
+  installato. Ora `modelinfo.architettura_controlnet` legge dall'intestazione del .safetensors la forma di un peso di
+  cross-attention (768 = SD 1.5, 2048 = SDXL), altrimenti guarda il nome (`sd15`, `v11p`… / `xl`); la scelta
+  automatica usa solo quelli dell'architettura del checkpoint, uno scelto a mano sbagliato ferma la generazione con la
+  spiegazione, e se ComfyUI dà comunque quell'errore viene tradotto. Il componente conta solo gli OpenPose SDXL.
+  `GET …/dataset/controlnet`: elenco con architettura e compatibilità; nell'interfaccia quelli incompatibili sono
+  disattivati e il riquadro propone l'installazione
 
 **Massima somiglianza al riferimento** (`POST …/dataset/somiglianza`, lavoro): il tagger WD14 legge il riferimento e
 i tag dell'aspetto (vestiti, capelli, occhi, accessori; tolti inquadratura, posa, sguardo, espressione, sfondo, luce,
@@ -979,11 +989,23 @@ personaggio: il workflow della libreria non cambia); pose guidate se c'è il Con
   (bordo arancione, valore in arancione) e quelli solo da una parte (tratteggio); finestra «Confronta con la proposta»
   con l'elenco delle differenze e i due grafi; pulsanti in galleria, nelle proposte e nel riquadro del confronto;
   «Sfondi come le proposte»
-- Versione 0.23.0
+- Versione 0.23.0, poi 0.23.1 con la correzione dell'architettura del ControlNet
 - **Test**: `test_pose.py` (destra/sinistra, specchiate, profilo e spalle, disegno e tagli, rotazione, ControlNet nel
   workflow e nell'hires fix, dataset con pose e una per posa, ControlNet mancante, grafo; massima somiglianza),
   `test_grafi_salvati.py` (abbinamento per ruolo, proposta e immagine salvate e ricostruite uguali, confronto,
   cestino), `test_componenti.py` (gruppo pose). Collaudo con Chromium: riquadro delle pose, installazione, una per
   posa, lightbox con lo scheletro, confronto dei grafi, massima somiglianza
 
-Prossimo passo: PR 24, pose guidate nelle scene di gruppo e costruttore di workflow.
+Prossimo passo: PR 24, correzione dell'architettura del ControlNet.
+
+## PR 24 — ControlNet della stessa architettura del checkpoint
+
+La PR 23 è stata unita prima che arrivasse la correzione descritta sopra («ControlNet della stessa architettura del
+checkpoint»): questa PR la porta su main, con la versione 0.23.1. L'utente aveva `control_v11p_sd15_openpose.pth` in
+models/controlnet e un checkpoint Illustrious: Comic Studio lo sceglieva da solo e lo contava come «ControlNet OpenPose
+installato», quindi non proponeva l'installazione di quello SDXL e il KSampler falliva («308x2048 and 768x320»).
+
+- **Test**: `test_controlnet_della_stessa_architettura` (architettura dal file e dal nome, scelta automatica, scelta a
+  mano sbagliata, errore di ComfyUI tradotto), `test_openpose_sd15_non_conta_come_installato`
+
+Prossimo passo: PR 25, pose guidate nelle scene di gruppo e costruttore di workflow.

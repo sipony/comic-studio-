@@ -69,7 +69,9 @@ POSE = [
                "il ControlNet che fa prendere al personaggio la posa dello scheletro (SDXL, Pony, Illustrious)",
                "models/controlnet", "controlnet-openpose-sdxl-1.0-xinsir.safetensors",
                "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
-               2_502_139_104, r"openpose|union.*(sdxl|xl)|promax"),
+               # solo quelli per SDXL: un OpenPose per SD 1.5 (control_v11p_sd15_openpose) non va con Pony/Illustrious
+               2_502_139_104, r"openpose.*(sdxl|xl)|(sdxl|xl).*openpose|noob.*openpose|openpose.*noob|union.*(sdxl|xl)|"
+                              r"promax"),
 ]
 GRUPPI = ("ipadapter", "pose")
 NOMI_GRUPPI = {"ipadapter": "IPAdapter Plus", "pose": "ControlNet OpenPose"}
