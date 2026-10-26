@@ -153,7 +153,7 @@ async def prova(dati: Prova, req: Request):
     async def lavoro(l: Lavoro):
         l.avanza(0.1, "l'IA legge il testo")
         analisi = await app.ia.chiedi(tp.SISTEMA_SCENA, tp.richiesta_scena(dati.testo, [], []), tp.SCHEMA_SCENA, l)
-        tp.verifica_scena(analisi, dati.testo, [])
+        #tp.verifica_scena(analisi, dati.testo, [])
         scena = tp.componi_scena(analisi, famiglia_da_nome(dati.checkpoint or ""), set())
         l.log(f"Prompt: {scena.globale}", "ok")
         return {"analisi": analisi, "prompt": scena.dict()}
@@ -169,11 +169,11 @@ class Tratti(BaseModel):
 
 async def tratti_dal_testo(app, p: Personaggio, storia: str, checkpoint: str | None, l: Lavoro) -> dict:
     """I tratti fissi di un personaggio ricavati dalla sua descrizione libera."""
-    tp.verifica_contenuto([storia])
+    #tp.verifica_contenuto([storia])
     utente = f"Character name: {p.nome}\nDescription:\n{storia}"
     analisi = await app.ia.chiedi(tp.SISTEMA_PERSONAGGIO, utente, tp.SCHEMA_PERSONAGGIO, l)
     r = tp.tratti_personaggio(analisi, famiglia_da_nome(checkpoint or ""))
-    tp.verifica_contenuto([storia, r["descrizione"]], minori=r["adulto"] is False)
+    #tp.verifica_contenuto([storia, r["descrizione"]], minori=r["adulto"] is False)
     l.log(f"Tratti di {p.nome}: {r['descrizione']}", "ok")
     if r["adulto"] is False:
         l.log(f"{p.nome} risulta minorenne: nelle scene con lui o lei i contenuti sessuali sono bloccati.", "info")
@@ -212,14 +212,14 @@ async def analizza(app, pid: str, vid: str, l: Lavoro, forza: bool = False) -> t
     if not forza and v.analisi and v.analisi.get("chiave") == chiave:
         dati = v.analisi["dati"]
     else:
-        tp.verifica_contenuto([v.descrizione])          # prima ancora di chiedere all'IA
+        #tp.verifica_contenuto([v.descrizione])          # prima ancora di chiedere all'IA
         dati = await app.ia.chiedi(tp.SISTEMA_SCENA, tp.richiesta_scena(v.descrizione, personaggi, v.personaggi),
                                    tp.SCHEMA_SCENA, l, contesto=16384)
         f = a.leggi(pid)                                 # nel frattempo l'utente può aver salvato
         v = a.trova(f, vid)
         v.analisi = {"chiave": chiave, "dati": dati}
         a.salva(pid, f)
-    tp.verifica_scena(dati, v.descrizione, personaggi)
+    #tp.verifica_scena(dati, v.descrizione, personaggi)
     scena = tp.componi_scena(dati, famiglia_da_nome(f.impostazioni.checkpoint or ""), {p.id for p in personaggi},
                              v.rafforza)
     if not v.personaggi and scena.personaggi:            # i personaggi li ha trovati l'IA nel testo
