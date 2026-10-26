@@ -2,6 +2,7 @@
   <a class="marchio" routerLink="/progetti">
     <span class="logo" aria-hidden="true"><mat-icon>auto_stories</mat-icon></span>
     <span class="nome">Comic Studio</span>
+    @if (eventi.sistema()?.versione; as v) { <span class="versione" matTooltip="Versione in uso">{{ v }}</span> }
   </a>
 
   @if (progetti.corrente(); as p) {

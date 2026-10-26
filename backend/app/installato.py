@@ -3,7 +3,9 @@
 Niente terminale:
 - l'uscita va in <cartella dati>/comicstudio.log
 - su Windows i programmi avviati da Comic Studio (git, pip, kohya, nvidia-smi…) non aprono finestre nere
-- se Comic Studio è già aperto si apre solo il browser; se la porta 8765 è di un altro programma si usa la successiva
+- se Comic Studio è già aperto nella stessa versione si apre solo il browser; se è aperta un'altra versione (per
+  esempio quella vecchia, dopo aver scaricato la nuova) la si chiude e parte questa: se ha lavori in corso prima
+  lo si chiede; se la porta 8765 è di un altro programma si usa la successiva
 - un errore all'avvio compare in una finestra di messaggio del sistema
 - con l'AppImage, al primo avvio Comic Studio si aggiunge al menu delle applicazioni
 """
@@ -17,6 +19,7 @@ import subprocess
 import sys
 import time
 import traceback
+import urllib.request
 import webbrowser
 from pathlib import Path
 
@@ -77,6 +80,82 @@ def messaggio(testo: str):
         traceback.print_exc()
 
 
+def chiedi(testo: str) -> bool:
+    """Una domanda sì / no in una finestra del sistema; False se non si può chiedere."""
+    try:
+        if os.name == "nt":
+            import ctypes
+            return ctypes.windll.user32.MessageBoxW(None, testo, TITOLO, 0x24) == 6      # MB_YESNO | domanda → Sì
+        if platform.system() == "Darwin":
+            r = subprocess.run(["osascript", "-e", f"display dialog {json.dumps(testo)} with title {json.dumps(TITOLO)} "
+                                                   'buttons {"Lascia quella aperta", "Sostituisci"} default button 2 '
+                                                   'cancel button 1 with icon caution'], timeout=600)
+            return r.returncode == 0
+        for cmd in (["zenity", "--question", "--title", TITOLO, "--text", testo, "--ok-label", "Sostituisci",
+                     "--cancel-label", "Lascia quella aperta"],
+                    ["kdialog", "--title", TITOLO, "--yesno", testo]):
+            if shutil.which(cmd[0]):
+                return subprocess.run(cmd, timeout=600).returncode == 0
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+    return False
+
+
+def info_aperto(porta: int) -> dict | None:
+    """Versione e lavori in corso del Comic Studio già aperto sulla porta."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{porta}/api/sistema", timeout=3) as r:
+            versione = json.loads(r.read().decode("utf-8")).get("versione")
+        with urllib.request.urlopen(f"http://127.0.0.1:{porta}/api/lavori", timeout=3) as r:
+            lavori = json.loads(r.read().decode("utf-8"))
+        attivi = [l for l in lavori if l.get("stato") in ("in_coda", "in_corso")
+                  and l.get("tipo") not in ("diagnostica", "ricerca_comfy")]
+        return {"versione": versione, "attivi": len(attivi), "titoli": [l.get("titolo", "") for l in attivi]}
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def chiudi_aperto(porta: int, attesa: float = 30) -> bool:
+    """Chiede al Comic Studio aperto di chiudersi (ComfyUI resta acceso) e aspetta che la porta si liberi."""
+    from .__main__ import porta_libera
+    try:
+        richiesta = urllib.request.Request(f"http://127.0.0.1:{porta}/api/esci", data=b'{"comfy": false}',
+                                           method="POST", headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(richiesta, timeout=10).close()
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+        return False
+    fine = time.time() + attesa
+    while time.time() < fine:
+        if porta_libera("127.0.0.1", porta):
+            return True
+        time.sleep(0.3)
+    return False
+
+
+def gia_aperto(porta: int, versione: str) -> bool:
+    """Comic Studio è già aperto sulla porta: True se resta quello (si apre solo il browser), False se è stato chiuso
+    per far partire questa versione."""
+    info = info_aperto(porta)
+    vecchia = (info or {}).get("versione")
+    if not info or vecchia == versione:
+        print(f"Comic Studio {vecchia or ''} è già aperto sulla porta {porta}: apro il browser")
+        return True
+    if info["attivi"]:
+        elenco = "\n".join(f"  • {t}" for t in info["titoli"][:5])
+        if not chiedi(f"È già aperto Comic Studio {vecchia} con {info['attivi']} lavori in corso:\n{elenco}\n\n"
+                      f"Chiuderlo (i lavori vengono fermati) e aprire la versione {versione}?\n\n"
+                      f"Se lo lasci aperto, chiudilo più tardi con ⏻ e riapri Comic Studio."):
+            print(f"Comic Studio {vecchia} resta aperto (lavori in corso): apro il browser")
+            return True
+    print(f"È aperto Comic Studio {vecchia}: lo chiudo per avviare la versione {versione}")
+    if not chiudi_aperto(porta):
+        messaggio(f"Non sono riuscito a chiudere Comic Studio {vecchia}, che è ancora aperto: chiudilo con il pulsante "
+                  f"⏻ in alto a destra e riapri Comic Studio per usare la versione {versione}.")
+        return True
+    return False
+
+
 def integra_menu_linux():
     """AppImage: aggiunge Comic Studio al menu delle applicazioni (e lo aggiorna se il file è stato spostato)."""
     appimage, appdir = os.environ.get("APPIMAGE"), os.environ.get("APPDIR")
@@ -111,9 +190,10 @@ def main():
             if porta_libera("127.0.0.1", porta):
                 break
             if e_comic_studio(porta):
-                print(f"Comic Studio è già aperto sulla porta {porta}: apro il browser")
-                webbrowser.open(f"http://127.0.0.1:{porta}")
-                return
+                if gia_aperto(porta, __version__):
+                    webbrowser.open(f"http://127.0.0.1:{porta}")
+                    return
+                break                       # la versione vecchia si è chiusa: questa parte sulla stessa porta
         else:
             raise RuntimeError(f"Le porte {PORTE.start}-{PORTE.stop - 1} sono tutte occupate da altri programmi.")
         print(f"Comic Studio su http://127.0.0.1:{porta}")

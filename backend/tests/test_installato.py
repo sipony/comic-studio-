@@ -74,3 +74,52 @@ def test_appimage_si_aggiunge_al_menu(tmp_path, monkeypatch):
     voce = (tmp_path / "share" / "applications" / "comic-studio.desktop").read_text()
     assert f'Exec="{tmp_path / "ComicStudio.AppImage"}"' in voce and "Terminal=false" in voce
     assert (tmp_path / "share" / "icons" / "hicolor" / "256x256" / "apps" / "comic-studio.png").exists()
+
+
+def _prepara_aperto(monkeypatch, versione, attivi=0):
+    """Sulla 8765 c'è già Comic Studio `versione` con `attivi` lavori in corso."""
+    monkeypatch.setattr(sys, "stdout", sys.stdout)
+    monkeypatch.setattr(sys, "stderr", sys.stderr)
+    stato = {"aperto": True, "chiuso": 0}
+    monkeypatch.setattr(principale, "porta_libera", lambda h, p: not (p == 8765 and stato["aperto"]))
+    monkeypatch.setattr(principale, "e_comic_studio", lambda p: p == 8765 and stato["aperto"])
+    monkeypatch.setattr(installato, "info_aperto", lambda p: {"versione": versione, "attivi": attivi,
+                                                             "titoli": ["Dataset di comandante: 100 immagini"] * attivi})
+
+    def chiudi(p, attesa=30):
+        stato["aperto"] = False
+        stato["chiuso"] += 1
+        return True
+    monkeypatch.setattr(installato, "chiudi_aperto", chiudi)
+    servite, aperti = [], []
+    monkeypatch.setattr(principale, "servi", lambda h, p, apri_browser: servite.append(p))
+    monkeypatch.setattr(installato.webbrowser, "open", aperti.append)
+    return stato, servite, aperti
+
+
+def test_versione_vecchia_aperta_viene_sostituita(casa, monkeypatch):
+    stato, servite, aperti = _prepara_aperto(monkeypatch, "0.17.0")
+    installato.main()
+    assert stato["chiuso"] == 1 and servite == [8765] and not aperti
+    assert "lo chiudo per avviare la versione" in (casa / "comicstudio.log").read_text(encoding="utf-8")
+
+
+def test_stessa_versione_apre_solo_il_browser(casa, monkeypatch):
+    from app import __version__
+    stato, servite, aperti = _prepara_aperto(monkeypatch, __version__)
+    installato.main()
+    assert stato["chiuso"] == 0 and not servite and aperti == ["http://127.0.0.1:8765"]
+
+
+def test_con_lavori_in_corso_prima_chiede(casa, monkeypatch):
+    domande = []
+    monkeypatch.setattr(installato, "chiedi", lambda t: domande.append(t) or False)
+    stato, servite, aperti = _prepara_aperto(monkeypatch, "0.17.0", attivi=1)
+    installato.main()
+    assert "Dataset di comandante" in domande[0] and "0.17.0" in domande[0]
+    assert stato["chiuso"] == 0 and not servite and aperti == ["http://127.0.0.1:8765"]
+    # risposta «Sostituisci»
+    monkeypatch.setattr(installato, "chiedi", lambda t: True)
+    stato, servite, aperti = _prepara_aperto(monkeypatch, "0.17.0", attivi=1)
+    installato.main()
+    assert stato["chiuso"] == 1 and servite == [8765]
