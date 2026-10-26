@@ -783,3 +783,13 @@ export interface WorkflowLavoro {
   workflow: Record<string, unknown>;
   grafo: { nodi: NodoGrafo[]; collegamenti: CollegamentoGrafo[]; da_comfy: boolean };
 }
+
+/** Il dataset confrontato con la proposta scelta come riferimento. */
+export interface ConfrontoDataset {
+  proposta: { file: string; prompt: string; ricetta: RicettaProposta | null };
+  stile_proposta: string[];
+  mancanti: string[];
+  esempio_dataset: string | null;
+  righe: { voce: string; proposte: string; dataset: string; uguale: boolean | null; nota: string }[];
+  coerente: boolean;
+}

@@ -44,6 +44,7 @@ backend/app/
   testo_prompt.py         dal testo in linguaggio naturale al prompt: schemi, composizione, blocco, aderenza
   proposte.py             personaggio dal nulla: proposte d'immagine di riferimento dal testo
   grafo.py                workflow mandato a ComfyUI: riassunto per i log e grafo da disegnare
+  coerenza.py             dataset confrontato con la proposta da cui è nato il personaggio
   componenti.py           IPAdapter Plus (nodo e modelli): cosa manca, spazio su disco, download controllati
   rotte_componenti.py     API dei componenti da installare
   rotte_proposte.py       API delle proposte
@@ -168,6 +169,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | GET / PATCH / DELETE | `/api/progetti/{id}/workflows/{wid}` | dettaglio con analisi / nome e ruoli / elimina |
 | GET | `/api/progetti/{id}/workflows/{wid}/scarica` | il workflow in formato API |
 | GET | `/api/progetti/{id}/personaggi/{pid}/dataset` | configurazione, riepilogo e `origine` (ricetta delle proposte, checkpoint del workflow, `coerente`) |
+| POST | `…/dataset/confronto` | la configurazione (anche non salvata) confrontata con la proposta scelta: righe proposta / dataset, tag di stile mancanti, prompt; `null` se il riferimento non è una proposta |
 | POST | `…/dataset/come-proposte` | workflow integrato con lo stesso checkpoint, LoRA di stile e campionamento delle proposte (IPAdapter se installato; riusato se è già in libreria), stile e negativo nella configurazione |
 | PUT | `…/dataset/config` | salva la configurazione |
 | POST | `…/dataset/esempi` | esempi dei prompt che verranno generati |

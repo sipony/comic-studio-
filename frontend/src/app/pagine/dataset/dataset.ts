@@ -8,7 +8,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
-import { ConfigDataset, ImmagineDataset, NOMI_FAMIGLIA, RiassuntoWorkflow, RicettaProposta, RiepilogoDataset } from '../../core/modelli';
+import { ConfigDataset, ConfrontoDataset, ImmagineDataset, NOMI_FAMIGLIA, RiassuntoWorkflow, RicettaProposta, RiepilogoDataset } from '../../core/modelli';
 import { ProgettoService } from '../../core/progetto.service';
 import { SceltaPersonaggio } from '../../shell/scelta-personaggio';
 import { Galleria } from './galleria';
@@ -62,6 +62,20 @@ export class DatasetPage {
     return parti.join(' · ');
   });
   protected readonly nomiFamiglia = NOMI_FAMIGLIA;
+  /** confronto con la proposta scelta come riferimento (aggiornato mentre si cambia la configurazione) */
+  protected confronto = signal<ConfrontoDataset | null>(null);
+  protected confrontoAperto = signal(false);
+  private timerConfronto?: ReturnType<typeof setTimeout>;
+  protected urlProposta = (file: string) => this.api.urlProposta(this.progetto().id, this.sceltoId() ?? '', file);
+
+  /** Aggiunge allo stile del dataset i tag di stile delle proposte che mancano. */
+  protected aggiungiStile() {
+    const c = this.config();
+    const m = this.confronto()?.mancanti ?? [];
+    if (!c || !m.length) return;
+    this.config.set({ ...c, stile: [c.stile ?? '', ...m].map((x) => x.trim()).filter(Boolean).join(', ') });
+    this.avvisi.ok(`Aggiunti allo stile: ${m.join(', ')}`);
+  }
 
   /** Lavoro del dataset in corso per questo personaggio (generazione o selezione). */
   protected lavoro = computed(() => {
@@ -75,6 +89,17 @@ export class DatasetPage {
   private timer?: ReturnType<typeof setTimeout>;
 
   constructor() {
+    effect(() => {
+      const c = this.config();
+      const id = this.sceltoId();
+      if (this.timerConfronto) clearTimeout(this.timerConfronto);
+      if (!c || !id) return;
+      this.timerConfronto = setTimeout(() => {
+        this.api.confrontoDataset(this.progetto().id, id, c)
+          .then((r) => { if (this.sceltoId() === id) this.confronto.set(r); })
+          .catch(() => this.confronto.set(null));
+      }, 400);
+    });
     effect(() => {
       const id = this.sceltoId();
       if (id) untracked(() => void this.carica(id));

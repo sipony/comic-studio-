@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  AnteprimaPromptProposte, CatalogoIA, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, CatalogoIA, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -162,6 +162,10 @@ export class ApiService {
   private ds(progetto: string, pers: string) { return `/api/progetti/${progetto}/personaggi/${pers}/dataset`; }
   statoDataset(progetto: string, pers: string) {
     return this.get<{ config: ConfigDataset; riepilogo: RiepilogoDataset; origine: OrigineDataset | null }>(this.ds(progetto, pers));
+  }
+  /** La configurazione (anche non salvata) confrontata con la proposta scelta; null se il riferimento non è una proposta. */
+  confrontoDataset(progetto: string, pers: string, c: ConfigDataset) {
+    return this.post<ConfrontoDataset | null>(`${this.ds(progetto, pers)}/confronto`, c);
   }
   /** Usa per il dataset le stesse scelte delle proposte (workflow integrato con lo stesso checkpoint e LoRA). */
   comeProposte(progetto: string, pers: string) {

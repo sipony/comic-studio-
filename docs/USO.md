@@ -71,6 +71,9 @@ scaricare il workflow e trascinarlo in ComfyUI per aprirlo identico, o vederlo a
 
 Per ogni personaggio (scegli in alto quale):
 
+- se il riferimento è una proposta, il riquadro di confronto dice se il dataset è **coerente** con lei: checkpoint,
+  LoRA, tag di stile, campionamento e IPAdapter a confronto e i due prompt; se mancano tag di stile della proposta,
+  **Aggiungili allo stile** li rimette (vale anche per i personaggi creati con le versioni vecchie)
 - se il personaggio è nato da una proposta, in alto c'è con quali scelte (checkpoint, LoRA, stile); se il workflow
   del dataset usa un altro checkpoint o non ha quella LoRA, l'avviso propone **Usa le scelte delle proposte**
 
