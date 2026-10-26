@@ -959,6 +959,15 @@ diverse tra loro) e IPAdapter a 0,7 con ritaglio «top» del riferimento a figur
   installabile `controlnet_openpose` (xinsir, 2,5 GB) con i controlli di spazio e impronta di IPAdapter
   (`componenti` a gruppi: `?gruppo=pose`; la finestra all'apertura resta solo per IPAdapter)
 - confronto con la proposta: riga «Pose guidate»; grafo: i nodi della posa dicono dove si cambiano
+- **ControlNet della stessa architettura del checkpoint.** Primo collaudo dell'utente: «mat1 and mat2 shapes cannot be
+  multiplied (308x2048 and 768x320)» nel KSampler. Era un ControlNet OpenPose per SD 1.5 (contesto 768) con un
+  checkpoint SDXL (2048): la scelta automatica lo prendeva, e il componente «ControlNet OpenPose» lo contava come
+  installato. Ora `modelinfo.architettura_controlnet` legge dall'intestazione del .safetensors la forma di un peso di
+  cross-attention (768 = SD 1.5, 2048 = SDXL), altrimenti guarda il nome (`sd15`, `v11p`… / `xl`); la scelta
+  automatica usa solo quelli dell'architettura del checkpoint, uno scelto a mano sbagliato ferma la generazione con la
+  spiegazione, e se ComfyUI dà comunque quell'errore viene tradotto. Il componente conta solo gli OpenPose SDXL.
+  `GET …/dataset/controlnet`: elenco con architettura e compatibilità; nell'interfaccia quelli incompatibili sono
+  disattivati e il riquadro propone l'installazione
 
 **Massima somiglianza al riferimento** (`POST …/dataset/somiglianza`, lavoro): il tagger WD14 legge il riferimento e
 i tag dell'aspetto (vestiti, capelli, occhi, accessori; tolti inquadratura, posa, sguardo, espressione, sfondo, luce,

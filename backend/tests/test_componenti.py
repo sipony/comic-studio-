@@ -185,3 +185,13 @@ def test_installazione_controlnet_delle_pose(casa, cartella_comfy, download, mon
         r = c.post("/api/componenti/installa?gruppo=pose")
         assert r.status_code == 400 and "ControlNet OpenPose è già installato" in r.json()["detail"]
         assert "controlnet-openpose-sdxl-1.0-xinsir.safetensors" in c.get("/api/comfy/modelli").json()["controlnet"]
+
+
+def test_openpose_sd15_non_conta_come_installato(tmp_path):
+    (tmp_path / "custom_nodes").mkdir()
+    d = tmp_path / "models" / "controlnet"
+    d.mkdir(parents=True)
+    (d / "control_v11p_sd15_openpose.pth").write_bytes(b"x")
+    assert [m["id"] for m in comp.controlla(str(tmp_path), elenco=comp.POSE).mancanti] == ["controlnet_openpose"]
+    (d / "OpenPoseXL2.safetensors").write_bytes(b"x")
+    assert comp.controlla(str(tmp_path), elenco=comp.POSE).mancanti == []

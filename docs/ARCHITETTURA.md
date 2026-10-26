@@ -186,6 +186,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | PUT | `…/dataset/config` | salva la configurazione |
 | POST | `…/dataset/esempi` | esempi dei prompt che verranno generati |
 | POST | `…/dataset/genera` | `{quantita, sostituisci, una_per_posa}` avvia la generazione (lavoro GPU); con le pose guidate (`config.pose`) a ogni immagine si aggiunge il ControlNet con lo scheletro |
+| GET | `…/dataset/controlnet` | ControlNet visti da ComfyUI con l'architettura (dal file .safetensors o dal nome) e se vanno con il checkpoint del workflow; quello che si userebbe da solo |
 | POST | `…/dataset/somiglianza` | «massima somiglianza al riferimento» (lavoro `dataset_somiglianza`): `aspetto` dal tagger, sfondi come le proposte, IPAdapter 0,9 / fine 1 / ritaglio pad, pose guidate |
 | GET | `…/dataset/immagini/{file}/workflow` | grafo del workflow dell'immagine, salvato o ricostruito; `?formato=json` |
 | GET | `…/dataset/immagini/{file}/confronto` | grafo della proposta di riferimento e dell'immagine, `righe` delle differenze (nodi abbinati per ruolo), `evidenzia_a/_b` |
