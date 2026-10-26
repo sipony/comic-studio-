@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  AnteprimaPromptProposte, CatalogoIA, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, CatalogoIA, StatoComponenti, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -91,6 +91,10 @@ export class ApiService {
   scartaProposte(progetto: string, id: string) {
     return this.post<{ spostate_nel_cestino: number }>(`${this.dp(progetto, id)}/scarta`);
   }
+
+  componenti() { return this.get<StatoComponenti>('/api/componenti'); }
+  installaComponenti() { return this.post<Lavoro>('/api/componenti/installa'); }
+  chiediComponenti(chiedi: boolean) { return this.post<StatoComponenti>('/api/componenti/chiedi', { chiedi }); }
 
   avviaComfy() { return this.post<Lavoro>('/api/comfy/avvia'); }
   fermaComfy() { return this.post<Lavoro>('/api/comfy/ferma'); }

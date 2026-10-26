@@ -157,7 +157,8 @@ export type Evento =
   | { tipo: 'comfy'; dati: StatoComfy; ts: number }
   | { tipo: 'installazioni'; dati: Installazione[]; ts: number }
   | { tipo: 'diagnostica'; dati: Rapporto; ts: number }
-  | { tipo: 'benvenuto'; comfy: StatoComfy; lavori: Lavoro[]; ts?: number }
+  | { tipo: 'benvenuto'; comfy: StatoComfy; lavori: Lavoro[]; componenti?: StatoComponenti | null; ts?: number }
+  | { tipo: 'componenti'; dati: StatoComponenti; ts: number }
   | EventoDataset
   | EventoDidascalie
   | EventoAddestramento
@@ -718,4 +719,41 @@ export interface Proposta {
   da: string | null;
   scelta: boolean;
   ricetta?: RicettaProposta | null;
+}
+
+// ------------------------------------------------------------ componenti di ComfyUI (IPAdapter Plus)
+
+export interface Componente {
+  id: string;
+  nome: string;
+  tipo: 'nodo' | 'modello';
+  descrizione: string;
+  cartella: string;
+  file: string;
+  byte: number;
+}
+
+export interface SpazioDisco {
+  cartella: string;
+  libero: number;
+  serve: number;
+  basta: boolean;
+}
+
+export interface StatoComponenti {
+  comfy_dir: string | null;
+  mancanti: Componente[];
+  presenti: string[];
+  /** nodi sul disco che ComfyUI non carica */
+  da_caricare: string[];
+  spazio: SpazioDisco[];
+  basta_spazio: boolean;
+  totale: number;
+  errore: string | null;
+  /** chiederlo all'apertura (false = «non chiedere più») */
+  chiedi: boolean;
+  lavoro: string | null;
+  comfy_avviato_da_noi: boolean;
+  comfy_connesso: boolean;
+  messaggio_spazio: string | null;
 }

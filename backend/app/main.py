@@ -19,6 +19,7 @@ from .rotte_addestramento import rotte as rotte_addestramento, rotte_kohya
 from .rotte_fumetto import rotte as rotte_fumetto
 from .rotte_testo import rotte as rotte_testo, rotte_ia
 from .rotte_proposte import rotte as rotte_proposte
+from .rotte_componenti import rotte as rotte_componenti
 from .projects import ErroreProgetto, ModificaPersonaggio, NuovoPersonaggio, suggerisci_trigger
 from .settings import Archivio as ArchivioImpostazioni
 from .state import App
@@ -278,7 +279,8 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
         q = stato.bus.iscrivi()
         try:
             await ws.send_json({"tipo": "benvenuto", "comfy": stato.comfy.dict(),
-                                "lavori": [l.dict() for l in stato.gestore.attivi()]})
+                                "lavori": [l.dict() for l in stato.gestore.attivi()],
+                                "componenti": stato.componenti})
             while True:
                 await ws.send_json(await q.get())
         except (WebSocketDisconnect, RuntimeError):
@@ -287,6 +289,7 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
             stato.bus.disiscrivi(q)
 
     api.include_router(rotte_dataset)
+    api.include_router(rotte_componenti)
     api.include_router(rotte_didascalie)
     api.include_router(rotte_addestramento)
     api.include_router(rotte_kohya)

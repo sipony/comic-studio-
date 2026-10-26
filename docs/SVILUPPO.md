@@ -27,9 +27,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 13 | Dataset: pose e inquadrature diverse anche con i workflow img2img; Scarica (ZIP), Scarica e cancella, Elimina e Svuota il cestino per liberare spazio | ✅ unita |
 | 14 | Staccare i nodi del workflow dall'interfaccia: Comic Studio ricollega il resto da solo, stacca a cascata i nodi che non possono più funzionare e spiega quando non si può | ✅ unita |
 | 15 | IA locale: eliminare dall'interfaccia i modelli scaricati con Ollama; gestione del processo di Ollama (avvio all'apertura, riavvio se si chiude o si blocca, Avvia / Riavvia / Ferma) | ✅ unita |
-| 16 | Personaggio dal nulla con più scelte (LoRA di stile, negativo, campionamento, anteprima del prompt) che passano da sole al dataset: stesso checkpoint, LoRA e stile, così il personaggio resta lo stesso | ✅ questa PR |
-| 17 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 18 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 16 | Personaggio dal nulla con più scelte (LoRA di stile, negativo, campionamento, anteprima del prompt) che passano da sole al dataset: stesso checkpoint, LoRA e stile, così il personaggio resta lo stesso | ✅ unita |
+| 17 | IPAdapter Plus proposto all'apertura se manca (nodo e modelli), con il controllo dello spazio su disco, e installato da Comic Studio | ✅ questa PR |
+| 18 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 19 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -714,4 +715,40 @@ personaggio del dataset, e quindi del LoRA, poteva essere un altro.
   anteprima, 4 proposte, «Usa questa» → dataset «Come le proposte · ponyDiffusionV6XL + Western_Ink_XL»; scelto un
   workflow Illustrious → avviso; «Usa le scelte delle proposte» → di nuovo coerente, stile nel campo
 
-Prossimo passo: PR 17, pose guidate e costruttore di workflow.
+Prossimo passo: PR 17, IPAdapter Plus installato da Comic Studio.
+
+## PR 17 — IPAdapter Plus installato da Comic Studio
+
+Richiesta: «fare in modo che il programma chieda di installarli all'avvio se non trova il nodo
+ComfyUI_IPAdapter_plus, il modello ip-adapter-plus_sdxl_vit-h e CLIP Vision ViT-H; ovviamente se non hai spazio te
+lo deve dire».
+
+- `componenti.py`: i tre componenti con cartella, nome del file (CLIP Vision rinominato
+  `CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors`, come vuole il nodo), indirizzo (Hugging Face h94/IP-Adapter, GitHub
+  cubiq/ComfyUI_IPAdapter_plus) e dimensione stimata
+  - `controlla`: cosa manca guardando il disco di ComfyUI e, se ComfyUI è acceso, anche i suoi elenchi dei modelli
+    (cartelle di extra_model_paths) e i nodi caricati; un file con un altro nome che corrisponde va bene; un nodo sul
+    disco che ComfyUI non carica non si reinstalla (lo segnala già la diagnostica)
+  - spazio per disco (`shutil.disk_usage` sulla cartella di ComfyUI): file + 1 GB di margine; se non basta, il
+    messaggio dice quanto liberare
+  - `scarica`: in `<file>.parziale`, con avanzamento e annullamento; diventa definitivo solo se la dimensione è
+    giusta e, quando Hugging Face la dà (`x-linked-etag`), anche l'impronta SHA-256; nessun file a metà
+  - `installa_nodo`: `git clone --depth 1` se c'è git (così ComfyUI-Manager lo aggiorna), altrimenti lo ZIP di GitHub
+- `rotte_componenti.py`: `GET /api/componenti`, `POST /api/componenti/installa` (lavoro `componenti`, rifiutato con il
+  messaggio se manca spazio), `POST /api/componenti/chiedi` («non chiedere più», impostazione `chiedi_componenti`).
+  Dopo il nodo, se ComfyUI l'ha avviato Comic Studio e non ci sono altri lavori lo riavvia; altrimenti dice di farlo
+- all'apertura (`App.avvio`, dopo ComfyUI e prima della diagnostica) il controllo va nella console e
+  all'interfaccia (evento `componenti`, anche nel benvenuto del WebSocket, così non si perde se il browser arriva dopo)
+- interfaccia: finestra «Installare IPAdapter Plus?» una volta per sessione, con i componenti mancanti e il loro peso,
+  lo spazio che serve e quello libero, **Installa** (disattivato se manca spazio, con quanto liberare e dove),
+  **Non ora**, **Non chiedere più**; avanzamento, Ferma, esito e avviso di riavvio. In Sistema → Controllo un riquadro
+  con **Installa…** finché manca
+- Versione 0.17.0
+- **Test**: `test_componenti.py` con un finto Hugging Face (rimando con `x-linked-etag`) e GitHub (ZIP): cosa manca
+  anche con altri nomi o in cartelle viste solo da ComfyUI, nodo non caricato, spazio insufficiente (409 e nessun
+  download), installazione completa (nodo dallo ZIP, modelli con il nome giusto, nessun `.parziale`, elenco dei
+  modelli aggiornato), download rovinato → nessun file e si riprende dai modelli. Collaudo con Chromium della sequenza
+  di apertura vera: disco quasi pieno → finestra con «libera almeno 2,4 GB», Installa disattivato; disco libero →
+  installazione (il nodo clonato con git da GitHub), «IPAdapter Plus è installato»
+
+Prossimo passo: PR 18, pose guidate e costruttore di workflow.

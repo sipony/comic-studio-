@@ -32,6 +32,8 @@ class Impostazioni(BaseModel):
     ia_chiave: str | None = None           # solo per i server compatibili OpenAI che la chiedono
     ia_libera_gpu: bool = True             # svuota la VRAM di ComfyUI prima di chiedere all'IA
     ia_avvio_automatico: bool = True       # avvia Ollama all'apertura e riavvialo se si chiude o non risponde
+    # all'apertura, se manca IPAdapter Plus (nodo e modelli), chiedi se installarlo
+    chiedi_componenti: bool = True
 
 
 class Archivio:

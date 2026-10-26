@@ -43,6 +43,8 @@ backend/app/
                           per la VRAM e la RAM di questo computer
   testo_prompt.py         dal testo in linguaggio naturale al prompt: schemi, composizione, blocco, aderenza
   proposte.py             personaggio dal nulla: proposte d'immagine di riferimento dal testo
+  componenti.py           IPAdapter Plus (nodo e modelli): cosa manca, spazio su disco, download controllati
+  rotte_componenti.py     API dei componenti da installare
   rotte_proposte.py       API delle proposte
   rotte_testo.py          API dell'IA, tratti dei personaggi, analisi delle vignette, storia → vignette
   installato.py           avvio dell'app installata: registro su file, niente console, messaggi di errore nativi
@@ -131,6 +133,9 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `/api/progetti/{p}/personaggi/{c}/tratti` | `{storia}` ricava i tratti fissi dalla descrizione (lavoro) |
 | POST | `…/fumetto/vignette/{v}/analizza` | descrizione → analisi → prompt (lavoro) |
 | GET | `…/fumetto/vignette/{v}/prompt` | il prompt dall'ultima analisi e se è ancora valida |
+| GET | `/api/componenti` | IPAdapter Plus: componenti mancanti con il peso, spazio per disco (`basta_spazio`, `messaggio_spazio`), `chiedi` |
+| POST | `/api/componenti/installa` | installa quelli che mancano (lavoro `componenti`); 409 con il messaggio se non c'è spazio |
+| POST | `/api/componenti/chiedi` | `{chiedi}`: proporlo o no all'apertura |
 | GET | `/api/progetti/{p}/personaggi/{c}/proposte` | proposte d'immagine di riferimento |
 | POST | `…/personaggi/{c}/proposte` | `{checkpoint, numero, inquadratura, stile, extra, negativo, passi, cfg, sampler, scheduler, lora_stile, forza_lora, da}` genera proposte o varianti (lavoro GPU); ogni proposta ricorda la sua `ricetta` |
 | POST | `…/proposte/anteprima` | stessa configurazione: il prompt positivo e negativo che verrebbe usato e la famiglia del checkpoint, senza generare |
@@ -219,6 +224,7 @@ Gli errori hanno sempre la forma `{"detail": "messaggio leggibile"}`.
 | `chiusura` | Comic Studio si sta chiudendo |
 | `anteprima` | `lavoro`, `n`, `finale`: nuova anteprima del lavoro |
 | `ia` | stato dell'IA locale |
+| `componenti` | `dati`: come `GET /api/componenti` (all'apertura e dopo un'installazione; anche nel benvenuto) |
 | `proposte`, `personaggi` | `progetto`, `personaggio`: nuove proposte o tratti ricavati dall'IA |
 
 ## Lavori

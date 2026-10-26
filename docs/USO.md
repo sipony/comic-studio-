@@ -55,6 +55,12 @@ Nel riquadro **Consigli** trovi le impostazioni più adatte alla tua scheda vide
      LoRA, ritrae lo stesso personaggio delle proposte. Se il dataset aveva già un workflow scelto da te non lo
      cambia: nel dataset compare un avviso con **Usa le scelte delle proposte**.
 
+**IPAdapter Plus.** Se all'apertura Comic Studio non trova il nodo ComfyUI_IPAdapter_plus, il modello
+ip-adapter-plus_sdxl_vit-h o CLIP Vision ViT-H, ti chiede se installarli: vedi cosa manca, quanto pesa (circa 3,3 GB in
+tutto) e quanto spazio c'è sul disco di ComfyUI. Se non basta te lo dice e non scarica niente. Dopo il nodo serve
+riavviare ComfyUI (se l'ha avviato Comic Studio lo fa da solo). «Non chiedere più» toglie la domanda: puoi installarlo
+quando vuoi da Sistema → Controllo.
+
 ## 4. Step 1 · Dataset
 
 Per ogni personaggio (scegli in alto quale):
