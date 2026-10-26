@@ -3,9 +3,42 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ApiService } from '../core/api.service';
+import { ApiService, ErroreImpostazioni } from '../core/api.service';
+import { AvvisiService } from '../core/avvisi.service';
 import { EventiService } from '../core/eventi.service';
-import { NodoGrafo, WorkflowLavoro } from '../core/modelli';
+import { CampoGrafo, NodoGrafo, SpecImpostazione, WorkflowLavoro } from '../core/modelli';
+
+type Bozze = Record<string, Record<string, unknown>>;
+
+/** Lo stesso controllo del backend (ritocchi.valida): null se il valore va bene. */
+export function validaValore(v: unknown, s: SpecImpostazione): string | null {
+  if (v === null) return null;                       // torna al valore originale
+  switch (s.tipo) {
+    case 'INT':
+    case 'FLOAT': {
+      const testo = String(v).trim().replace(',', '.');
+      const n = typeof v === 'number' ? v : Number(testo);
+      if (typeof v === 'boolean' || testo === '' || !Number.isFinite(n)) return 'serve un numero';
+      if (s.tipo === 'INT' && !Number.isInteger(n)) return 'serve un numero intero';
+      if (s.min != null && n < s.min) return `il minimo è ${s.min}`;
+      if (s.max != null && n > s.max) return `il massimo è ${s.max}`;
+      return null;
+    }
+    case 'COMBO':
+      return s.opzioni?.length && !s.opzioni.includes(String(v)) ? `«${v}» non c'è tra le scelte possibili` : null;
+    case 'BOOLEAN':
+      return typeof v === 'boolean' ? null : 'serve sì o no';
+    default:
+      return typeof v === 'string' ? null : 'serve un testo';
+  }
+}
+
+/** Il valore come lo vuole il backend (i numeri scritti nel campo arrivano come testo). */
+function converti(v: unknown, s: SpecImpostazione): unknown {
+  if (v === null) return null;
+  if (s.tipo === 'INT' || s.tipo === 'FLOAT') return Number(String(v).trim().replace(',', '.'));
+  return v;
+}
 
 /** Colori dei collegamenti per tipo, come nel tema scuro di ComfyUI. */
 const COLORI: Record<string, string> = {
@@ -133,6 +166,22 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
         <span class="info nota">Nessun workflow: compare qui quando un lavoro manda qualcosa a ComfyUI.</span>
       }
       <span class="spazio"></span>
+      @if (dati(); as d) {
+        @if (d.impostazioni.sorgente; as s) {
+          <span class="chip" [matTooltip]="s.descrizione"><mat-icon>tune</mat-icon>
+            impostazioni modificabili: {{ s.tipo === 'dataset' ? 'dataset' : 'proposte' }} di {{ s.personaggio }}</span>
+        } @else {
+          <span class="chip spento" matTooltip="Le impostazioni di questo lavoro non si cambiano dal grafo: clic su un nodo per sapere dove si cambiano">
+            <mat-icon>lock</mat-icon> sola lettura</span>
+        }
+        @if (nBozze()) {
+          <span class="chip bozza">{{ nBozze() }} {{ nBozze() === 1 ? 'modifica' : 'modifiche' }} da salvare</span>
+          <button mat-button (click)="annullaBozze()" [disabled]="salvando()">Annulla</button>
+          <button mat-flat-button (click)="salva()" [disabled]="salvando() || erroriBozze() > 0"
+            [matTooltip]="erroriBozze() ? 'Correggi i valori segnati in rosso' : (d.impostazioni.sorgente?.descrizione ?? '')">
+            <mat-icon>save</mat-icon> Salva</button>
+        }
+      }
       @if (dati()) {
         <button mat-icon-button (click)="adatta()" matTooltip="Adatta alla finestra"><mat-icon>fit_screen</mat-icon></button>
         <a mat-icon-button [href]="urlJson()" download matTooltip="Scarica il workflow (formato API): trascinalo in ComfyUI per aprirlo lì">
@@ -164,6 +213,7 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
           }
           @for (n of nodi(); track n.id) {
             <g [attr.transform]="'translate(' + n.x + ',' + n.y + ')'" class="nodo" [class.scelto]="scelto()?.id === n.id"
+              [class.con-bozze]="!!bozze()[n.id]"
               (pointerdown)="inizioNodo($event, n)">
               <rect [attr.width]="n.w" [attr.height]="n.h" rx="8" class="corpo" />
               <path [attr.d]="'M0,8 a8,8 0 0 1 8,-8 h' + (n.w - 16) + ' a8,8 0 0 1 8,8 v' + (titolo - 8) + ' h-' + n.w + 'z'" class="testa" />
@@ -182,7 +232,11 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
                 <g [attr.transform]="'translate(10,' + (titolo + n.righe * riga + 4 + r * alto) + ')'">
                   <rect [attr.width]="n.w - 20" [attr.height]="alto - 4" rx="9" class="widget" />
                   <text x="10" [attr.y]="(alto - 4) / 2 + 4" class="w-nome">{{ taglia(wg.nome, 16) }}</text>
-                  <text [attr.x]="n.w - 30" [attr.y]="(alto - 4) / 2 + 4" class="w-valore">{{ taglia(valore(wg.valore), (n.w - 40) / 6.6 - wg.nome.length - 2) }}</text>
+                  <text [attr.x]="n.w - 30" [attr.y]="(alto - 4) / 2 + 4" class="w-valore" [class.bozza]="haBozza(n.id, wg.nome)"
+                    [class.salvato]="!haBozza(n.id, wg.nome) && campo(n.id, wg.nome)?.salvato !== undefined">{{ taglia(valore(valoreAttuale(n.id, wg)), (n.w - 40) / 6.6 - wg.nome.length - 2) }}</text>
+                  @if (!campo(n.id, wg.nome)?.modificabile) {
+                    <text [attr.x]="n.w - 24" [attr.y]="(alto - 4) / 2 + 4" class="w-lucchetto">•</text>
+                  }
                 </g>
               }
             </g>
@@ -201,7 +255,52 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
               <span>← #{{ i.da }} {{ titoloDi(i.da) }} ({{ uscitaDi(i.da, i.uscita) }})</span></div>
           }
           @for (wg of n.widget; track wg.nome) {
-            <div class="d-riga"><span class="d-nome">{{ wg.nome }}</span><pre>{{ valore(wg.valore) }}</pre></div>
+            @let c = campo(n.id, wg.nome);
+            <div class="d-riga" [class.cambiato]="haBozza(n.id, wg.nome)">
+              <span class="d-nome">{{ wg.nome }}
+                @if (c && !c.modificabile) { <mat-icon class="lucchetto">lock</mat-icon> }
+              </span>
+              @if (c && c.modificabile) {
+                @switch (c.spec.tipo) {
+                  @case ('COMBO') {
+                    <select [value]="testo(n.id, wg)" (change)="imposta(n.id, wg.nome, $any($event.target).value)" [attr.aria-label]="wg.nome">
+                      @for (o of opzioni(c, n.id, wg); track o) { <option [value]="o">{{ o }}</option> }
+                    </select>
+                  }
+                  @case ('BOOLEAN') {
+                    <label class="casella"><input type="checkbox" [checked]="valoreAttuale(n.id, wg) === true"
+                      (change)="imposta(n.id, wg.nome, $any($event.target).checked)" /> {{ valoreAttuale(n.id, wg) ? 'sì' : 'no' }}</label>
+                  }
+                  @case ('STRING') {
+                    <textarea rows="3" [value]="testo(n.id, wg)" (input)="imposta(n.id, wg.nome, $any($event.target).value)" [attr.aria-label]="wg.nome"></textarea>
+                  }
+                  @default {
+                    <input type="number" [attr.min]="c.spec.min" [attr.max]="c.spec.max" [attr.step]="passo(c.spec)"
+                      [value]="testo(n.id, wg)" (input)="imposta(n.id, wg.nome, $any($event.target).value)" [attr.aria-label]="wg.nome" />
+                    @if (limiti(c.spec); as lim) { <small class="nota">{{ lim }}</small> }
+                  }
+                }
+                @if (erroreCampo(n.id, wg.nome); as e) { <small class="errore">{{ e }}</small> }
+                @if (haBozza(n.id, wg.nome)) {
+                  <small class="nota">prima: {{ valore(c.salvato !== undefined ? c.salvato : wg.valore) }}
+                    <button class="link" (click)="togliBozza(n.id, wg.nome)">annulla</button></small>
+                } @else if (c.salvato !== undefined) {
+                  <small class="salvato-nota">Salvato: vale dalla prossima generazione (in questa era {{ valore(wg.valore) }})
+                    <button class="link" (click)="imposta(n.id, wg.nome, null)">torna all'originale</button></small>
+                }
+              } @else {
+                <pre>{{ valore(wg.valore) }}</pre>
+                @if (c?.perche) { <small class="perche">{{ c?.perche }}</small> }
+              }
+            </div>
+          }
+          @if (nBozze()) {
+            <div class="d-salva">
+              <span>{{ nBozze() }} {{ nBozze() === 1 ? 'modifica' : 'modifiche' }} da salvare</span>
+              <button mat-button (click)="annullaBozze()" [disabled]="salvando()">Annulla</button>
+              <button mat-flat-button (click)="salva()" [disabled]="salvando() || erroriBozze() > 0"><mat-icon>save</mat-icon> Salva</button>
+            </div>
+            @if (dati()?.impostazioni?.sorgente; as s) { <p class="nota">{{ s.descrizione }}</p> }
           }
         </aside>
       }
@@ -237,6 +336,27 @@ function disponi(nodi: NodoGrafo[]): Map<string, NodoDisegnato> {
     .d-nome { color: #9a9a9a; display: flex; align-items: center; gap: 6px;
       i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; } }
     pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 12px 'JetBrains Mono', Consolas, monospace; color: #eee; }
+    .w-valore.bozza { fill: #ffcc66; }
+    .w-valore.salvato { fill: #7fd3ff; }
+    .w-lucchetto { fill: #6a6a6a; font: 11px sans-serif; text-anchor: middle; }
+    .nodo.con-bozze .corpo { stroke: #ffcc66; stroke-width: 1.5; }
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11.5px;
+      background: #2f3b2f; color: #b8e0b8; white-space: nowrap;
+      mat-icon { font-size: 14px; width: 14px; height: 14px; }
+      &.spento { background: #2c2c2c; color: #999; } &.bozza { background: #4a3b16; color: #ffcc66; } }
+    .lucchetto { font-size: 13px; width: 13px; height: 13px; color: #777; }
+    .d-riga.cambiato .d-nome { color: #ffcc66; }
+    select, input[type=number], textarea { width: 100%; box-sizing: border-box; background: #1e1e1e; color: #eee;
+      border: 1px solid #555; border-radius: 6px; padding: 5px 8px; font: 12.5px Inter, system-ui, sans-serif; }
+    textarea { resize: vertical; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px; }
+    .casella { display: flex; align-items: center; gap: 6px; }
+    small { font-size: 11.5px; }
+    .errore { color: #ff8a80; }
+    .perche { color: #8a8a8a; }
+    .salvato-nota { color: #7fd3ff; }
+    .link { background: none; border: 0; padding: 0 0 0 4px; color: #b39ddb; cursor: pointer; font: inherit; text-decoration: underline; }
+    .d-salva { position: sticky; bottom: -8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      margin: 8px -12px -8px; padding: 8px 12px; background: #2a2a2a; border-top: 1px solid #444; }
   `,
 })
 export class GrafoComponent {
@@ -249,6 +369,7 @@ export class GrafoComponent {
   readonly chiudi = output<void>();
 
   private api = inject(ApiService);
+  private avvisi = inject(AvvisiService);
   protected eventi = inject(EventiService);
   private tela = viewChild<ElementRef<HTMLElement>>('tela');
 
@@ -265,6 +386,22 @@ export class GrafoComponent {
   private caricato: string | null = null;
 
   protected nodi = computed(() => [...this.posizioni().values()]);
+
+  // impostazioni cambiate e non ancora salvate: {nodo: {ingresso: valore}} (null = torna all'originale)
+  protected bozze = signal<Bozze>({});
+  protected erroriServer = signal<Record<string, string>>({});
+  protected salvando = signal(false);
+  protected nBozze = computed(() => Object.values(this.bozze()).reduce((s, v) => s + Object.keys(v).length, 0));
+  protected erroriBozze = computed(() => {
+    let n = 0;
+    for (const [nodo, valori] of Object.entries(this.bozze())) {
+      for (const [nome, v] of Object.entries(valori)) {
+        const c = this.campo(nodo, nome);
+        if (!c || validaValore(v, c.spec)) n++;
+      }
+    }
+    return n;
+  });
   protected linee = computed(() => {
     const pos = this.posizioni();
     const sel = this.scelto()?.id;
@@ -302,6 +439,10 @@ export class GrafoComponent {
       const d = await this.api.workflowLavoro(id);
       if (this.lavoro() !== id) return;
       const nuovo = this.caricato !== id;
+      if (nuovo && this.nBozze()) {
+        this.avvisi.errore(`${this.nBozze()} modifiche non salvate del grafo precedente sono state scartate`);
+        this.annullaBozze();
+      }
       const vecchie = this.posizioni();
       const pos = disponi(d.grafo.nodi);
       // ricaricando lo stesso lavoro i nodi restano dove l'utente li ha messi
@@ -390,6 +531,112 @@ export class GrafoComponent {
     el.addEventListener('pointermove', muovi as EventListener);
     el.addEventListener('pointerup', su);
     el.addEventListener('pointercancel', su);
+  }
+
+  protected campo(nodo: string, nome: string): CampoGrafo | null {
+    return this.dati()?.impostazioni?.campi[nodo]?.[nome] ?? null;
+  }
+
+  protected haBozza(nodo: string, nome: string): boolean {
+    return nome in (this.bozze()[nodo] ?? {});
+  }
+
+  /** Il valore che userà la prossima generazione: la modifica in corso, poi quella salvata, poi quello inviato. */
+  protected valoreAttuale(nodo: string, wg: { nome: string; valore: unknown }): unknown {
+    const b = this.bozze()[nodo];
+    if (b && wg.nome in b) return b[wg.nome] ?? wg.valore;
+    const c = this.campo(nodo, wg.nome);
+    return c && c.salvato !== undefined ? c.salvato : wg.valore;
+  }
+
+  protected testo(nodo: string, wg: { nome: string; valore: unknown }): string {
+    const v = this.valoreAttuale(nodo, wg);
+    return typeof v === 'string' ? v : testoValore(v);
+  }
+
+  /** Le scelte di un elenco, con il valore attuale anche se ComfyUI non lo elenca (si vede subito che non va). */
+  protected opzioni(c: CampoGrafo, nodo: string, wg: { nome: string; valore: unknown }): string[] {
+    const o = c.spec.opzioni ?? [];
+    const v = String(this.valoreAttuale(nodo, wg));
+    return o.includes(v) ? o : [v, ...o];
+  }
+
+  protected passo(s: SpecImpostazione): string {
+    if (s.tipo === 'INT') return String(s.step && Number.isInteger(s.step) ? s.step : 1);
+    return s.step ? String(s.step) : 'any';
+  }
+
+  protected limiti(s: SpecImpostazione): string {
+    if (s.min == null && s.max == null) return '';
+    if (s.max != null && s.max > 1e12) return `da ${s.min ?? '…'} in su`;
+    return `da ${s.min ?? '…'} a ${s.max ?? '…'}`;
+  }
+
+  protected erroreCampo(nodo: string, nome: string): string | null {
+    const c = this.campo(nodo, nome);
+    if (c && this.haBozza(nodo, nome)) {
+      const e = validaValore(this.bozze()[nodo][nome], c.spec);
+      if (e) return e;
+    }
+    return this.erroriServer()[`${nodo}/${nome}`] ?? null;
+  }
+
+  protected imposta(nodo: string, nome: string, v: unknown) {
+    const c = this.campo(nodo, nome);
+    if (!c?.modificabile) return;
+    const b = { ...this.bozze() };
+    const inviato = this.posizioni().get(nodo)?.widget.find((w) => w.nome === nome)?.valore;
+    const riferimento = c.salvato !== undefined ? c.salvato : inviato;
+    // tornare al valore di partenza non è una modifica
+    if (v !== null && String(converti(v, c.spec)) === String(riferimento) && !validaValore(v, c.spec)) {
+      const { [nome]: _, ...resto } = b[nodo] ?? {};
+      b[nodo] = resto;
+    } else {
+      b[nodo] = { ...(b[nodo] ?? {}), [nome]: v };
+    }
+    if (!Object.keys(b[nodo]).length) delete b[nodo];
+    this.bozze.set(b);
+    const { [`${nodo}/${nome}`]: _, ...altri } = this.erroriServer();
+    this.erroriServer.set(altri);
+  }
+
+  protected togliBozza(nodo: string, nome: string) {
+    const b = { ...this.bozze() };
+    const { [nome]: _, ...resto } = b[nodo] ?? {};
+    if (Object.keys(resto).length) b[nodo] = resto; else delete b[nodo];
+    this.bozze.set(b);
+  }
+
+  protected annullaBozze() {
+    this.bozze.set({});
+    this.erroriServer.set({});
+  }
+
+  /** Tutte le modifiche controllate e salvate nella sorgente del lavoro (dataset o proposte), o nessuna. */
+  protected async salva() {
+    const d = this.dati();
+    if (!d || !this.nBozze() || this.erroriBozze()) return;
+    const modifiche: Bozze = {};
+    for (const [nodo, valori] of Object.entries(this.bozze())) {
+      for (const [nome, v] of Object.entries(valori)) {
+        (modifiche[nodo] ??= {})[nome] = converti(v, this.campo(nodo, nome)!.spec);
+      }
+    }
+    this.salvando.set(true);
+    try {
+      const imp = await this.api.salvaImpostazioniGrafo(d.lavoro.id, modifiche);
+      this.dati.set({ ...d, impostazioni: imp });
+      const n = this.nBozze();
+      this.annullaBozze();
+      this.avvisi.ok(`${n} ${n === 1 ? 'impostazione salvata' : 'impostazioni salvate'}: ${imp.sorgente?.tipo === 'dataset'
+        ? 'valgono dalla prossima generazione del dataset di ' : 'valgono dalle prossime proposte di '}${imp.sorgente?.personaggio ?? ''}`);
+    } catch (e) {
+      const err = e as ErroreImpostazioni;
+      this.erroriServer.set(Object.fromEntries((err.errori ?? []).map((x) => [`${x.nodo}/${x.ingresso}`, x.errore])));
+      this.avvisi.errore(err.message);
+    } finally {
+      this.salvando.set(false);
+    }
   }
 
   protected colore = coloreTipo;

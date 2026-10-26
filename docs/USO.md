@@ -67,6 +67,12 @@ il pulsante **grafo**. La scheda **Grafo** della console disegna i nodi collegat
 zoom, trascina lo sfondo o i nodi, clic su un nodo per vedere tutti i suoi valori (anche il prompt intero). Da lì puoi
 scaricare il workflow e trascinarlo in ComfyUI per aprirlo identico, o vederlo a tutto schermo.
 
+Nel pannello del nodo puoi **cambiare le impostazioni** (checkpoint, LoRA, passi, CFG, sampler, pesi…), con i limiti
+di ComfyUI controllati mentre scrivi, e premere **Salva**: valgono dalla prossima generazione di quel personaggio.
+Per il dataset finiscono nelle sue impostazioni (le ritrovi in Dataset → Nodi e parametri), per le proposte nelle
+scelte del pannello «Crea dal testo». Le impostazioni con il lucchetto le scrive Comic Studio (prompt, seme,
+dimensioni…): il pannello dice perché e dove si cambiano.
+
 ## 4. Step 1 · Dataset
 
 Per ogni personaggio (scegli in alto quale):

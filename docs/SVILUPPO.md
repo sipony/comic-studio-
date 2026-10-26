@@ -31,8 +31,8 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 17 | IPAdapter Plus proposto all'apertura se manca (nodo e modelli), con il controllo dello spazio su disco, e installato da Comic Studio | ✅ unita |
 | 18 | Workflow nei log e scheda «Grafo» nella console: i nodi collegati di ogni workflow mandato a ComfyUI, disegnati come in ComfyUI; JSON da aprire in ComfyUI | ✅ unita |
 | 19 | Dataset confrontato con la proposta da cui è nato il personaggio: checkpoint, LoRA, stile, campionamento, IPAdapter; tag di stile mancanti rimessi con un clic | ✅ unita |
-| 20 | Aggiornare senza confondersi: la versione nuova sostituisce quella vecchia ancora aperta (chiedendo se ha lavori in corso); numero di versione in alto | ✅ questa PR |
-| 21 | Ritocchi sul grafo (valori dei widget, nodi staccati) e rigenerazione; modifiche strutturali in ComfyUI e ritorno nella libreria | da fare |
+| 20 | Aggiornare senza confondersi: la versione nuova sostituisce quella vecchia ancora aperta (chiedendo se ha lavori in corso); numero di versione in alto | ✅ unita |
+| 21 | Impostazioni dei nodi modificabili dal grafo della console, controllate come in ComfyUI e salvate nel workflow del personaggio (dataset e proposte) | ✅ questa PR |
 | 22 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
 | 23 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
@@ -832,4 +832,48 @@ mentre generava un dataset).
   un lavoro in corso → domanda con il titolo del lavoro, «lascia» e «sostituisci». Collaudo con le AppImage vere: la
   0.19 aperta, avvio della 0.20 → la 0.19 si chiude e risponde la 0.20
 
-Prossimo passo: PR 21, ritocchi sul grafo.
+Prossimo passo: PR 21, impostazioni dei nodi dal grafo.
+
+## PR 21 — Impostazioni dei nodi dal grafo
+
+Richiesta: «la modifica per cui sia possibile cambiare il workflow da dentro il tab Grafo della console: lo puoi fare
+in maniera rigorosa? … intendevo i vari settaggi di ogni nodo all'interno del grafo»; le modifiche devono finire nel
+workflow del personaggio.
+
+**Il punto delicato.** Il grafo mostra una copia: l'ultimo workflow mandato a ComfyUI. Cambiare un valore lì serve solo
+se finisce dove Comic Studio ricostruisce il workflow la volta dopo, e senza toccare quello che Comic Studio stesso
+scrive a ogni generazione. `ritocchi.py` decide per ogni impostazione di ogni nodo:
+
+- **dataset** → `ConfigDataset.modifiche` del personaggio (le stesse di Dataset → Nodi e parametri): il workflow
+  della libreria non cambia e la modifica vale solo per quel personaggio; un valore uguale a quello della libreria non
+  si salva, `None` toglie la modifica. Bloccati, con il motivo e dove si cambia: testi dei prompt positivo e negativo,
+  seme, dimensioni del latente, immagine di riferimento, nome dei file (vedi `workflows.applica`), il denoise con le
+  pose dalle varianti, i nodi aggiunti solo per una generazione; tutto bloccato se il dataset nel frattempo usa un
+  altro workflow
+- **proposte** → `Personaggio.scelte_proposte`: checkpoint, LoRA di stile e forza, passi, CFG, sampler, scheduler,
+  forza delle varianti (`Ricetta.forza_variante`, solo nei lavori di varianti); per le proposte senza ricetta i
+  valori di partenza si leggono dal workflow inviato. Il pannello «Crea dal testo» riparte da queste scelte (anche se
+  è già aperto). Bloccati: seme, dimensioni (dall'inquadratura), testi (tratti, stile, tag), strength_clip (segue
+  strength_model)
+- altri lavori (prova del LoRA, fumetto): sola lettura, con il motivo
+- controllo come ComfyUI: tipo, minimo e massimo da `/object_info` (INT, FLOAT, COMBO anche nel formato nuovo,
+  STRING, BOOLEAN); senza ComfyUI gli elenchi dei modelli dal disco, sampler e scheduler noti; virgola decimale
+  accettata; o tutte le modifiche o nessuna (422 con l'errore di ogni impostazione)
+- `GET /api/lavori/{id}/workflow` ha `impostazioni` (sorgente e, per ogni nodo e ingresso, modificabile, perché,
+  spec, valore salvato); `POST /api/lavori/{id}/workflow/impostazioni` `{modifiche}`
+- interfaccia: nel pannello del nodo ogni impostazione ha il suo controllo (elenco, numero con i limiti, testo,
+  sì/no); quelle bloccate hanno il lucchetto e il motivo; errori in rosso già mentre si scrive; «prima: …» e annulla
+  per ogni modifica; «Salvato: vale dalla prossima generazione» e «torna all'originale»; nella barra la sorgente
+  («impostazioni modificabili: dataset di …» / «sola lettura»), il numero di modifiche, Annulla e Salva; nel grafo i
+  valori in giallo (da salvare) e azzurro (salvati), i nodi con modifiche bordati di giallo; cambiando lavoro le
+  modifiche non salvate si scartano dicendolo; la pagina Dataset ricarica la configurazione quando cambia dal grafo
+  (evento `dataset` / `config`), così il suo salvataggio automatico non rimette i valori vecchi
+- Versione 0.21.0
+- **Test**: `test_ritocchi.py` (controlli dei valori; dataset: ingressi bloccati con il motivo, limiti da ComfyUI, o
+  tutte o nessuna, salvataggio nelle modifiche del personaggio senza toccare la libreria, la generazione dopo le usa,
+  `None` toglie, cambio di workflow → sola lettura; proposte: campi della ricetta, salvataggio nelle scelte, ritorno
+  all'ultima proposta, lavoro senza sorgente bloccato). Collaudo con Chromium: proposte → KSampler passi 0 «il
+  minimo è 1», 40 e dpmpp_2m salvati nelle scelte; dataset → checkpoint cambiato e salvato nelle modifiche, prompt
+  bloccato con il motivo
+
+Prossimo passo: PR 22, pose guidate e costruttore di workflow.

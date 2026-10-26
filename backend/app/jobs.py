@@ -89,6 +89,8 @@ class Lavoro:
         self.workflow: dict | None = None       # l'ultimo workflow mandato a ComfyUI (con i titoli dei nodi)
         self.n_workflow = 0
         self._firma_workflow: tuple | None = None
+        # da dove viene il workflow (per cambiarne le impostazioni dal grafo): vedi ritocchi.py
+        self.contesto_workflow: dict | None = None
 
     # chiamabili dal codice del lavoro, anche da un thread
     def log(self, msg: str, livello: Livello = "info"):
@@ -111,12 +113,13 @@ class Lavoro:
             self.gestore.bus.pubblica({"tipo": "anteprima", "lavoro": self.id, "n": self.n_anteprima,
                                        "finale": finale})
 
-    def registra_workflow(self, wf: dict):
+    def registra_workflow(self, wf: dict, contesto: dict | None = None):
         """Il workflow che sta per andare a ComfyUI: si tiene l'ultimo (per il grafo nella console) e lo si scrive nei
         log quando cambia la struttura o un modello (non a ogni immagine, dove cambiano solo prompt e seme)."""
         import copy
         from .grafo import firma, riassunto
         self.workflow = copy.deepcopy(wf)
+        self.contesto_workflow = contesto
         self.n_workflow += 1
         f = firma(wf)
         if f != self._firma_workflow:

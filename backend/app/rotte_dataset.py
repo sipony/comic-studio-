@@ -431,7 +431,8 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
 
                 def avanza(v, t, k=k):
                     l.avanza((k + v) / dati.quantita, f"immagine {k + 1}/{dati.quantita} · {t}")
-                l.registra_workflow(wf)
+                l.registra_workflow(wf, {"tipo": "dataset", "progetto": pid, "personaggio": cid,
+                                         "workflow": config.workflow, "libera": libera})
                 uscite = await client.esegui(per_invio(wf), avanza, anteprima=l.imposta_anteprima)
                 immagini_uscite = uscite.get(ruoli.salva) if ruoli.salva else None
                 immagini_uscite = immagini_uscite or next(iter(uscite.values()), None)

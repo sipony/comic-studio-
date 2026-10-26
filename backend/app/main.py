@@ -9,6 +9,8 @@ from pathlib import Path
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
+from typing import Any
+
 from pydantic import BaseModel
 
 from . import __version__
@@ -53,6 +55,11 @@ class DatiProgetto(BaseModel):
 class ModificaProgetto(BaseModel):
     nome: str | None = None
     descrizione: str | None = None
+
+
+class ImpostazioniGrafo(BaseModel):
+    """Impostazioni dei nodi cambiate dal grafo: {nodo: {ingresso: valore}}; None toglie la modifica salvata."""
+    modifiche: dict[str, dict[str, Any]]
 
 
 def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consentiti: list[str] | None = None) -> FastAPI:
@@ -270,9 +277,30 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
         l = stato.gestore.lavori.get(lid)
         if not l or not l.workflow:
             raise HTTPException(404, "Questo lavoro non ha mandato workflow a ComfyUI")
+        from . import ritocchi
         info = await _info_nodi(stato)
         return {"lavoro": l.dict(), "n": l.n_workflow, "riassunto": riassunto(l.workflow),
-                "workflow": l.workflow, "grafo": descrivi(l.workflow, info)}
+                "workflow": l.workflow, "grafo": descrivi(l.workflow, info),
+                "impostazioni": await ritocchi.descrivi(stato, l, info)}
+
+    @api.post("/api/lavori/{lid}/workflow/impostazioni")
+    async def salva_impostazioni_grafo(lid: str, dati: ImpostazioniGrafo):
+        """Impostazioni dei nodi cambiate dal grafo: tutte controllate e salvate dove le usa la prossima generazione
+        (dataset o proposte del personaggio), oppure nessuna."""
+        from . import ritocchi
+        from .rotte_dataset import _info_nodi
+        l = stato.gestore.lavori.get(lid)
+        if not l or not l.workflow:
+            raise HTTPException(404, "Questo lavoro non ha mandato workflow a ComfyUI")
+        if not any(dati.modifiche.values()):
+            raise HTTPException(400, "Nessuna modifica da salvare")
+        info = await _info_nodi(stato)
+        nuove, errori = await ritocchi.salva(stato, l, dati.modifiche, info)
+        if errori:
+            return JSONResponse({"detail": f"{len(errori)} impostazioni non valide: niente è stato salvato. "
+                                           + "; ".join(f"#{e['nodo']} {e['ingresso']}: {e['errore']}" for e in errori),
+                                 "errori": errori}, status_code=422)
+        return nuove
 
     @api.get("/api/lavori/{lid}/workflow.json")
     async def scarica_workflow_lavoro(lid: str):

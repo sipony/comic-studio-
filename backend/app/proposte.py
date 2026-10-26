@@ -62,13 +62,15 @@ class Ricetta(BaseModel):
     sampler: str = "euler_ancestral"
     scheduler: str = "karras"
     inquadratura: str = "mezzo_busto"
+    forza_variante: float = 0.55        # denoise delle varianti (img2img da una proposta)
 
 
 def ricetta_da(c: ConfigProposte) -> Ricetta:
     return Ricetta(checkpoint=c.checkpoint, lora_stile=c.lora_stile or None, forza_lora=c.forza_lora,
                    stile=pulisci(c.stile), extra=pulisci(c.extra),
                    negativo=None if pulisci(c.negativo) == pulisci(NEGATIVO) else c.negativo, passi=c.passi,
-                   cfg=c.cfg, sampler=c.sampler, scheduler=c.scheduler, inquadratura=c.inquadratura)
+                   cfg=c.cfg, sampler=c.sampler, scheduler=c.scheduler, inquadratura=c.inquadratura,
+                   forza_variante=c.forza_variante)
 
 
 class Proposta(BaseModel):

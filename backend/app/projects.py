@@ -65,6 +65,8 @@ class Personaggio(BaseModel):
     riferimento: str | None = None          # nome del file dentro la cartella del personaggio
     # se il riferimento è una proposta generata da Comic Studio: come è stata fatta (proposte.Ricetta)
     origine: dict | None = None
+    # impostazioni delle prossime proposte cambiate dal grafo della console (proposte.Ricetta + forza_variante)
+    scelte_proposte: dict | None = None
     creato: float = Field(default_factory=time.time)
 
     @field_validator("trigger")
@@ -103,6 +105,7 @@ class ModificaPersonaggio(BaseModel):
     descrizione: str | None = Field(default=None, max_length=1500)
     storia: str | None = Field(default=None, max_length=20000)
     adulto: bool | None = None
+    scelte_proposte: dict | None = None
 
 
 class Archivio:
