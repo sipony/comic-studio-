@@ -64,6 +64,7 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
         if sorveglia:
             compiti.append(asyncio.create_task(stato.avvio()))      # prima: segna che si sta preparando
             compiti.append(asyncio.create_task(stato.sorveglia()))
+            compiti.append(asyncio.create_task(stato.ia.sorveglia()))
         yield
         for c in compiti:
             c.cancel()

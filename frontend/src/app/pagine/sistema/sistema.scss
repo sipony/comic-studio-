@@ -340,3 +340,18 @@ h2 {
     color: var(--mat-sys-error);
   }
 }
+
+.processo-ollama {
+  .installazione {
+    margin-bottom: 12px;
+  }
+  .icona-stato {
+    &.check_circle { color: var(--cs-ok); }
+    &.hourglass_top { color: var(--cs-avviso); }
+    &.error { color: var(--cs-errore); }
+  }
+  code {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+}

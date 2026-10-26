@@ -58,6 +58,14 @@ class StatoIA:
     eseguibile: str | None = None     # Ollama trovato sul disco (anche se spento)
     portatile: bool = False           # è quello scaricato da Comic Studio
     errore: str | None = None
+    # il processo di Ollama
+    in_avvio: bool = False            # Comic Studio lo sta avviando
+    avviato_da_noi: bool = False      # avviato da Comic Studio: si ferma con lui
+    pid: int | None = None
+    esterno: str | None = None        # acceso ma non da Comic Studio: da chi (servizio di sistema, app, a mano)
+    fermato: bool = False             # fermato con «Ferma»: la sorveglianza non lo riaccende
+    avvio_automatico: bool = True
+    suggerisci_ollama: bool = False   # il server compatibile OpenAI non risponde, ma Ollama c'è
 
     @property
     def pronta(self) -> bool:
@@ -214,10 +222,10 @@ class ClientIA:
     async def __aexit__(self, *_):
         await self._http.aclose()
 
-    async def versione(self) -> str | None:
+    async def versione(self, timeout: float = 3) -> str | None:
         try:
             if self.tipo == "ollama":
-                r = await self._http.get("/api/version", timeout=3)
+                r = await self._http.get("/api/version", timeout=timeout)
                 r.raise_for_status()
                 return r.json().get("version") or "?"
             r = await self._http.get("/v1/models", timeout=5)
