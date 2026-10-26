@@ -10,7 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ApiService } from '../../core/api.service';
+import { ApiService, ImpostazioniIA } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
 import { SceltaIAService } from '../../core/scelta-ia.service';
@@ -59,7 +59,29 @@ export class SistemaPage {
     'sangue sulle pareti, pioggia che entra da una finestra rotta. Inquadratura dal basso.');
   protected risultatoProva = signal<PromptScena | null>(null);
   protected lavoroIA = computed(() =>
-    this.eventi.attivi().find((l) => ['ia_installa', 'ia_modello', 'ia_prova'].includes(l.tipo)) ?? null);
+    this.eventi.attivi().find((l) => ['ia_installa', 'ia_modello', 'ia_prova', 'ia_avvio', 'ia_arresto'].includes(l.tipo)) ?? null);
+  /** come sta il processo di Ollama, in parole */
+  protected ollama = computed(() => {
+    const s = this.ia();
+    if (!s || s.tipo !== 'ollama') return null;
+    if (s.in_avvio) return { icona: 'hourglass_top', titolo: 'Si sta avviando…', dettaglio: 'Di solito bastano pochi secondi.' };
+    if (s.raggiungibile) {
+      return {
+        icona: 'check_circle',
+        titolo: `Acceso · Ollama ${s.versione ?? ''}`,
+        dettaglio: s.avviato_da_noi
+          ? `Avviato da Comic Studio (PID ${s.pid}): si chiude quando chiudi Comic Studio.`
+          : `${s.esterno ?? 'Aperto fuori da Comic Studio'}: Comic Studio lo usa così com'è.`,
+      };
+    }
+    if (!s.eseguibile) return { icona: 'cloud_download', titolo: 'Non installato', dettaglio: 'Scegli un modello: Comic Studio installa Ollama e lo scarica.' };
+    if (s.fermato) return { icona: 'stop_circle', titolo: 'Fermo', dettaglio: 'L’hai fermato tu: riparte con Avvia o alla prossima domanda all’IA.' };
+    return {
+      icona: 'error',
+      titolo: 'Spento',
+      dettaglio: s.avvio_automatico ? 'Comic Studio lo riavvia da solo entro una ventina di secondi.' : 'Premi Avvia (o attiva l’avvio automatico qui sotto).',
+    };
+  });
 
   protected rapporto = this.eventi.rapporto;
   protected inControllo = computed(() =>
@@ -112,7 +134,7 @@ export class SistemaPage {
     }
   }
 
-  protected async salvaIA(campi: { tipo?: string; url?: string; modello?: string; chiave?: string; libera_gpu?: boolean }) {
+  protected async salvaIA(campi: ImpostazioniIA) {
     try {
       const s = await this.api.impostaIA(campi);
       this.ia.set(s);
@@ -148,6 +170,46 @@ export class SistemaPage {
 
   protected async usaModello(nome: string) {
     await this.salvaIA({ modello: nome });
+  }
+
+  /** Spazio occupato da tutti i modelli scaricati con Ollama. */
+  protected spazioModelli = computed(() => Object.values(this.ia()?.dimensioni ?? {}).reduce((a, b) => a + b, 0));
+  protected eliminando = signal<string | null>(null);
+
+  /** Cancella un modello di Ollama dal computer (non va nel cestino: per riaverlo si riscarica). */
+  protected async eliminaModello(nome: string) {
+    const s = this.ia();
+    const peso = s?.dimensioni?.[nome];
+    const inUso = nome === s?.modello;
+    if (!confirm(`Eliminare il modello ${nome} dal computer${peso ? ` e liberare ${gb(peso, 1)}` : ''}?\n\n` +
+      (inUso ? 'È il modello in uso: finché non ne scegli un altro, l’IA locale non sarà pronta.\n' : '') +
+      'Non va nel cestino: per riaverlo dovrai scaricarlo di nuovo.')) return;
+    this.eliminando.set(nome);
+    try {
+      const r = await this.api.eliminaModelloIA(nome);
+      this.avvisi.ok(r.eliminato ? `Modello ${nome} eliminato` : `Il modello ${nome} non c’era già più`);
+    } catch (e) {
+      this.avvisi.errore(e);
+    } finally {
+      this.eliminando.set(null);
+      await this.caricaIA();
+    }
+  }
+
+  protected async avviaOllama() {
+    await this.lavoroConEsito(this.api.avviaOllama(), 'Ollama è acceso');
+  }
+
+  protected async riavviaOllama() {
+    const s = this.ia();
+    if (s?.raggiungibile && !s.avviato_da_noi && !confirm(`Ollama è stato aperto fuori da Comic Studio (${s.esterno ?? 'app di Ollama o terminale'}). Riavviarlo?`)) return;
+    await this.lavoroConEsito(this.api.riavviaOllama(), 'Ollama riavviato');
+  }
+
+  protected async fermaOllama() {
+    const s = this.ia();
+    if (s?.raggiungibile && !s.avviato_da_noi && !confirm(`Ollama è stato aperto fuori da Comic Studio (${s.esterno ?? 'app di Ollama o terminale'}). Fermarlo?`)) return;
+    await this.lavoroConEsito(this.api.fermaOllama(), 'Ollama fermato');
   }
 
   protected async prova() {

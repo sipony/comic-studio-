@@ -25,9 +25,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 11 | Annullamento in qualsiasi momento con le risorse liberate (coda di ComfyUI, VRAM, processi, IA) e anteprime dal vivo delle immagini in generazione | ✅ unita |
 | 12 | Scelta del modello dell'IA: finestra che si apre quando manca Ollama o il modello, elenco dal registro di Ollama con le quantizzazioni, ordinato per la VRAM e la RAM del computer | ✅ unita |
 | 13 | Dataset: pose e inquadrature diverse anche con i workflow img2img; Scarica (ZIP), Scarica e cancella, Elimina e Svuota il cestino per liberare spazio | ✅ unita |
-| 14 | Staccare i nodi del workflow dall'interfaccia: Comic Studio ricollega il resto da solo, stacca a cascata i nodi che non possono più funzionare e spiega quando non si può | ✅ questa PR |
-| 15 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 16 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 14 | Staccare i nodi del workflow dall'interfaccia: Comic Studio ricollega il resto da solo, stacca a cascata i nodi che non possono più funzionare e spiega quando non si può | ✅ unita |
+| 15 | IA locale: eliminare dall'interfaccia i modelli scaricati con Ollama; gestione del processo di Ollama (avvio all'apertura, riavvio se si chiude o si blocca, Avvia / Riavvia / Ferma) | ✅ questa PR |
+| 16 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 17 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -582,4 +583,91 @@ e sensatamente il collegamento tra i nodi».
   con Chromium: LoRA staccato → KSampler ricollegato al checkpoint; riferimento staccato → ImageScale e VAEEncode
   staccati da soli; checkpoint staccato → problemi spiegati
 
-Prossimo passo: PR 15, pose guidate e costruttore di workflow.
+Prossimo passo: PR 15, eliminazione dei modelli dell'IA.
+
+## PR 15 — IA locale: eliminare i modelli e gestire Ollama
+
+### Eliminare i modelli
+
+Richiesta: «modificare il programma per fare in modo di cancellare direttamente da lì i modelli AI locali».
+I modelli di Ollama pesano da 1 a oltre 20 GB l'uno e finora si potevano solo scaricare.
+
+- `ClientIA.elimina_modello(nome)`: toglie il modello dalla memoria (`keep_alive: 0`) e lo cancella con
+  `DELETE /api/delete` di Ollama; un modello che non c'è già più non è un errore. I file condivisi con altri
+  modelli scaricati li tiene Ollama finché servono
+- `ServizioIA.elimina_modello`: solo con Ollama acceso; rifiuta mentre si scarica un modello o Ollama
+  (`ia_modello`, `ia_installa`) e mentre l'IA sta rispondendo (il lucchetto delle domande), e tiene il lucchetto
+  durante la cancellazione così nessuna domanda parte nel frattempo; scrive nella console cosa ha fatto
+- `StatoIA.dimensioni`: i byte di ogni modello scaricato (da `/api/tags`)
+- `POST /api/ia/modello/elimina` `{nome}` → `{eliminato, stato}`. È una richiesta e non un lavoro: Ollama
+  cancella in un attimo
+- **Eccezione alla regola del cestino**: i modelli si cancellano davvero, perché i loro file stanno nell'archivio
+  di Ollama (condivisi tra modelli) e non si possono spostare; si riscaricano con un clic. La conferma lo dice,
+  con lo spazio che si libera e un avviso se è il modello in uso (l'IA torna «non pronta» e la finestra di scelta
+  si riapre alla prossima domanda)
+- interfaccia: **Sistema → IA locale → Modelli scaricati** con il peso di ognuno, lo spazio totale, «Usa
+  questo» e 🗑 (disattivato mentre l'IA lavora); nella finestra di scelta del modello **Elimina dal computer**
+  quando la variante scelta è già scaricata
+- Versione 0.15.0
+- **Test**: test backend `test_elimina_modello` (dimensioni nello stato, modello tolto dalla memoria e cancellato,
+  modello già assente, rifiuto mentre l'IA risponde, eliminazione di quello in uso → IA non pronta, solo con Ollama,
+  nome vuoto); il finto Ollama ha `/api/delete`. 14 test dell'interfaccia; collaudo con Chromium: tre modelli,
+  gemma3:4b eliminato da Sistema (2 rimasti, totale aggiornato), llama3.2:3b eliminato dalla finestra di scelta.
+  Già prima di questa PR falliscono 3 test sul blocco dei contenuti (`test_blocco_minori_e_contenuto_sessuale`,
+  `test_scena_vietata_bloccata`, `test_proposte_bloccate_e_senza_testo`), perché i controlli sono stati disattivati
+  nei commit «Disable scene and content verification» e «fix»
+
+### Gestione di Ollama
+
+Richiesta: «ho cambiato modello ma mi dice che Ollama non risponde: è possibile aggiungere una gestione anche
+dell'Ollama locale, riavviarlo se necessario e un minimo di gestione, perché magari l'app non lo avvia in locale
+allo start».
+
+**Cosa succedeva.** Due problemi insieme. (1) Nelle impostazioni il tipo era «Server compatibile OpenAI» (indirizzo
+di LM Studio, :1234) con un modello di Ollama (`qwen3:4b-q8_0`): la finestra di scelta del modello cambiava solo il
+nome del modello e lasciava il tipo, quindi Comic Studio continuava a chiedere a un LM Studio spento. (2) Ollama
+non partiva mai all'apertura: si avviava solo alla prima domanda all'IA, così la pagina diceva «non risponde» anche
+quando bastava avviarlo, e se si chiudeva nessuno se ne accorgeva.
+
+- `processo_ollama.py`: i processi `ollama serve` (anche lanciati da un interprete), con utente e porta;
+  `termina` con i figli (i modelli caricati) e chi non si può fermare; `come_fermarlo` (servizio di sistema su
+  Linux → `sudo systemctl restart ollama`); livello e testo delle righe del registro (slog), senza le richieste
+  HTTP `[GIN]`; `spiega_errore` (porta occupata, permessi, disco pieno, ultime righe)
+- `ServizioIA`:
+  - **all'apertura** (`all_avvio`, dentro `App.avvio`, prima di ComfyUI): riconosce l'Ollama avviato la volta
+    prima (PID salvato in `strumenti/ollama/ollama.pid`, come per ComfyUI) e, se è spento, lo avvia
+  - **sorveglianza** (ogni 10 s): spento → lo avvia al secondo controllo; acceso da Comic Studio ma bloccato →
+    lo riavvia al terzo, ma non mentre sta rispondendo a una domanda; dopo 3 tentativi falliti di fila si ferma e
+    lo scrive nella console (Avvia a mano ricomincia a contare); niente se l'utente l'ha fermato, se si sta
+    installando o se l'avvio automatico è spento
+  - **Avvia / Riavvia / Ferma** come lavori (`ia_avvio`, `ia_arresto`), uno alla volta; un Ollama aperto in un
+    altro modo si usa così com'è, si ferma solo se è dello stesso utente (altrimenti si spiega come fare) e, se il
+    sistema lo riaccende da solo, lo si dice
+  - un avvio alla volta (`_lock_avvio`), anche tra sorveglianza, domande e pulsanti
+  - il registro di Ollama va nella console come `Ollama › …` (errori e avvisi visibili, il resto in «Dettagli»);
+    se si chiude da solo la console lo dice con il motivo; un avvio fallito spiega perché (es. porta occupata)
+  - `StatoIA`: `in_avvio`, `avviato_da_noi`, `pid`, `esterno` (servizio di sistema, app o terminale), `fermato`,
+    `avvio_automatico`, `suggerisci_ollama`; messaggi d'errore che dicono cosa sta succedendo
+- impostazione `ia_avvio_automatico` (acceso di serie); passando a Ollama o riattivandolo, Ollama parte subito
+- `POST /api/ia/scegli`: i modelli dell'elenco sono di Ollama, quindi sceglierne uno passa a Ollama anche dal tipo
+  «compatibile OpenAI» (prima solo da «nessuna»)
+- con il server compatibile OpenAI che non risponde e Ollama installato (o acceso su :11434), `suggerisci_ollama`
+- interfaccia, Sistema → IA locale: sezione **Ollama** con lo stato (acceso da Comic Studio con il PID, da altri,
+  si sta avviando, spento, fermo, non installato), Riavvia / Ferma / Avvia (conferma se l'ha aperto qualcun altro),
+  interruttore dell'avvio automatico e percorso del programma; nel riquadro in alto **Usa Ollama** quando il server
+  OpenAI non risponde ma Ollama c'è, **Avvia Ollama** quando è spento
+- **Test**: `test_ollama_processo.py` con un `ollama` finto che è un processo vero (`finto_ollama_serve.py`: righe
+  come quelle di Ollama, porta occupata, blocco a comando): avvio all'apertura, registro nella console senza le
+  richieste HTTP, chiusura improvvisa → riavvio della sorveglianza, Ferma che resta fermo, Riavvia, riapertura di
+  Comic Studio che riconosce il processo e lo chiude all'uscita, blocco → riavvio ma non durante una domanda, porta
+  occupata spiegata e tentativi limitati, LM Studio che non risponde → «Usa Ollama» e scelta del modello che passa
+  a Ollama, servizio di un altro utente. Collaudo con Chromium nel caso dell'utente (tipo OpenAI su :1234):
+  «Usa Ollama» → IA pronta in meno di un secondo; processo ucciso → «Spento» subito, riacceso da solo in 16 s;
+  Ferma → resta fermo; Avvia
+  Collaudo anche con **Ollama 0.40.11 vero** (installato come fa Comic Studio, in `strumenti/ollama`): parte da solo
+  all'apertura; ucciso con `kill -9` → riacceso dalla sorveglianza in 20 s; Riavvia, Ferma (resta fermo); Comic
+  Studio chiuso di colpo → alla riapertura riconosce il suo Ollama dal PID. Un Ollama di prova lasciato acceso su
+  :11434 è stato fermato e sostituito da Riavvia, come un Ollama aperto fuori da Comic Studio. Gli avvisi di Ollama
+  sui servizi online di ollama.com (senza rete) vanno in «Dettagli», non tra gli avvisi
+
+Prossimo passo: PR 16, pose guidate e costruttore di workflow.

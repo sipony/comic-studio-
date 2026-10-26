@@ -50,6 +50,7 @@ class FintoOllama:
         self.scena = SCENA
         self.lento = 0.0
         self.scaricati: list[str] = []          # modelli tolti dalla memoria con keep_alive 0
+        self.eliminati: list[str] = []          # modelli cancellati con /api/delete
         self.app = self._crea()
         self.porta = _porta_libera()
         self.url = f"http://127.0.0.1:{self.porta}"
@@ -79,6 +80,16 @@ class FintoOllama:
                 self.modelli.append(corpo["model"])
                 yield json.dumps({"status": "success"}) + "\n"
             return StreamingResponse(righe(), media_type="application/x-ndjson")
+
+        @app.delete("/api/delete")
+        async def delete(req: Request):
+            corpo = await req.json()
+            nome = corpo.get("model") or corpo.get("name")
+            if nome not in self.modelli:
+                return JSONResponse({"error": f"model '{nome}' not found"}, status_code=404)
+            self.modelli.remove(nome)
+            self.eliminati.append(nome)
+            return {}
 
         @app.post("/api/generate")
         async def generate(req: Request):

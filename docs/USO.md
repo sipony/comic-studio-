@@ -145,6 +145,23 @@ modelli finiscono nella cartella `ComicStudio/strumenti/ollama`. Tutto gira sul 
 cambiare modello (più leggero o più preciso). Prima di ogni domanda all'IA la memoria della scheda video viene
 liberata, così ComfyUI e l'IA non se la contendono.
 
+**Ollama acceso e spento.** In **Sistema → IA locale → Ollama** vedi se è acceso, chi l'ha avviato (Comic Studio,
+il servizio di sistema o l'app di Ollama) e hai **Avvia**, **Riavvia** e **Ferma**. Con l'interruttore «Avvia Ollama
+all'apertura…» (acceso di serie) Ollama parte insieme a Comic Studio e, se si chiude o smette di rispondere, viene
+riavviato da solo entro una ventina di secondi; se non riparte dopo tre tentativi, la console spiega perché (per
+esempio la porta occupata da un altro Ollama). Quello avviato da Comic Studio si chiude quando chiudi Comic Studio.
+Su Linux, un Ollama installato come servizio di sistema non si può fermare da qui: la pagina dice il comando da usare
+(`sudo systemctl restart ollama`).
+
+Se in **Tipo** c'è «Server compatibile OpenAI» ma il modello è di Ollama (succede scegliendo il tipo sbagliato), in
+alto compare **Usa Ollama**: un clic e Comic Studio passa a Ollama e lo avvia. Anche scegliere un modello dalla
+finestra dell'elenco passa a Ollama, perché quei modelli sono di Ollama.
+
+Per liberare spazio: in **Sistema → IA locale → Modelli scaricati** ogni modello ha il suo peso e il pulsante 🗑,
+e nella finestra di scelta, selezionando un modello già scaricato, compare **Elimina dal computer**. I modelli
+eliminati non vanno nel cestino: per riaverli si scaricano di nuovo. Se elimini quello in uso, l'IA non è pronta
+finché non ne scegli un altro.
+
 Contenuti: il testo viene tradotto in modo fedele, horror, violenza e sangue compresi. C'è un solo blocco fisso,
 che non si può disattivare: niente contenuti sessuali con minorenni o personaggi dall'aspetto infantile.
 

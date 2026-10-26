@@ -49,14 +49,20 @@ export class ApiService {
   // ------------------------------------------------------------ IA locale e testo → prompt
   lavoro<T = unknown>(id: string) { return this.get<Lavoro & { risultato: T | null }>(`/api/lavori/${id}`); }
   statoIA() { return this.get<StatoIA>('/api/ia'); }
-  impostaIA(dati: { tipo?: string; url?: string; modello?: string; chiave?: string; libera_gpu?: boolean }) {
+  impostaIA(dati: ImpostazioniIA) {
     return this.post<StatoIA>('/api/ia/impostazioni', dati);
   }
   catalogoIA() { return this.get<CatalogoIA>('/api/ia/catalogo'); }
   aggiornaCatalogoIA(famiglia?: string) { return this.post<Lavoro>('/api/ia/catalogo/aggiorna', famiglia ? { famiglia } : {}); }
   scegliModelloIA(nome: string) { return this.post<{ lavoro: Lavoro | null; stato: StatoIA }>('/api/ia/scegli', { nome }); }
   installaIA() { return this.post<Lavoro>('/api/ia/installa'); }
+  avviaOllama() { return this.post<Lavoro>('/api/ia/ollama/avvia'); }
+  riavviaOllama() { return this.post<Lavoro>('/api/ia/ollama/riavvia'); }
+  fermaOllama() { return this.post<Lavoro>('/api/ia/ollama/ferma'); }
   scaricaModelloIA(nome: string) { return this.post<Lavoro>('/api/ia/modello', { nome }); }
+  eliminaModelloIA(nome: string) {
+    return this.post<{ eliminato: boolean; stato: StatoIA }>('/api/ia/modello/elimina', { nome });
+  }
   provaIA(testo: string, checkpoint: string | null) { return this.post<Lavoro>('/api/ia/prova', { testo, checkpoint }); }
   ricavaTratti(progetto: string, id: string, storia: string) {
     return this.post<Lavoro>(`/api/progetti/${progetto}/personaggi/${id}/tratti`, { storia });
@@ -279,4 +285,14 @@ export function messaggioErrore(e: unknown): string {
     return `Errore ${e.status}: ${e.statusText}`;
   }
   return e instanceof Error ? e.message : String(e);
+}
+
+/** Impostazioni dell'IA locale che si possono cambiare (quelle assenti restano come sono). */
+export interface ImpostazioniIA {
+  tipo?: string;
+  url?: string;
+  modello?: string;
+  chiave?: string;
+  libera_gpu?: boolean;
+  avvio_automatico?: boolean;
 }

@@ -138,7 +138,7 @@
     <!-- ======================= IA LOCALE ======================= -->
     <mat-tab label="IA locale">
       @let s = ia();
-      <section class="stato-connessione" [class.ok]="s?.pronta" [class.attesa]="!!lavoroIA()">
+      <section class="stato-connessione" [class.ok]="s?.pronta" [class.attesa]="!!lavoroIA() || s?.in_avvio">
         <mat-icon>{{ s?.pronta ? 'psychology' : 'psychology_alt' }}</mat-icon>
         <div class="testo-stato">
           @if (s?.pronta) {
@@ -150,7 +150,13 @@
           }
         </div>
         <div class="azioni-stato">
-          @if (s && !s.pronta) {
+          @if (s?.suggerisci_ollama) {
+            <button mat-flat-button (click)="salvaIA({ tipo: 'ollama' })" matTooltip="Il modello che hai scelto è di Ollama, che è installato su questo computer">
+              <mat-icon>swap_horiz</mat-icon> Usa Ollama
+            </button>
+          } @else if (s?.tipo === 'ollama' && s?.eseguibile && !s?.raggiungibile) {
+            <button mat-flat-button (click)="avviaOllama()" [disabled]="!!lavoroIA() || s?.in_avvio"><mat-icon>play_arrow</mat-icon> Avvia Ollama</button>
+          } @else if (s && !s.pronta) {
             <button mat-flat-button (click)="scegliModello()" [disabled]="!!lavoroIA()"><mat-icon>tune</mat-icon> Scegli e installa</button>
           } @else if (s && s.tipo === 'ollama' && !s.raggiungibile && !s.eseguibile) {
             <button mat-flat-button (click)="installaIA()" [disabled]="!!lavoroIA()"><mat-icon>download</mat-icon> Installa</button>
@@ -203,6 +209,34 @@
         }
       </section>
 
+      @if (ollama(); as o) {
+        <section class="categoria processo-ollama">
+          <h2><mat-icon>dns</mat-icon> Ollama</h2>
+          <div class="installazione" [class.in-uso]="s?.raggiungibile">
+            <mat-icon [class]="'icona-stato ' + o.icona">{{ o.icona }}</mat-icon>
+            <div class="testo">
+              <div class="nome">{{ o.titolo }}</div>
+              <div class="dettaglio">{{ o.dettaglio }}</div>
+            </div>
+            @if (s?.raggiungibile) {
+              <button mat-stroked-button (click)="riavviaOllama()" [disabled]="!!lavoroIA()" matTooltip="Utile se l'IA risponde male o è lenta"><mat-icon>restart_alt</mat-icon> Riavvia</button>
+              <button mat-stroked-button (click)="fermaOllama()" [disabled]="!!lavoroIA()" matTooltip="Libera la memoria che usa Ollama"><mat-icon>stop</mat-icon> Ferma</button>
+            } @else if (s?.eseguibile) {
+              <button mat-flat-button (click)="avviaOllama()" [disabled]="!!lavoroIA() || s?.in_avvio"><mat-icon>play_arrow</mat-icon> Avvia</button>
+            }
+          </div>
+          <mat-slide-toggle [checked]="s?.impostazioni?.avvio_automatico ?? true" (change)="salvaIA({ avvio_automatico: $event.checked })">
+            Avvia Ollama all'apertura di Comic Studio e riavvialo se si chiude o non risponde
+          </mat-slide-toggle>
+          @if (s?.eseguibile) {
+            <p class="nota-fine">
+              Programma: <code>{{ s?.eseguibile }}</code> {{ s?.portatile ? '(installato da Comic Studio)' : '(di sistema)' }}.
+              I suoi messaggi compaiono nella console: con «Dettagli» li vedi tutti.
+            </p>
+          }
+        </section>
+      }
+
       @if (iaTipo() === 'ollama') {
         <section class="categoria">
           <h2><mat-icon>deployed_code</mat-icon> Modello</h2>
@@ -226,9 +260,6 @@
               }
             </div>
           }
-          @if (s?.modelli?.length) {
-            <p class="nota-fine">Già scaricati: {{ s?.modelli?.join(', ') }}</p>
-          }
           <div class="modulo">
             <mat-form-field class="largo">
               <mat-label>Altro modello di Ollama</mat-label>
@@ -239,6 +270,39 @@
             </button>
           </div>
         </section>
+
+        @if (s?.raggiungibile) {
+          <section class="categoria scaricati">
+            <h2>
+              <mat-icon>hard_drive</mat-icon> Modelli scaricati
+              @if (s?.modelli?.length) { <span class="peso-totale">{{ s?.modelli?.length }} · {{ gb(spazioModelli(), 1) }} sul disco</span> }
+            </h2>
+            @for (nome of s?.modelli ?? []; track nome) {
+              <div class="installazione" [class.in-uso]="nome === s?.modello">
+                <mat-icon>deployed_code</mat-icon>
+                <div class="testo">
+                  <div class="nome">{{ nome }}
+                    @if (s?.dimensioni?.[nome]; as peso) { <span class="dettaglio">· {{ gb(peso, 1) }}</span> }
+                  </div>
+                </div>
+                @if (nome === s?.modello) {
+                  <span class="tag">in uso</span>
+                } @else {
+                  <button mat-button (click)="usaModello(nome)" [disabled]="!!eliminando()">Usa questo</button>
+                }
+                <button mat-icon-button class="elimina" (click)="eliminaModello(nome)" [disabled]="!!eliminando() || !!lavoroIA()"
+                  [matTooltip]="lavoroIA() ? 'Aspetta che finisca il lavoro dell’IA' : 'Elimina dal computer'" [attr.aria-label]="'Elimina ' + nome">
+                  <mat-icon>{{ eliminando() === nome ? 'hourglass_top' : 'delete' }}</mat-icon>
+                </button>
+              </div>
+            } @empty {
+              <p class="nota-fine">Nessun modello scaricato in Ollama.</p>
+            }
+            @if (s?.modelli?.length) {
+              <p class="nota-fine">I modelli eliminati non vanno nel cestino: per riaverli basta scaricarli di nuovo.</p>
+            }
+          </section>
+        }
       }
 
       @if (iaTipo() !== 'nessuna') {

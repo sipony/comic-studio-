@@ -10,7 +10,7 @@ from . import catalogo_ia as cat
 from . import fumetto as fm
 from . import testo_prompt as tp
 from .jobs import Lavoro
-from .llm import MODELLI_CONSIGLIATI, ErroreIA
+from .llm import MODELLI_CONSIGLIATI, URL_OLLAMA, ErroreIA
 from .modelinfo import famiglia_da_nome
 from .projects import Personaggio
 
@@ -34,7 +34,7 @@ async def stato_ia(req: Request):
 def _impostazioni(req: Request) -> dict:
     i = _app(req).impostazioni.valori
     return {"tipo": i.ia_tipo, "url": i.ia_url, "modello": i.ia_modello, "libera_gpu": i.ia_libera_gpu,
-            "chiave_impostata": bool(i.ia_chiave)}
+            "chiave_impostata": bool(i.ia_chiave), "avvio_automatico": i.ia_avvio_automatico}
 
 
 class ImpostazioniIA(BaseModel):
@@ -43,6 +43,7 @@ class ImpostazioniIA(BaseModel):
     modello: str | None = None
     chiave: str | None = None           # "" la cancella
     libera_gpu: bool | None = None
+    avvio_automatico: bool | None = None
 
 
 @rotte_ia.post("/impostazioni")
@@ -51,19 +52,43 @@ async def imposta_ia(dati: ImpostazioniIA, req: Request):
     if dati.tipo is not None:
         campi["ia_tipo"] = dati.tipo
         if dati.url is None and dati.tipo == "ollama":
-            campi["ia_url"] = "http://127.0.0.1:11434"
+            campi["ia_url"] = URL_OLLAMA
         if dati.url is None and dati.tipo == "openai":
             campi["ia_url"] = "http://127.0.0.1:1234"         # LM Studio
     if dati.url is not None:
-        campi["ia_url"] = dati.url.strip().rstrip("/") or "http://127.0.0.1:11434"
+        campi["ia_url"] = dati.url.strip().rstrip("/") or URL_OLLAMA
     if dati.modello is not None and dati.modello.strip():
         campi["ia_modello"] = dati.modello.strip()
     if dati.chiave is not None:
         campi["ia_chiave"] = dati.chiave.strip() or None
     if dati.libera_gpu is not None:
         campi["ia_libera_gpu"] = dati.libera_gpu
-    _app(req).impostazioni.aggiorna(**campi)
-    return await stato_ia(req)
+    if dati.avvio_automatico is not None:
+        campi["ia_avvio_automatico"] = dati.avvio_automatico
+    app = _app(req)
+    app.impostazioni.aggiorna(**campi)
+    risposta = await stato_ia(req)
+    # passando a Ollama (o riattivando l'avvio automatico) Ollama parte subito, se è spento
+    s = app.ia.stato
+    if (dati.tipo == "ollama" or dati.avvio_automatico or dati.url is not None) and s.tipo == "ollama" \
+            and app.impostazioni.valori.ia_avvio_automatico and not s.raggiungibile and s.eseguibile:
+        app.ia.avvia()
+    return risposta
+
+
+@rotte_ia.post("/ollama/avvia")
+async def avvia_ollama(req: Request):
+    return _app(req).ia.avvia().dict()
+
+
+@rotte_ia.post("/ollama/riavvia")
+async def riavvia_ollama(req: Request):
+    return _app(req).ia.riavvia().dict()
+
+
+@rotte_ia.post("/ollama/ferma")
+async def ferma_ollama(req: Request):
+    return _app(req).ia.ferma().dict()
 
 
 @rotte_ia.post("/installa")
@@ -80,6 +105,13 @@ async def scarica_modello(dati: Modello, req: Request):
     app = _app(req)
     app.impostazioni.aggiorna(ia_modello=dati.nome.strip())
     return app.ia.scarica_modello(dati.nome.strip()).dict()
+
+
+@rotte_ia.post("/modello/elimina")
+async def elimina_modello(dati: Modello, req: Request):
+    """Cancella dal computer un modello scaricato con Ollama (libera spazio; si può riscaricare)."""
+    trovato, stato = await _app(req).ia.elimina_modello(dati.nome.strip())
+    return {"eliminato": trovato, "stato": stato.dict()}
 
 
 # ---------------------------------------------------------------- scelta del modello
@@ -126,12 +158,12 @@ async def aggiorna_catalogo(dati: AggiornaCatalogo, req: Request):
 
 @rotte_ia.post("/scegli")
 async def scegli_modello(dati: Modello, req: Request):
-    """Usa questo modello: lo imposta e, se serve, installa Ollama e lo scarica (un lavoro)."""
+    """Usa questo modello con Ollama: lo imposta e, se serve, installa o avvia Ollama e lo scarica (un lavoro)."""
     app = _app(req)
     nome = dati.nome.strip()
     campi = {"ia_modello": nome}
-    if app.impostazioni.valori.ia_tipo == "nessuna":
-        campi |= {"ia_tipo": "ollama", "ia_url": "http://127.0.0.1:11434"}
+    if app.impostazioni.valori.ia_tipo != "ollama":      # i modelli dell'elenco sono di Ollama
+        campi |= {"ia_tipo": "ollama", "ia_url": URL_OLLAMA}
     app.impostazioni.aggiorna(**campi)
     stato = await app.ia.aggiorna()
     if stato.pronta or stato.tipo != "ollama":

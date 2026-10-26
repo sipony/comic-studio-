@@ -569,13 +569,26 @@ export interface StatoIA {
   raggiungibile: boolean;
   versione: string | null;
   modelli: string[];
+  /** byte di ogni modello scaricato (solo Ollama) */
+  dimensioni?: Record<string, number>;
   modello_presente: boolean;
   eseguibile: string | null;
   portatile: boolean;
   errore: string | null;
   pronta: boolean;
+  /** il processo di Ollama */
+  in_avvio?: boolean;
+  avviato_da_noi?: boolean;
+  pid?: number | null;
+  /** acceso ma non da Comic Studio: da chi */
+  esterno?: string | null;
+  /** fermato con «Ferma»: non si riaccende da solo */
+  fermato?: boolean;
+  avvio_automatico?: boolean;
+  /** il server compatibile OpenAI non risponde, ma Ollama c'è */
+  suggerisci_ollama?: boolean;
   consigliati?: { nome: string; descrizione: string; gb: number }[];
-  impostazioni?: { tipo: string; url: string; modello: string; libera_gpu: boolean; chiave_impostata: boolean };
+  impostazioni?: { tipo: string; url: string; modello: string; libera_gpu: boolean; chiave_impostata: boolean; avvio_automatico?: boolean };
 }
 
 /** Dove gira un modello su questo computer. */

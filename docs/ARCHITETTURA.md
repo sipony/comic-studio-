@@ -34,7 +34,9 @@ backend/app/
   rotte_fumetto.py        API e lavori dello Step 4
   comfy/discovery.py      ricerca delle installazioni di ComfyUI
   llm.py                  client dell'IA locale (Ollama / compatibile OpenAI), Ollama portatile
-  ia.py                   servizio dell'IA: stato, installazione, avvio, modelli, domande
+  ia.py                   servizio dell'IA: stato, installazione, processo di Ollama (avvio all'apertura,
+                          sorveglianza con riavvio, Avvia / Riavvia / Ferma), modelli, domande
+  processo_ollama.py      i processi «ollama serve» sul computer, come fermarli, righe del registro
   esclusione.py           nodi staccati: ricollegamento per tipo (come il bypass di ComfyUI), nodi staccati a
                           cascata, problemi spiegati
   catalogo_ia.py          catalogo dei modelli (registro di Ollama, quantizzazioni, dimensioni) valutato
@@ -75,7 +77,8 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
   comfyui.log                        uscita del ComfyUI avviato da Comic Studio
   comfyui.pid                        PID (e ora di creazione) del ComfyUI avviato da Comic Studio
   strumenti/sd-scripts/              kohya sd-scripts con il suo venv
-  strumenti/ollama/                  Ollama portatile (programma/, modelli/, ollama.log), se installato da qui
+  strumenti/ollama/                  Ollama portatile (programma/, modelli/), se installato da qui; ollama.log
+                                     e ollama.pid dell'Ollama avviato da Comic Studio
   progetti/
     <id-progetto>/
       progetto.json                  nome, descrizione, personaggi[]
@@ -113,14 +116,18 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | GET | `/api/lavori/{id}` | il lavoro con il suo risultato |
 | GET | `/api/lavori/{id}/anteprima` | l'ultima anteprima (parziale o finita) del lavoro |
 | POST | `/api/lavori/annulla` | annulla tutti i lavori attivi |
-| GET | `/api/ia` | stato dell'IA locale, modelli scaricati e consigliati, impostazioni |
-| POST | `/api/ia/impostazioni` | `{tipo, url, modello, chiave, libera_gpu}` |
+| GET | `/api/ia` | stato dell'IA locale, modelli scaricati (con `dimensioni` in byte) e consigliati, impostazioni; del processo di Ollama: `in_avvio`, `avviato_da_noi`, `pid`, `esterno` (chi l'ha aperto), `fermato`, `avvio_automatico`; `suggerisci_ollama` se il server OpenAI non risponde ma Ollama c'è |
+| POST | `/api/ia/impostazioni` | `{tipo, url, modello, chiave, libera_gpu, avvio_automatico}`; passando a Ollama (o riattivando l'avvio automatico) lo avvia se è spento |
+| POST | `/api/ia/ollama/avvia` | avvia Ollama, o ci si aggancia se è già acceso (lavoro `ia_avvio`) |
+| POST | `/api/ia/ollama/riavvia` | lo ferma (anche se aperto fuori da Comic Studio, se è dello stesso utente) e lo riavvia (lavoro `ia_avvio`) |
+| POST | `/api/ia/ollama/ferma` | lo ferma; la sorveglianza non lo riaccende finché non si preme Avvia o si fa una domanda all'IA (lavoro `ia_arresto`) |
 | POST | `/api/ia/installa` | scarica Ollama portatile e il modello (lavoro) |
 | POST | `/api/ia/modello` | `{nome}` scarica e usa un modello (lavoro) |
+| POST | `/api/ia/modello/elimina` | `{nome}` cancella dal computer un modello di Ollama (`/api/delete`, prima lo toglie dalla memoria); `{eliminato, stato}`; 503 se l'IA sta rispondendo o si sta scaricando un modello |
 | POST | `/api/ia/prova` | `{testo}` analizza una scena di prova (lavoro) |
 | GET | `/api/ia/catalogo` | tutti i modelli (famiglia, dimensione, varianti quantizzate) con memoria che serve, dove girano (`gpu`, `misto`, `cpu`, `troppo`) e punteggio per questo computer; hardware e stato dell'IA |
 | POST | `/api/ia/catalogo/aggiorna` | `{famiglia?}` legge dal registro di Ollama tag e dimensioni vere (lavoro `ia_catalogo`); con `famiglia` aggiunge un modello che non è nell'elenco |
-| POST | `/api/ia/scegli` | `{nome}` usa questo modello: lo imposta e, se serve, installa Ollama e lo scarica; `{lavoro, stato}` |
+| POST | `/api/ia/scegli` | `{nome}` usa questo modello con Ollama (passa a Ollama se il tipo era un altro): lo imposta e, se serve, installa o avvia Ollama e lo scarica; `{lavoro, stato}` |
 | POST | `/api/progetti/{p}/personaggi/{c}/tratti` | `{storia}` ricava i tratti fissi dalla descrizione (lavoro) |
 | POST | `…/fumetto/vignette/{v}/analizza` | descrizione → analisi → prompt (lavoro) |
 | GET | `…/fumetto/vignette/{v}/prompt` | il prompt dall'ultima analisi e se è ancora valida |

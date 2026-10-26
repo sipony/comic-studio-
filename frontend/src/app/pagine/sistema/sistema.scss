@@ -328,3 +328,30 @@ h2 {
     color: var(--mat-sys-on-surface-variant);
   }
 }
+
+.scaricati {
+  .peso-totale {
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--mat-sys-on-surface-variant);
+  }
+  .elimina:not([disabled]):hover {
+    color: var(--mat-sys-error);
+  }
+}
+
+.processo-ollama {
+  .installazione {
+    margin-bottom: 12px;
+  }
+  .icona-stato {
+    &.check_circle { color: var(--cs-ok); }
+    &.hourglass_top { color: var(--cs-avviso); }
+    &.error { color: var(--cs-errore); }
+  }
+  code {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+}

@@ -212,8 +212,13 @@ class App:
         return self.gestore.avvia("diagnostica", "Controllo del sistema", lavoro)
 
     async def avvio(self):
-        """Sequenza di avvio: trova ComfyUI se serve, lo avvia se è spento, poi controlla il sistema."""
+        """Sequenza di avvio: avvia Ollama se serve, trova ComfyUI se serve, lo avvia se è spento, poi controlla
+        il sistema."""
         self.in_preparazione = True
+        try:
+            await self.ia.all_avvio()
+        except Exception as e:  # noqa: BLE001 - ComfyUI deve partire lo stesso
+            self.bus.log(f"Avvio di Ollama non riuscito: {e}", "avviso")
         try:
             await self._prepara()
         finally:

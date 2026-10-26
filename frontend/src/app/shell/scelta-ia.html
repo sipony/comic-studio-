@@ -134,6 +134,11 @@
       </div>
     }
     <span class="spazio"></span>
+    @if (variante()?.installato && !scaricando()) {
+      <button mat-button class="elimina" (click)="elimina()" [disabled]="eliminando()" matTooltip="Cancella questo modello dal computer per liberare spazio">
+        <mat-icon>delete</mat-icon> Elimina dal computer
+      </button>
+    }
     <button mat-button (click)="avanzate()">Impostazioni avanzate</button>
     @if (scaricando()) {
       <button mat-stroked-button (click)="ferma()"><mat-icon>stop</mat-icon> Ferma</button>
