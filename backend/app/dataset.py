@@ -168,6 +168,14 @@ def crea_variante(varianti: Varianti, conteggio: dict[str, int], rng: random.Ran
     return v
 
 
+def modello_positivo(c: "ConfigDataset") -> str:
+    """Il modello del prompt positivo; se c'è uno stile ma il modello non ha {stile} (configurazioni di prima della
+    0.16) lo si aggiunge in fondo, così lo stile delle proposte non si perde."""
+    if c.stile.strip() and "{stile}" not in c.prompt_positivo:
+        return c.prompt_positivo + ", {stile}"
+    return c.prompt_positivo
+
+
 def valori_prompt(p: Personaggio, variante: dict[str, str], qualita: tuple[str, str],
                   stile: str = "") -> dict[str, str]:
     return {**{k: v for k, v in variante.items() if not k.startswith("_")},
@@ -353,7 +361,7 @@ class ArchivioDataset:
             v = crea_variante(c.varianti, conteggio, rng)
             val = valori_prompt(pers, v, q, c.stile)
             out.append({"inquadratura": v["_nome_inquadratura"], "dimensioni": v["_dimensioni"],
-                        "positivo": componi(c.prompt_positivo, val), "negativo": componi(c.prompt_negativo, val)})
+                        "positivo": componi(modello_positivo(c), val), "negativo": componi(c.prompt_negativo, val)})
         return out
 
     # --- immagini
