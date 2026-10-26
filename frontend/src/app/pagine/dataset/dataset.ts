@@ -125,6 +125,10 @@ export class DatasetPage {
       untracked(() => {
         if (e.azione === 'elenco') {
           void this.ricaricaImmagini();
+        } else if (e.azione === 'config') {
+          // cambiata altrove (grafo della console, «come le proposte»): si ricarica, così il salvataggio automatico
+          // di questa pagina non rimette i valori vecchi
+          void this.ricaricaConfig();
         } else if (e.immagine) {
           const img = e.immagine;
           this.immagini.update((l) => {
@@ -155,6 +159,20 @@ export class DatasetPage {
       this.ricetta.set(stato.origine?.ricetta ?? null);
       this.libreria.set(lib);
       this.immagini.set(imm);
+      this.salvataggio.set('salvato');
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  private async ricaricaConfig() {
+    const id = this.sceltoId();
+    if (!id) return;
+    try {
+      const stato = await this.api.statoDataset(this.progetto().id, id);
+      if (this.sceltoId() !== id) return;
+      this.ultimoSalvato = JSON.stringify(stato.config);
+      this.config.set(stato.config);
       this.salvataggio.set('salvato');
     } catch (e) {
       this.avvisi.errore(e);

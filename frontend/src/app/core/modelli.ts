@@ -142,6 +142,8 @@ export interface Personaggio {
   riferimento: string | null;
   /** se il riferimento è una proposta di Comic Studio: come è stata generata */
   origine?: RicettaProposta | null;
+  /** impostazioni delle prossime proposte cambiate dal grafo della console */
+  scelte_proposte?: RicettaProposta | null;
   creato: number;
 }
 
@@ -336,7 +338,7 @@ export interface EventoDataset {
   tipo: 'dataset';
   progetto: string;
   personaggio: string;
-  azione: 'nuova' | 'stato' | 'elenco';
+  azione: 'nuova' | 'stato' | 'elenco' | 'config';
   immagine?: ImmagineDataset;
   ts: number;
 }
@@ -676,6 +678,7 @@ export interface ConfigProposte {
   scheduler?: string;
   lora_stile?: string | null;
   forza_lora?: number;
+  forza_variante?: number;
   da?: string | null;
 }
 
@@ -692,6 +695,7 @@ export interface RicettaProposta {
   sampler: string;
   scheduler: string;
   inquadratura: string;
+  forza_variante?: number;
 }
 
 export interface AnteprimaPromptProposte {
@@ -782,6 +786,30 @@ export interface WorkflowLavoro {
   riassunto: string;
   workflow: Record<string, unknown>;
   grafo: { nodi: NodoGrafo[]; collegamenti: CollegamentoGrafo[]; da_comfy: boolean };
+  impostazioni: ImpostazioniGrafo;
+}
+
+/** Tipo e limiti di un'impostazione di un nodo (da /object_info di ComfyUI o dagli elenchi noti). */
+export interface SpecImpostazione {
+  tipo: 'INT' | 'FLOAT' | 'COMBO' | 'STRING' | 'BOOLEAN' | string;
+  min?: number | null;
+  max?: number | null;
+  step?: number | null;
+  default?: unknown;
+  opzioni?: string[];
+  multiline?: boolean;
+}
+export interface CampoGrafo {
+  modificabile: boolean;
+  /** perché non si può cambiare, e dove si cambia */
+  perche: string | null;
+  spec: SpecImpostazione;
+  /** valore già salvato per le prossime generazioni */
+  salvato?: unknown;
+}
+export interface ImpostazioniGrafo {
+  sorgente: { tipo: 'dataset' | 'proposte'; personaggio: string; descrizione: string } | null;
+  campi: Record<string, Record<string, CampoGrafo>>;
 }
 
 /** Il dataset confrontato con la proposta scelta come riferimento. */

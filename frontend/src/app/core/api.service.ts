@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  AnteprimaPromptProposte, CatalogoIA, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -38,6 +38,16 @@ export class ApiService {
   log(n = 1000) { return this.get<RigaLog[]>('/api/log', { n: String(n) }); }
   lavori() { return this.get<Lavoro[]>('/api/lavori'); }
   workflowLavoro(id: string) { return this.get<WorkflowLavoro>(`/api/lavori/${id}/workflow`); }
+  /** Impostazioni dei nodi cambiate dal grafo: tutte salvate o nessuna (422 con `errori`). null toglie la modifica. */
+  async salvaImpostazioniGrafo(id: string, modifiche: Record<string, Record<string, unknown>>): Promise<ImpostazioniGrafo> {
+    try {
+      return await firstValueFrom(this.http.post<ImpostazioniGrafo>(`/api/lavori/${id}/workflow/impostazioni`, { modifiche }));
+    } catch (e) {
+      const err = new Error(messaggioErrore(e)) as ErroreImpostazioni;
+      if (e instanceof HttpErrorResponse && Array.isArray(e.error?.errori)) err.errori = e.error.errori;
+      throw err;
+    }
+  }
   urlWorkflowJson(id: string) { return `/api/lavori/${id}/workflow.json`; }
   annulla(id: string) { return this.post(`/api/lavori/${id}/annulla`); }
   annullaTutti() { return this.post<{ annullati: number }>('/api/lavori/annulla'); }
@@ -313,4 +323,9 @@ export interface ImpostazioniIA {
   chiave?: string;
   libera_gpu?: boolean;
   avvio_automatico?: boolean;
+}
+
+/** Errore del salvataggio delle impostazioni del grafo, con l'errore di ogni impostazione. */
+export interface ErroreImpostazioni extends Error {
+  errori?: { nodo: string; ingresso: string; errore: string }[];
 }

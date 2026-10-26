@@ -62,6 +62,7 @@ export class SchedaPersonaggio {
   protected cfg = signal(6);
   protected sampler = signal('euler_ancestral');
   protected scheduler = signal('karras');
+  protected forzaVariante = signal(0.55);
   protected avanzate = signal(false);
   protected anteprima = signal<AnteprimaPromptProposte | null>(null);
   protected readonly samplerDisponibili = SAMPLER;
@@ -72,10 +73,12 @@ export class SchedaPersonaggio {
     checkpoint: this.checkpoint(), numero: this.numero(), inquadratura: this.inquadratura(), stile: this.stile().trim(),
     extra: this.extra().trim(), negativo: this.negativo().trim() || NEGATIVO_PROPOSTE, passi: this.passi(), cfg: this.cfg(),
     sampler: this.sampler(), scheduler: this.scheduler(), lora_stile: this.lora(), forza_lora: this.forzaLora(),
+    forza_variante: this.forzaVariante(),
   }));
   protected famiglia = computed(() => NOMI_FAMIGLIA[this.anteprima()?.famiglia ?? ''] ?? this.anteprima()?.famiglia ?? '');
   private timerAnteprima: ReturnType<typeof setTimeout> | null = null;
   private precompilato = false;
+  private ultimeScelte: string | null = null;
   protected proposteRecenti = computed(() => [...this.proposte()].reverse());
   protected haScelta = computed(() => this.proposte().some((p) => p.scelta));
   protected lavoroProposte = computed(() =>
@@ -92,6 +95,16 @@ export class SchedaPersonaggio {
   });
 
   constructor() {
+    // impostazioni delle proposte cambiate dal grafo della console: il pannello riparte da quelle
+    effect(() => {
+      const s = this.personaggio().scelte_proposte;
+      if (!s) return;
+      const chiave = JSON.stringify(s);
+      if (chiave === this.ultimeScelte) return;
+      const prima = this.ultimeScelte;
+      this.ultimeScelte = chiave;
+      if (prima !== null) untracked(() => { this.precompila(s); this.precompilato = true; });
+    });
     // anteprima del prompt mentre si cambiano le scelte
     effect(() => {
       if (!this.proposteAperte()) return;
@@ -181,7 +194,8 @@ export class SchedaPersonaggio {
     // si riparte dalle scelte dell'ultima volta (o da quelle del riferimento attuale)
     if (!this.precompilato) {
       this.precompilato = true;
-      const r = [...this.proposte()].reverse().find((p) => p.ricetta)?.ricetta ?? this.personaggio().origine;
+      const r = this.personaggio().scelte_proposte ?? [...this.proposte()].reverse().find((p) => p.ricetta)?.ricetta
+        ?? this.personaggio().origine;
       if (r) this.precompila(r);
     }
     if (!this.elencoCheckpoint().length) {
@@ -209,10 +223,12 @@ export class SchedaPersonaggio {
     this.cfg.set(r.cfg);
     this.sampler.set(r.sampler);
     this.scheduler.set(r.scheduler);
+    this.forzaVariante.set(r.forza_variante ?? 0.55);
     if (['figura_intera', 'mezzo_busto', 'primo_piano'].includes(r.inquadratura)) {
       this.inquadratura.set(r.inquadratura as InquadraturaProposta);
     }
-    this.avanzate.set(!!r.negativo || r.passi !== 28 || r.cfg !== 6 || r.sampler !== 'euler_ancestral' || r.scheduler !== 'karras');
+    this.avanzate.set(!!r.negativo || r.passi !== 28 || r.cfg !== 6 || r.sampler !== 'euler_ancestral' || r.scheduler !== 'karras'
+      || (r.forza_variante ?? 0.55) !== 0.55);
   }
 
   /** Riprende le scelte con cui è stata fatta una proposta. */
@@ -234,7 +250,8 @@ export class SchedaPersonaggio {
       if (aggiornaPersonaggio && !this.modificato()) {
         // l'IA può aver appena ricavato i tratti dalla descrizione libera
         const p = (await this.api.progetto(this.progetto())).personaggi.find((x) => x.id === this.personaggio().id);
-        if (p && (p.descrizione !== this.personaggio().descrizione || p.genere !== this.personaggio().genere)) {
+        if (p && (p.descrizione !== this.personaggio().descrizione || p.genere !== this.personaggio().genere
+          || JSON.stringify(p.scelte_proposte ?? null) !== JSON.stringify(this.personaggio().scelte_proposte ?? null))) {
           this.cambiato.emit(p);
         }
       }

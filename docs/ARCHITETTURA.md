@@ -45,6 +45,7 @@ backend/app/
   proposte.py             personaggio dal nulla: proposte d'immagine di riferimento dal testo
   grafo.py                workflow mandato a ComfyUI: riassunto per i log e grafo da disegnare
   coerenza.py             dataset confrontato con la proposta da cui è nato il personaggio
+  ritocchi.py             impostazioni dei nodi cambiate dal grafo: cosa si può cambiare e dove si salva
   componenti.py           IPAdapter Plus (nodo e modelli): cosa manca, spazio su disco, download controllati
   rotte_componenti.py     API dei componenti da installare
   rotte_proposte.py       API delle proposte
@@ -120,6 +121,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | GET | `/api/lavori/{id}` | il lavoro con il suo risultato |
 | GET | `/api/lavori/{id}/anteprima` | l'ultima anteprima (parziale o finita) del lavoro |
 | GET | `/api/lavori/{id}/workflow` | l'ultimo workflow mandato a ComfyUI dal lavoro: `workflow`, `n` (quante volte), `riassunto`, `grafo` (nodi con ingressi, widget e uscite tipizzati; collegamenti) |
+| POST | `/api/lavori/{id}/workflow/impostazioni` | `{modifiche: {nodo: {ingresso: valore}}}` (`null` toglie): controllate come ComfyUI e salvate nelle impostazioni del dataset o nelle scelte delle proposte del personaggio; 422 con `errori` e niente salvato se una non va |
 | GET | `/api/lavori/{id}/workflow.json` | lo stesso in formato API, da scaricare e aprire in ComfyUI |
 | POST | `/api/lavori/annulla` | annulla tutti i lavori attivi |
 | GET | `/api/ia` | stato dell'IA locale, modelli scaricati (con `dimensioni` in byte) e consigliati, impostazioni; del processo di Ollama: `in_avvio`, `avviato_da_noi`, `pid`, `esterno` (chi l'ha aperto), `fermato`, `avvio_automatico`; `suggerisci_ollama` se il server OpenAI non risponde ma Ollama c'è |
