@@ -183,3 +183,57 @@ def test_workflow_nei_log_e_grafo(casa, finto_comfy, cartella_comfy):
         riga = [e for e in stato.bus.storico if e.get("grafo") and e["lavoro"] == l2["id"]][0]
         assert "LoadImage" in riga["msg"] and "denoise 0.55" in riga["msg"]
         assert c.get("/api/lavori/L999/workflow").status_code == 404
+
+
+def test_confronto_dataset_proposta(casa, finto_comfy, cartella_comfy):
+    """Il caso di un personaggio nato con una versione vecchia: la proposta non ha la ricetta, il dataset ha un
+    workflow integrato fatto a mano e il modello del prompt senza {stile}. Il confronto trova lo stile mancante;
+    rimesso nello stile, finisce nei prompt anche con il modello vecchio."""
+    import json as j
+    stato = App(Archivio(casa / "impostazioni.json"))
+    with TestClient(crea_app(stato, sorveglia=False)) as c:
+        c.post("/api/comfy/usa", json={"url": finto_comfy.url, "cartella": str(cartella_comfy)})
+        p = c.post("/api/progetti", json={"nome": "Polizia"}).json()["id"]
+        c.post(f"/api/progetti/{p}/personaggi", json={"nome": "Secretary",
+                                                      "descrizione": "long brown hair, glasses, police uniform"})
+        base = f"/api/progetti/{p}/personaggi/secretary/proposte"
+        ds = f"/api/progetti/{p}/personaggi/secretary/dataset"
+        attendi(c, c.post(base, json={"checkpoint": "waiIllustriousSDXL_v170.safetensors", "numero": 1,
+                                      "inquadratura": "figura_intera", "stile": "western comics (style)"}).json()["id"])
+        # come con la 0.15: niente ricetta nella proposta
+        f = stato.progetti.cartella_personaggio(p, "secretary") / "proposte" / "proposte.json"
+        elenco = j.loads(f.read_text())
+        for x in elenco:
+            x.pop("ricetta")
+        f.write_text(j.dumps(elenco))
+        c.post(f"{base}/{elenco[0]['file']}/scegli")
+        assert c.get(ds).json()["origine"] is None and not c.get(ds).json()["config"]["workflow"]
+        wf = c.post(f"/api/progetti/{p}/workflows/integrato", json={
+            "checkpoint": "waiIllustriousSDXL_v170.safetensors"}).json()
+        conf = c.get(ds).json()["config"] | {"workflow": wf["id"],
+                                              "prompt_positivo": "{qualita}, {genere}, solo, {descrizione}, {variante}"}
+        r = c.post(f"{ds}/confronto", json=conf).json()
+        assert r["stile_proposta"] == ["western comics (style)"] and r["mancanti"] == ["western comics (style)"]
+        assert not r["coerente"] and "western comics" not in r["esempio_dataset"]
+        righe = {x["voce"]: x for x in r["righe"]}
+        assert righe["Checkpoint"]["uguale"] is None and "prima della versione 0.16" in righe["Checkpoint"]["proposte"]
+        assert righe["Tag di stile"]["uguale"] is False and righe["IPAdapter sul riferimento"]["uguale"] is False
+        # lo stile rimesso (anche con il modello senza {stile})
+        r = c.post(f"{ds}/confronto", json=conf | {"stile": "western comics (style)"}).json()
+        assert not r["mancanti"] and r["coerente"] and r["esempio_dataset"].endswith("western comics (style)")
+        es = c.post(f"{ds}/esempi", json=conf | {"stile": "western comics (style)"}).json()[0]
+        assert es["positivo"].endswith("western comics (style)")
+
+        # con la ricetta (versione nuova) tutto torna, campionamento compreso
+        attendi(c, c.post(base, json={"checkpoint": "waiIllustriousSDXL_v170.safetensors", "numero": 1,
+                                      "stile": "western comics (style)", "passi": 24}).json()["id"])
+        nuova = c.get(base).json()[-1]["file"]
+        c.post(f"{base}/{nuova}/scegli")
+        cr = c.post(f"{ds}/come-proposte").json()["config"]
+        r = c.post(f"{ds}/confronto", json=cr).json()
+        assert r["coerente"] and all(x["uguale"] is not False for x in r["righe"] if x["voce"] != "IPAdapter sul riferimento")
+        assert {x["voce"] for x in r["righe"]} >= {"Checkpoint", "LoRA di stile", "Passi", "CFG", "Sampler"}
+        # riferimento caricato a mano: niente confronto
+        dati = (stato.progetti.cartella_personaggio(p, "secretary") / "riferimento.png").read_bytes()
+        c.put(f"/api/progetti/{p}/personaggi/secretary/riferimento", files={"file": ("r.png", dati, "image/png")})
+        assert c.post(f"{ds}/confronto", json=cr).json() is None

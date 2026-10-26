@@ -29,7 +29,7 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 15 | IA locale: eliminare dall'interfaccia i modelli scaricati con Ollama; gestione del processo di Ollama (avvio all'apertura, riavvio se si chiude o si blocca, Avvia / Riavvia / Ferma) | ✅ unita |
 | 16 | Personaggio dal nulla con più scelte (LoRA di stile, negativo, campionamento, anteprima del prompt) che passano da sole al dataset: stesso checkpoint, LoRA e stile, così il personaggio resta lo stesso | ✅ unita |
 | 17 | IPAdapter Plus proposto all'apertura se manca (nodo e modelli), con il controllo dello spazio su disco, e installato da Comic Studio | ✅ unita |
-| 18 | Workflow nei log e scheda «Grafo» nella console: i nodi collegati di ogni workflow mandato a ComfyUI, disegnati come in ComfyUI; JSON da aprire in ComfyUI | ✅ questa PR |
+| 18 | Workflow nei log e scheda «Grafo» nella console: i nodi collegati di ogni workflow mandato a ComfyUI, disegnati come in ComfyUI; JSON da aprire in ComfyUI. Confronto del dataset con la proposta da cui è nato il personaggio | ✅ questa PR |
 | 19 | Ritocchi sul grafo (valori dei widget, nodi staccati) e rigenerazione; modifiche strutturali in ComfyUI e ritorno nella libreria | da fare |
 | 20 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
 | 21 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
@@ -781,5 +781,29 @@ tab dove far vedere il grafo di tutti i nodi collegati esattamente come li mostr
   grafo con tipi e collegamenti, JSON senza `_meta`, nuova riga per le varianti img2img, 404). Collaudo con Chromium:
   proposte con Pony + LoRA → riga «grafo» → 8 nodi e 11 collegamenti come in ComfyUI, dettaglio del KSampler, tutto
   schermo
+
+### Dataset diverso dalla proposta: il confronto
+
+Segnalazione: «siamo partiti da un personaggio così (proposta in stile western comics) e nel dataset me li genera
+molto diversi: voglio capire che workflow stanno usando e se sono coerenti».
+
+**Perché.** Il personaggio era nato con una versione precedente alla 0.16: la proposta non aveva la ricetta, il
+workflow del dataset era un «Integrato» creato a mano e il modello del prompt del dataset non aveva lo stile
+(`{qualita}, {genere}, solo, {descrizione}, {variante}`): senza `western comics (style)` il checkpoint torna al suo
+stile di base.
+
+- `coerenza.py`: `tag_di_stile` ricava dal prompt della proposta scelta (sempre salvato) i tag che non sono qualità,
+  genere, base, inquadratura o tratti; `confronta` mette a fianco proposta e dataset: checkpoint, LoRA di stile, tag
+  di stile (con quelli mancanti nei prompt del dataset), passi, CFG, sampler, scheduler, negativo, IPAdapter sul
+  riferimento; per le proposte senza ricetta il checkpoint risulta «non registrato»
+- `POST …/dataset/confronto` con la configurazione anche non salvata; `null` se il riferimento non è una proposta
+  (caricare un riferimento a mano toglie la scelta della proposta)
+- `modello_positivo`: se c'è uno stile ma il modello del prompt non ha `{stile}` (configurazioni vecchie), lo si
+  aggiunge in fondo, nelle anteprime e nella generazione
+- interfaccia, dataset: riquadro con la miniatura della proposta, «coerente» oppure «le immagini verranno diverse»,
+  i tag di stile mancanti con **Aggiungili allo stile**, tabella proposta / dataset e i due prompt a confronto
+- **Test**: `test_confronto_dataset_proposta` (personaggio come quelli della 0.15: stile mancante trovato, checkpoint
+  non registrato, niente IPAdapter; stile rimesso → coerente e nei prompt anche con il modello vecchio; con la ricetta
+  tutto uguale compreso il campionamento; riferimento caricato a mano → nessun confronto). Collaudo con Chromium
 
 Prossimo passo: PR 19, ritocchi sul grafo.

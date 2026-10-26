@@ -55,6 +55,49 @@
             }
           </div>
         }
+        @if (confronto(); as k) {
+          <section class="confronto" [class.ok]="k.coerente">
+            <button type="button" class="c-testa" (click)="confrontoAperto.set(!confrontoAperto())" [attr.aria-expanded]="confrontoAperto()">
+              <img [src]="urlProposta(k.proposta.file)" alt="Proposta scelta come riferimento" />
+              <mat-icon>{{ k.coerente ? 'verified' : 'compare_arrows' }}</mat-icon>
+              <span class="c-titolo">
+                @if (k.coerente) { Il dataset è coerente con la proposta da cui è nato {{ pers.nome }} }
+                @else { Il dataset non usa le stesse scelte della proposta: le immagini verranno diverse }
+              </span>
+              <mat-icon>{{ confrontoAperto() ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </button>
+            @if (k.mancanti.length) {
+              <div class="c-mancanti">
+                <span>Tag di stile della proposta che il dataset non usa: <strong>{{ k.mancanti.join(', ') }}</strong></span>
+                <button mat-flat-button (click)="aggiungiStile()"><mat-icon>add</mat-icon> Aggiungili allo stile</button>
+              </div>
+            }
+            @if (confrontoAperto()) {
+              <table>
+                <thead><tr><th></th><th>Proposta</th><th>Dataset</th><th></th></tr></thead>
+                <tbody>
+                  @for (r of k.righe; track r.voce) {
+                    <tr [class.diverso]="r.uguale === false">
+                      <th>{{ r.voce }}</th><td>{{ r.proposte }}</td><td>{{ r.dataset }}</td>
+                      <td class="esito">
+                        <mat-icon [matTooltip]="r.nota">{{ r.uguale === true ? 'check' : r.uguale === false ? 'close' : 'help' }}</mat-icon>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              <div class="c-prompt"><strong>Prompt della proposta</strong><code>{{ k.proposta.prompt }}</code></div>
+              @if (k.esempio_dataset) {
+                <div class="c-prompt"><strong>Un prompt del dataset</strong><code>{{ k.esempio_dataset }}</code></div>
+              }
+              <p class="nota">
+                Pose, inquadrature, espressioni e sfondi cambiano apposta: servono al LoRA per imparare il personaggio da
+                ogni lato. Devono restare uguali checkpoint, LoRA di stile e tag di stile. Il workflow completo di ogni
+                generazione lo vedi nella console, scheda «Grafo».
+              </p>
+            }
+          </section>
+        }
         <div class="griglia">
           <div class="colonna">
             <mat-accordion multi displayMode="flat">

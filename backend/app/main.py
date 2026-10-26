@@ -232,6 +232,8 @@ def crea_app(app_stato: App | None = None, sorveglia: bool = True, host_consenti
     async def carica_riferimento(pid: str, cid: str, file: UploadFile = File(...)):
         dati = await file.read()
         c = stato.progetti.salva_riferimento(pid, cid, dati)
+        from .proposte import ArchivioProposte
+        ArchivioProposte(stato.progetti).segna_scelta(pid, cid, "")      # il riferimento non è più una proposta
         stato.bus.log(f"Immagine di riferimento di {c.nome} aggiornata", "ok")
         return c.model_dump()
 

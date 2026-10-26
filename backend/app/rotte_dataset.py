@@ -15,7 +15,8 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 
 from .comfy.client import ComfyErrore
-from .dataset import ArchivioDataset, ConfigDataset, InfoImmagine, componi, crea_variante, tag_qualita, valori_prompt
+from .dataset import (ArchivioDataset, ConfigDataset, InfoImmagine, componi, crea_variante, modello_positivo,
+                      tag_qualita, valori_prompt)
 from .jobs import Lavoro
 from .projects import ErroreProgetto
 from .settings import cartella_dati
@@ -154,6 +155,28 @@ def coerenza(a: ArchivioDataset, pid: str, origine: dict | None, config: ConfigD
     stesso_ck = checkpoint == origine["checkpoint"]
     stessa_lora = not origine.get("lora_stile") or origine["lora_stile"] in (lora or [])
     return {"ricetta": origine, "checkpoint_workflow": checkpoint, "coerente": bool(stesso_ck and stessa_lora)}
+
+
+@rotte.post("/personaggi/{cid}/dataset/confronto")
+async def confronto(pid: str, cid: str, c: ConfigDataset, req: Request):
+    """La configurazione (anche non salvata) confrontata con la proposta scelta come riferimento; null se il
+    riferimento non viene da una proposta."""
+    from .coerenza import confronta
+    from .proposte import ArchivioProposte
+    a = _archivio(req)
+    _, pers = a.personaggio(pid, cid)
+    scelta = next((p for p in ArchivioProposte(a.progetti).elenco(pid, cid) if p.scelta), None)
+    if not scelta:
+        return None
+    wf, checkpoint, lora = None, None, []
+    if c.workflow:
+        try:
+            wf = a.leggi_workflow(pid, c.workflow).workflow
+            an = analizza(wf)
+            checkpoint, lora = an.checkpoint, an.lora
+        except Exception:  # noqa: BLE001 - workflow sparito dalla libreria
+            wf = None
+    return confronta(scelta, pers, c, wf, checkpoint, lora)
 
 
 @rotte.post("/personaggi/{cid}/dataset/come-proposte")
@@ -395,7 +418,7 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                 numero = a.prossimo_numero(pid, cid)
                 var = crea_variante(config.varianti, conteggio, rng)
                 val = valori_prompt(pers, var, qualita, config.stile)
-                positivo = componi(config.prompt_positivo, val)
+                positivo = componi(modello_positivo(config), val)
                 negativo = componi(config.prompt_negativo, val)
                 larghezza, altezza = (int(x) for x in var["_dimensioni"].split("x"))
                 seme = rng.randrange(2 ** 48)
