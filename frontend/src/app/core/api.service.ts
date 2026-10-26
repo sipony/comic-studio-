@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  CatalogoIA, ConfigAddestramento, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, CatalogoIA, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -81,6 +81,9 @@ export class ApiService {
   private dp(progetto: string, id: string) { return `/api/progetti/${progetto}/personaggi/${id}/proposte`; }
   proposte(progetto: string, id: string) { return this.get<Proposta[]>(this.dp(progetto, id)); }
   generaProposte(progetto: string, id: string, conf: ConfigProposte) { return this.post<Lavoro>(this.dp(progetto, id), conf); }
+  anteprimaProposte(progetto: string, id: string, conf: ConfigProposte) {
+    return this.post<AnteprimaPromptProposte>(`${this.dp(progetto, id)}/anteprima`, conf);
+  }
   urlProposta(progetto: string, id: string, file: string) { return `${this.dp(progetto, id)}/${encodeURIComponent(file)}`; }
   scegliProposta(progetto: string, id: string, file: string) {
     return this.post<Personaggio>(`${this.dp(progetto, id)}/${encodeURIComponent(file)}/scegli`);
@@ -152,7 +155,12 @@ export class ApiService {
 
   private ds(progetto: string, pers: string) { return `/api/progetti/${progetto}/personaggi/${pers}/dataset`; }
   statoDataset(progetto: string, pers: string) {
-    return this.get<{ config: ConfigDataset; riepilogo: RiepilogoDataset }>(this.ds(progetto, pers));
+    return this.get<{ config: ConfigDataset; riepilogo: RiepilogoDataset; origine: OrigineDataset | null }>(this.ds(progetto, pers));
+  }
+  /** Usa per il dataset le stesse scelte delle proposte (workflow integrato con lo stesso checkpoint e LoRA). */
+  comeProposte(progetto: string, pers: string) {
+    return this.post<{ config: ConfigDataset; workflow: RiassuntoWorkflow; avvisi: string[]; origine: OrigineDataset }>(
+      `${this.ds(progetto, pers)}/come-proposte`);
   }
   salvaConfig(progetto: string, pers: string, c: ConfigDataset) {
     return this.chiama(firstValueFrom(this.http.put<ConfigDataset>(`${this.ds(progetto, pers)}/config`, c)));

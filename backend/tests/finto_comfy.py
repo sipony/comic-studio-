@@ -22,6 +22,8 @@ class FintoComfy:
         self.client_ws: dict[str, WebSocket] = {}
         self.errore_nodo: str | None = None     # se impostato, l'esecuzione fallisce
         self.object_info: dict | None = None    # definizioni dei nodi restituite da /object_info
+        self.modelli = {"checkpoints": ["waiIllustriousSDXL_v170.safetensors", "ponyDiffusionV6XL.safetensors"],
+                        "loras": ["Comic_Style.safetensors"]}
         self.lento = 0.0                        # secondi per ogni passo del KSampler
         self.anteprime = False                  # manda anteprime binarie durante il campionamento
         self.coda: list[list] = []              # [numero, prompt_id, workflow, extra, uscite]
@@ -49,9 +51,7 @@ class FintoComfy:
 
         @app.get("/models/{cartella}")
         async def modelli(cartella: str):
-            dati = {"checkpoints": ["waiIllustriousSDXL_v170.safetensors", "ponyDiffusionV6XL.safetensors"],
-                    "loras": ["Comic_Style.safetensors"]}
-            return dati.get(cartella, [])
+            return self.modelli.get(cartella, [])
 
         @app.get("/object_info")
         async def object_info():

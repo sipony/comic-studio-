@@ -29,6 +29,32 @@
 
     @if (personaggio(); as pers) {
       @if (config(); as cfg) {
+        @if (ricetta(); as r) {
+          <div class="origine" [class.ok]="coerente()" role="status">
+            <mat-icon>{{ coerente() ? 'link' : 'warning' }}</mat-icon>
+            <div class="testo">
+              @if (coerente()) {
+                <strong>Come le proposte da cui è nato {{ pers.nome }}</strong>
+                <span>{{ descrizioneRicetta() }}</span>
+              } @else {
+                <strong>{{ pers.nome }} è nato con altre scelte: il dataset potrebbe venire diverso</strong>
+                <span>
+                  Le proposte usavano {{ descrizioneRicetta() }}.
+                  @if (workflowScelto(); as w) {
+                    Il workflow scelto usa {{ w.checkpoint ?? 'un checkpoint sconosciuto' }}{{ r.lora_stile && !w.lora.includes(r.lora_stile) ? ' senza quella LoRA' : '' }}.
+                  } @else {
+                    Non c'è ancora un workflow.
+                  }
+                </span>
+              }
+            </div>
+            @if (!coerente()) {
+              <button mat-flat-button (click)="comeProposte()" [disabled]="preparando()">
+                <mat-icon>sync_alt</mat-icon> Usa le scelte delle proposte
+              </button>
+            }
+          </div>
+        }
         <div class="griglia">
           <div class="colonna">
             <mat-accordion multi displayMode="flat">

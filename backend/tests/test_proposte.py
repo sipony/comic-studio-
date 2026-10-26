@@ -73,3 +73,74 @@ def test_proposte_bloccate_e_senza_testo(casa, finto_comfy, cartella_comfy):
         c.post(f"/api/progetti/{p}/personaggi", json={"nome": "Altro", "storia": "una bambina di 10 anni, nuda"})
         r = c.post(f"/api/progetti/{p}/personaggi/altro/proposte", json={"checkpoint": "ck0.safetensors"})
         assert r.status_code == 422
+
+
+def test_dataset_come_le_proposte(casa, finto_comfy, cartella_comfy):
+    """Le scelte fatte creando il personaggio dal nulla (checkpoint, LoRA di stile, stile, negativo, campionamento)
+    passano da sole al dataset, così il personaggio del dataset è lo stesso delle proposte."""
+    stato = App(Archivio(casa / "impostazioni.json"))
+    with TestClient(crea_app(stato, sorveglia=False)) as c:
+        c.post("/api/comfy/usa", json={"url": finto_comfy.url, "cartella": str(cartella_comfy)})
+        p = c.post("/api/progetti", json={"nome": "Western"}).json()["id"]
+        c.post(f"/api/progetti/{p}/personaggi", json={"nome": "Jack", "genere": "1boy",
+                                                      "descrizione": "short black hair, stubble, cowboy hat"})
+        base = f"/api/progetti/{p}/personaggi/jack/proposte"
+        conf = {"checkpoint": "ponyDiffusionV6XL.safetensors", "numero": 1, "stile": "western comics (style)",
+                "extra": "ink lines", "lora_stile": "Comic_Style.safetensors", "forza_lora": 0.65,
+                "negativo": "{negativo_qualita}, 3d, realistic", "passi": 24, "cfg": 7.0, "sampler": "dpmpp_2m"}
+        # anteprima del prompt, senza generare
+        a = c.post(f"{base}/anteprima", json=conf).json()
+        assert a["famiglia"] == "pony" and a["positivo"].startswith("score_9, score_8_up, score_7_up, 1boy, solo")
+        assert "western comics (style)" in a["positivo"] and a["negativo"] == "score_4, score_5, score_6, 3d, realistic"
+        l = attendi(c, c.post(base, json=conf).json()["id"])
+        assert l["stato"] == "completato", l["errore"]
+        inviato = finto_comfy.ricevuti[-1]
+        lora = next(n for n in inviato.values() if n["class_type"] == "LoraLoader")["inputs"]
+        assert lora["lora_name"] == "Comic_Style.safetensors" and lora["strength_model"] == 0.65
+        ks = next(n for n in inviato.values() if n["class_type"] == "KSampler")["inputs"]
+        assert ks["steps"] == 24 and ks["sampler_name"] == "dpmpp_2m" and ks["model"] == ["10", 0]
+        proposta = c.get(base).json()[0]
+        assert proposta["ricetta"]["lora_stile"] == "Comic_Style.safetensors"
+        assert proposta["ricetta"]["negativo"] == "{negativo_qualita}, 3d, realistic"
+
+        # «Usa questa»: il riferimento ricorda come è nato e il dataset è già pronto con le stesse scelte
+        pers = c.post(f"{base}/{proposta['file']}/scegli").json()
+        assert pers["origine"]["checkpoint"] == "ponyDiffusionV6XL.safetensors"
+        ds = c.get(f"/api/progetti/{p}/personaggi/jack/dataset").json()
+        conf_ds = ds["config"]
+        assert conf_ds["stile"] == "western comics (style), ink lines" and "{stile}" in conf_ds["prompt_positivo"]
+        assert conf_ds["prompt_negativo"] == "{negativo_qualita}, 3d, realistic"
+        assert ds["origine"]["coerente"] and ds["origine"]["checkpoint_workflow"] == "ponyDiffusionV6XL.safetensors"
+        wf = c.get(f"/api/progetti/{p}/workflows/{conf_ds['workflow']}").json()
+        nodi = wf["workflow"].values() if "workflow" in wf else []
+        assert wf["parametri"]["lora_stile"] == "Comic_Style.safetensors" and wf["parametri"]["sampler"] == "dpmpp_2m"
+        assert wf["parametri"]["ipadapter"] is None                 # IPAdapter non installato: txt2img
+        assert not any(n["class_type"].startswith("IPAdapter") for n in nodi)
+        assert any("IPAdapter non è installato" in e["msg"] for e in stato.bus.storico)
+        # i prompt del dataset usano lo stesso stile e lo stesso negativo
+        es = c.post(f"/api/progetti/{p}/personaggi/jack/dataset/esempi", json=conf_ds).json()[0]
+        assert es["positivo"].startswith("score_9") and es["positivo"].endswith("western comics (style), ink lines")
+        assert es["negativo"] == "score_4, score_5, score_6, 3d, realistic"
+
+        # un altro workflow con un altro checkpoint: il dataset lo segnala
+        altro = c.post(f"/api/progetti/{p}/workflows/integrato", json={
+            "checkpoint": "waiIllustriousSDXL_v170.safetensors"}).json()
+        c.put(f"/api/progetti/{p}/personaggi/jack/dataset/config", json=conf_ds | {"workflow": altro["id"]})
+        ds = c.get(f"/api/progetti/{p}/personaggi/jack/dataset").json()
+        assert not ds["origine"]["coerente"] and ds["origine"]["checkpoint_workflow"].startswith("waiIllustrious")
+        # «Usa il workflow delle proposte»: torna quello di prima (non se ne crea un doppione), ora con IPAdapter
+        finto_comfy.modelli |= {"ipadapter": ["ip-adapter-plus_sdxl_vit-h.safetensors"],
+                                "clip_vision": ["CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"]}
+        r = c.post(f"/api/progetti/{p}/personaggi/jack/dataset/come-proposte").json()
+        assert r["origine"]["coerente"] and not r["avvisi"]
+        assert r["workflow"]["parametri"]["ipadapter"] == "ip-adapter-plus_sdxl_vit-h.safetensors"
+        assert r["workflow"]["ruoli"]["riferimento"] == "5"
+        r2 = c.post(f"/api/progetti/{p}/personaggi/jack/dataset/come-proposte").json()
+        assert r2["workflow"]["id"] == r["workflow"]["id"]
+
+        # un riferimento caricato a mano non ha più origine
+        dati = (stato.progetti.cartella_personaggio(p, "jack") / "riferimento.png").read_bytes()
+        pers = c.put(f"/api/progetti/{p}/personaggi/jack/riferimento", files={"file": ("r.png", dati, "image/png")}).json()
+        assert pers["origine"] is None
+        assert c.get(f"/api/progetti/{p}/personaggi/jack/dataset").json()["origine"] is None
+        assert c.post(f"/api/progetti/{p}/personaggi/jack/dataset/come-proposte").status_code == 400

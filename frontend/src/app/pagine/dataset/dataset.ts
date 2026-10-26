@@ -8,7 +8,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
-import { ConfigDataset, ImmagineDataset, RiassuntoWorkflow, RiepilogoDataset } from '../../core/modelli';
+import { ConfigDataset, ImmagineDataset, NOMI_FAMIGLIA, RiassuntoWorkflow, RicettaProposta, RiepilogoDataset } from '../../core/modelli';
 import { ProgettoService } from '../../core/progetto.service';
 import { SceltaPersonaggio } from '../../shell/scelta-personaggio';
 import { Galleria } from './galleria';
@@ -42,6 +42,26 @@ export class DatasetPage {
   protected libreria = signal<RiassuntoWorkflow[]>([]);
   protected salvataggio = signal<StatoSalvataggio>('salvato');
   protected workflowScelto = computed(() => this.libreria().find((w) => w.id === this.config()?.workflow) ?? null);
+  /** le scelte delle proposte da cui viene il riferimento (se il personaggio è nato in Comic Studio) */
+  protected ricetta = signal<RicettaProposta | null>(null);
+  protected preparando = signal(false);
+  /** il workflow del dataset usa lo stesso checkpoint (e la stessa LoRA di stile) delle proposte? */
+  protected coerente = computed(() => {
+    const r = this.ricetta();
+    const w = this.workflowScelto();
+    if (!r || !w) return false;
+    return w.checkpoint === r.checkpoint && (!r.lora_stile || w.lora.includes(r.lora_stile));
+  });
+  protected descrizioneRicetta = computed(() => {
+    const r = this.ricetta();
+    if (!r) return '';
+    const parti = [r.checkpoint.replace(/\.(safetensors|ckpt)$/, '')];
+    if (r.lora_stile) parti.push(`LoRA ${r.lora_stile.replace(/\.safetensors$/, '')} ${r.forza_lora}`);
+    const stile = [r.stile, r.extra].filter(Boolean).join(', ');
+    if (stile) parti.push(`stile «${stile}»`);
+    return parti.join(' · ');
+  });
+  protected readonly nomiFamiglia = NOMI_FAMIGLIA;
 
   /** Lavoro del dataset in corso per questo personaggio (generazione o selezione). */
   protected lavoro = computed(() => {
@@ -107,6 +127,7 @@ export class DatasetPage {
       this.ultimoSalvato = JSON.stringify(stato.config);
       this.config.set(stato.config);
       this.riepilogo.set(stato.riepilogo);
+      this.ricetta.set(stato.origine?.ricetta ?? null);
       this.libreria.set(lib);
       this.immagini.set(imm);
       this.salvataggio.set('salvato');
@@ -126,6 +147,26 @@ export class DatasetPage {
       this.riepilogo.set(stato.riepilogo);         // conteggi, spazio occupato e cestino
     } catch (e) {
       this.avvisi.errore(e);
+    }
+  }
+
+  /** Workflow, stile e negativo del dataset come quelli delle proposte da cui è nato il personaggio. */
+  protected async comeProposte() {
+    const id = this.sceltoId();
+    if (!id) return;
+    this.preparando.set(true);
+    try {
+      const r = await this.api.comeProposte(this.progetto().id, id);
+      this.libreria.set(await this.api.workflow(this.progetto().id));
+      this.ultimoSalvato = JSON.stringify(r.config);
+      this.config.set(r.config);
+      this.salvataggio.set('salvato');
+      this.avvisi.ok(`Dataset con le stesse scelte delle proposte: ${r.workflow.nome}`);
+      for (const a of r.avvisi) this.avvisi.errore(a);
+    } catch (e) {
+      this.avvisi.errore(e);
+    } finally {
+      this.preparando.set(false);
     }
   }
 

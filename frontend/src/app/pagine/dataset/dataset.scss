@@ -80,3 +80,31 @@ mat-panel-description {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.origine {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--cs-avviso) 10%, var(--mat-sys-surface-container));
+  border: 1px solid color-mix(in srgb, var(--cs-avviso) 35%, transparent);
+  &.ok {
+    background: var(--mat-sys-surface-container);
+    border-color: var(--mat-sys-outline-variant);
+  }
+  .testo {
+    flex: 1 1 280px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    span {
+      font-size: 13px;
+      color: var(--mat-sys-on-surface-variant);
+      overflow-wrap: anywhere;
+    }
+  }
+}

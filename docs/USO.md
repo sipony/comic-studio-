@@ -42,14 +42,25 @@ Nel riquadro **Consigli** trovi le impostazioni più adatte alla tua scheda vide
      (es. `old man, fat, white hair, white mustache, blue police uniform`). Puoi anche scriverli a mano.
    - **Immagine di riferimento**: trascinala nel riquadro. Meglio un'immagine pulita, a figura intera o
      mezzo busto, su sfondo semplice.
-   - **Non hai un'immagine?** Scrivi la descrizione libera e premi **Crea dal testo**: scegli checkpoint,
-     inquadratura e quante proposte, poi **Genera**. Se mancano i tratti fissi li ricava prima l'IA. Sulla
-     proposta giusta premi **Usa questa** (diventa l'immagine di riferimento) oppure **Varianti** per averne
-     altre simili; **Togli le non scelte** sposta le altre nel cestino del progetto.
+   - **Non hai un'immagine?** Scrivi la descrizione libera e premi **Crea dal testo**: scegli checkpoint (Pony,
+     Illustrious, NoobAI…: i tag di qualità giusti li mette Comic Studio), **LoRA di stile** con la sua forza,
+     stile, tag in più, inquadratura e quante proposte; in **Negativo e campionamento** il prompt negativo, passi,
+     CFG, sampler e scheduler. Sotto vedi il prompt positivo e negativo esatto che verrà usato. Poi **Genera**. Se
+     mancano i tratti fissi li ricava prima l'IA. Sulla proposta giusta premi **Usa questa** (diventa l'immagine di
+     riferimento) oppure **Varianti** per averne altre simili; ⟲ riprende le scelte con cui è stata fatta quella
+     proposta; **Togli le non scelte** sposta le altre nel cestino del progetto.
+   - **Le scelte passano al dataset.** Con «Usa questa» Comic Studio prepara anche il dataset del personaggio con
+     le stesse scelte: un workflow con lo stesso checkpoint, la stessa LoRA di stile e lo stesso campionamento (con
+     IPAdapter sul riferimento, se è installato), lo stesso stile e lo stesso negativo. Così il dataset, e quindi il
+     LoRA, ritrae lo stesso personaggio delle proposte. Se il dataset aveva già un workflow scelto da te non lo
+     cambia: nel dataset compare un avviso con **Usa le scelte delle proposte**.
 
 ## 4. Step 1 · Dataset
 
 Per ogni personaggio (scegli in alto quale):
+
+- se il personaggio è nato da una proposta, in alto c'è con quali scelte (checkpoint, LoRA, stile); se il workflow
+  del dataset usa un altro checkpoint o non ha quella LoRA, l'avviso propone **Usa le scelte delle proposte**
 
 1. **Workflow** — scegline uno dalla libreria del progetto, **caricane uno** tuo (il file salvato da ComfyUI va
    bene, con ComfyUI avviato) oppure **crea quello integrato** (SDXL + IPAdapter) scegliendo checkpoint, LoRA di

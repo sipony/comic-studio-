@@ -11,7 +11,9 @@ from .comfy.client import ComfyErrore
 from .jobs import Lavoro
 from .modelinfo import TAG_QUALITA, famiglia_da_nome
 from .projects import ErroreProgetto, ModificaPersonaggio
-from .proposte import ArchivioProposte, ConfigProposte, prompt_proposta, workflow
+from .proposte import ArchivioProposte, ConfigProposte, prompt_proposta, ricetta_da, workflow
+from .dataset import ArchivioDataset
+from .rotte_dataset import prepara_come_proposte
 from .workflows import per_invio
 
 rotte = APIRouter(prefix="/api/progetti/{pid}/personaggi/{cid}/proposte")
@@ -58,7 +60,10 @@ async def genera(pid: str, cid: str, c: ConfigProposte, req: Request):
                 descrizione=r["descrizione"], genere=r["genere"], adulto=r["adulto"]))
             app.bus.pubblica({"tipo": "personaggi", "progetto": pid, "personaggio": cid})
         positivo, negativo = prompt_proposta(p, c, qualita)
+        ricetta = ricetta_da(c)
         l.log(f"Prompt di {p.nome}: {positivo}")
+        if c.lora_stile:
+            l.log(f"LoRA di stile: {c.lora_stile} (forza {c.forza_lora})")
         async with app.client() as client:
             nome_origine = await client.carica_immagine(origine, "comic_studio_proposte") if origine else None
             for i in range(c.numero):
@@ -74,13 +79,25 @@ async def genera(pid: str, cid: str, c: ConfigProposte, req: Request):
                     raise ComfyErrore("ComfyUI non ha restituito l'immagine.")
                 dati = await client.scarica(img)
                 l.imposta_anteprima(dati, "image/png", finale=True)
-                await asyncio.to_thread(archivio.aggiungi, pid, cid, dati, seme, positivo, c.da)
+                await asyncio.to_thread(archivio.aggiungi, pid, cid, dati, seme, positivo, c.da, ricetta)
                 app.bus.pubblica({"tipo": "proposte", "progetto": pid, "personaggio": cid})
         l.log(f"{c.numero} proposte per {p.nome}: scegli quella giusta come immagine di riferimento", "ok")
         return {"generate": c.numero}
 
     titolo = f"{'Varianti' if c.da else 'Proposte'} per {p.nome}"
     return app.gestore.avvia("proposte", titolo, lavoro, progetto=pid, esclusivo=True).dict()
+
+
+@rotte.post("/anteprima")
+async def anteprima(pid: str, cid: str, c: ConfigProposte, req: Request):
+    """Il prompt positivo e negativo che userebbero le proposte, senza generare niente."""
+    p = _personaggio(_app(req), pid, cid)
+    famiglia = famiglia_da_nome(c.checkpoint) or "sdxl"
+    if not p.descrizione.strip():
+        return {"positivo": None, "negativo": None, "famiglia": famiglia,
+                "nota": "I tratti li ricava l'IA dalla descrizione libera quando generi."}
+    positivo, negativo = prompt_proposta(p, c, TAG_QUALITA.get(famiglia, TAG_QUALITA["sdxl"]))
+    return {"positivo": positivo, "negativo": negativo, "famiglia": famiglia, "nota": None}
 
 
 @rotte.get("/{nome}")
@@ -94,9 +111,17 @@ async def scegli(pid: str, cid: str, nome: str, req: Request):
     app = _app(req)
     a = ArchivioProposte(app.progetti)
     dati = await asyncio.to_thread(a.file(pid, cid, nome).read_bytes)
-    c = app.progetti.salva_riferimento(pid, cid, dati)
+    proposta = a.leggi(pid, cid, nome)
+    origine = proposta.ricetta.model_dump() if proposta and proposta.ricetta else None
+    c = app.progetti.salva_riferimento(pid, cid, dati, origine)
     a.segna_scelta(pid, cid, nome)
     app.bus.log(f"Immagine di riferimento di {c.nome}: {nome}", "ok")
+    # il dataset riparte dalle stesse scelte, se non ha già un workflow scelto dall'utente
+    if origine and not ArchivioDataset(app.progetti).config(pid, cid).workflow:
+        try:
+            await prepara_come_proposte(app, pid, cid, origine)
+        except Exception as e:  # noqa: BLE001 - il riferimento è salvato comunque
+            app.bus.log(f"Non sono riuscito a preparare il dataset come le proposte: {e}", "avviso")
     return c.model_dump()
 
 

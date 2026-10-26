@@ -76,8 +76,8 @@ async def carica_workflow(pid: str, req: Request, file: UploadFile = File(...), 
 
 class ParametriIntegrato(BaseModel):
     checkpoint: str
-    ipadapter: str
-    clip_vision: str
+    ipadapter: str | None = None        # senza IPAdapter: txt2img
+    clip_vision: str | None = None
     lora_stile: str | None = None
     forza_stile: float = Field(0.6, ge=0, le=2)
     peso_ipadapter: float = Field(0.7, ge=0, le=2)
@@ -134,7 +134,51 @@ async def scarica_workflow(pid: str, wid: str, req: Request):
 @rotte.get("/personaggi/{cid}/dataset")
 async def stato_dataset(pid: str, cid: str, req: Request):
     a = _archivio(req)
-    return {"config": a.config(pid, cid).model_dump(), "riepilogo": a.riepilogo(pid, cid)}
+    _, pers = a.personaggio(pid, cid)
+    config = a.config(pid, cid)
+    return {"config": config.model_dump(), "riepilogo": a.riepilogo(pid, cid),
+            "origine": coerenza(a, pid, pers.origine, config)}
+
+
+def coerenza(a: ArchivioDataset, pid: str, origine: dict | None, config: ConfigDataset) -> dict | None:
+    """Le scelte delle proposte da cui viene il riferimento e se il workflow del dataset le rispetta."""
+    if not origine:
+        return None
+    checkpoint = lora = None
+    if config.workflow:
+        try:
+            an = analizza(a.leggi_workflow(pid, config.workflow).workflow)
+            checkpoint, lora = an.checkpoint, an.lora
+        except Exception:  # noqa: BLE001 - workflow sparito dalla libreria
+            pass
+    stesso_ck = checkpoint == origine["checkpoint"]
+    stessa_lora = not origine.get("lora_stile") or origine["lora_stile"] in (lora or [])
+    return {"ricetta": origine, "checkpoint_workflow": checkpoint, "coerente": bool(stesso_ck and stessa_lora)}
+
+
+@rotte.post("/personaggi/{cid}/dataset/come-proposte")
+async def come_proposte(pid: str, cid: str, req: Request):
+    """Usa per il dataset le stesse scelte (checkpoint, LoRA di stile, stile, negativo) delle proposte."""
+    app = _app(req)
+    a = _archivio(req)
+    _, pers = a.personaggio(pid, cid)
+    if not pers.origine:
+        raise HTTPException(400, f"Il riferimento di {pers.nome} non viene da una proposta di Comic Studio.")
+    return await prepara_come_proposte(app, pid, cid, pers.origine)
+
+
+async def prepara_come_proposte(app, pid: str, cid: str, ricetta: dict) -> dict:
+    a = ArchivioDataset(app.progetti)
+    modelli = await app.modelli()
+    c, voce, avvisi = await asyncio.to_thread(a.come_proposte, pid, cid, ricetta, modelli)
+    _, pers = a.personaggio(pid, cid)
+    app.bus.log(f"Dataset di {pers.nome}: workflow «{voce.nome}» con le stesse scelte delle proposte"
+                + (f" (stile: {c.stile})" if c.stile else ""), "ok")
+    for x in avvisi:
+        app.bus.log(x, "avviso")
+    app.bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "config"})
+    return {"config": c.model_dump(), "workflow": _riassunto(voce), "avvisi": avvisi,
+            "origine": coerenza(a, pid, ricetta, c)}
 
 
 @rotte.put("/personaggi/{cid}/dataset/config")
@@ -350,7 +394,7 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
                 l.controlla()
                 numero = a.prossimo_numero(pid, cid)
                 var = crea_variante(config.varianti, conteggio, rng)
-                val = valori_prompt(pers, var, qualita)
+                val = valori_prompt(pers, var, qualita, config.stile)
                 positivo = componi(config.prompt_positivo, val)
                 negativo = componi(config.prompt_negativo, val)
                 larghezza, altezza = (int(x) for x in var["_dimensioni"].split("x"))

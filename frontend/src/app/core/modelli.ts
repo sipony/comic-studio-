@@ -136,6 +136,8 @@ export interface Personaggio {
   storia: string;
   adulto: boolean | null;
   riferimento: string | null;
+  /** se il riferimento è una proposta di Comic Studio: come è stata generata */
+  origine?: RicettaProposta | null;
   creato: number;
 }
 
@@ -258,6 +260,8 @@ export interface ConfigDataset {
   prompt_negativo: string;
   tag_qualita: string | null;
   tag_qualita_negativi: string | null;
+  /** {stile}: tag di stile (presi dalle proposte, se ci sono) */
+  stile?: string;
   varianti: Varianti;
   modifiche: Record<string, Record<string, unknown>>;
   /** con un workflow img2img: pose dalle varianti (da zero) o composizione del riferimento */
@@ -659,8 +663,52 @@ export interface ConfigProposte {
   inquadratura: InquadraturaProposta;
   stile: string;
   extra: string;
+  negativo?: string;
+  passi?: number;
+  cfg?: number;
+  sampler?: string;
+  scheduler?: string;
+  lora_stile?: string | null;
+  forza_lora?: number;
   da?: string | null;
 }
+
+/** Come è stata generata una proposta: il dataset riparte dalle stesse scelte. */
+export interface RicettaProposta {
+  checkpoint: string;
+  lora_stile: string | null;
+  forza_lora: number;
+  stile: string;
+  extra: string;
+  negativo: string | null;
+  passi: number;
+  cfg: number;
+  sampler: string;
+  scheduler: string;
+  inquadratura: string;
+}
+
+export interface AnteprimaPromptProposte {
+  positivo: string | null;
+  negativo: string | null;
+  famiglia: string;
+  nota: string | null;
+}
+
+/** Le scelte delle proposte da cui viene il riferimento, viste dal dataset. */
+export interface OrigineDataset {
+  ricetta: RicettaProposta;
+  checkpoint_workflow: string | null;
+  coerente: boolean;
+}
+
+export const NEGATIVO_PROPOSTE = '{negativo_qualita}, multiple views, 2girls, 2boys, crowd, cropped, out of frame, text, ' +
+  'watermark, signature, bad anatomy, bad hands, extra fingers, deformed, blurry, lowres';
+export const SAMPLER = ['euler_ancestral', 'euler', 'dpmpp_2m', 'dpmpp_2m_sde', 'dpmpp_sde', 'dpmpp_3m_sde', 'uni_pc', 'ddim'];
+export const SCHEDULER = ['karras', 'normal', 'exponential', 'sgm_uniform', 'simple', 'beta'];
+export const NOMI_FAMIGLIA: Record<string, string> = {
+  pony: 'Pony', illustrious: 'Illustrious', noobai: 'NoobAI', sdxl: 'SDXL', flux: 'Flux', sd15: 'SD 1.5', sd3: 'SD 3',
+};
 
 export interface Proposta {
   file: string;
@@ -669,4 +717,5 @@ export interface Proposta {
   creato: number;
   da: string | null;
   scelta: boolean;
+  ricetta?: RicettaProposta | null;
 }

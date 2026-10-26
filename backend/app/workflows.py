@@ -448,11 +448,12 @@ def applica(wf: dict, ruoli: Ruoli, *, riferimento: str | None = None, positivo:
 
 # ---------------------------------------------------------------- workflow integrato
 
-def integrato(checkpoint: str, ipadapter: str, clip_vision: str, lora_stile: str | None = None,
+def integrato(checkpoint: str, ipadapter: str | None, clip_vision: str | None, lora_stile: str | None = None,
               forza_stile: float = 0.6, peso_ipadapter: float = 0.7, fine_ipadapter: float = 0.8,
               passi: int = 30, cfg: float = 6.5, sampler: str = "euler_ancestral",
               scheduler: str = "karras") -> tuple[dict, Ruoli]:
-    """Workflow SDXL con IPAdapter per generare un personaggio somigliante al riferimento."""
+    """Workflow SDXL con IPAdapter per generare un personaggio somigliante al riferimento. Senza IPAdapter (modelli
+    non installati) è un txt2img: la somiglianza viene solo dai tratti scritti e dalla selezione per somiglianza."""
     wf: dict[str, dict] = {}
 
     def nodo(k, classe, titolo, **ing):
@@ -464,23 +465,27 @@ def integrato(checkpoint: str, ipadapter: str, clip_vision: str, lora_stile: str
         nodo("2", "LoraLoader", "LoRA di stile", model=modello, clip=clip, lora_name=lora_stile,
              strength_model=forza_stile, strength_clip=forza_stile)
         modello, clip = ["2", 0], ["2", 1]
-    nodo("3", "IPAdapterModelLoader", "IPAdapter", ipadapter_file=ipadapter)
-    nodo("4", "CLIPVisionLoader", "CLIP Vision", clip_name=clip_vision)
-    nodo("5", "LoadImage", "Riferimento", image="riferimento.png")
-    nodo("6", "PrepImageForClipVision", "Prepara riferimento", image=["5", 0], interpolation="LANCZOS",
-         crop_position="top", sharpening=0.0)
-    nodo("7", "IPAdapterAdvanced", "Somiglianza", model=modello, ipadapter=["3", 0], clip_vision=["4", 0],
-         image=["6", 0], weight=peso_ipadapter, weight_type="linear", combine_embeds="concat", start_at=0.0,
-         end_at=fine_ipadapter, embeds_scaling="V only")
+    con_ipadapter = bool(ipadapter and clip_vision)
+    if con_ipadapter:
+        nodo("3", "IPAdapterModelLoader", "IPAdapter", ipadapter_file=ipadapter)
+        nodo("4", "CLIPVisionLoader", "CLIP Vision", clip_name=clip_vision)
+        nodo("5", "LoadImage", "Riferimento", image="riferimento.png")
+        nodo("6", "PrepImageForClipVision", "Prepara riferimento", image=["5", 0], interpolation="LANCZOS",
+             crop_position="top", sharpening=0.0)
+        nodo("7", "IPAdapterAdvanced", "Somiglianza", model=modello, ipadapter=["3", 0], clip_vision=["4", 0],
+             image=["6", 0], weight=peso_ipadapter, weight_type="linear", combine_embeds="concat", start_at=0.0,
+             end_at=fine_ipadapter, embeds_scaling="V only")
+        modello = ["7", 0]
     nodo("8", "CLIPTextEncode", "Prompt positivo", clip=clip, text="")
     nodo("9", "CLIPTextEncode", "Prompt negativo", clip=clip, text="")
     nodo("10", "EmptyLatentImage", "Dimensioni", width=832, height=1216, batch_size=1)
-    nodo("11", "KSampler", "Sampler", model=["7", 0], positive=["8", 0], negative=["9", 0],
+    nodo("11", "KSampler", "Sampler", model=modello, positive=["8", 0], negative=["9", 0],
          latent_image=["10", 0], seed=0, steps=passi, cfg=cfg, sampler_name=sampler, scheduler=scheduler,
          denoise=1.0)
     nodo("12", "VAEDecode", "Decodifica", samples=["11", 0], vae=["1", 2])
     nodo("13", "SaveImage", "Salva", images=["12", 0], filename_prefix="comic_studio/dataset")
-    return wf, Ruoli(riferimento="5", positivo="8", negativo="9", seme="11", latente="10", salva="13")
+    return wf, Ruoli(riferimento="5" if con_ipadapter else None, positivo="8", negativo="9", seme="11",
+                     latente="10", salva="13")
 
 
 def per_invio(wf: dict) -> dict:
