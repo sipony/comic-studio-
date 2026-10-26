@@ -59,6 +59,7 @@ class App:
     in_preparazione: bool = False     # la sequenza di apertura sta ancora decidendo se avviare ComfyUI
     righe_comfy: collections.deque = field(default_factory=lambda: collections.deque(maxlen=80))
     _segui: asyncio.Task | None = None
+    componenti: dict | None = None    # ultimo controllo di IPAdapter Plus (vedi rotte_componenti)
 
     def __post_init__(self):
         self.gestore = Gestore(self.bus)
@@ -223,6 +224,16 @@ class App:
             await self._prepara()
         finally:
             self.in_preparazione = False
+        try:
+            from .rotte_componenti import controlla
+            c = await controlla(self)
+            if c["mancanti"]:
+                nomi = ", ".join(x["nome"] for x in c["mancanti"])
+                self.bus.log(f"Manca IPAdapter Plus ({nomi}): senza, i volti del dataset somigliano poco al "
+                             "riferimento. " + ("Comic Studio ti propone di installarlo." if c["chiedi"] else
+                                                "Puoi installarlo da Sistema → Controllo."), "avviso")
+        except Exception as e:  # noqa: BLE001
+            self.bus.log(f"Controllo di IPAdapter non riuscito: {e}", "debug")
         self.avvia_diagnostica(rete=True)
 
     async def _prepara(self):

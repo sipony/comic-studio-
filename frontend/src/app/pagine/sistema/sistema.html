@@ -24,6 +24,20 @@
   <mat-tab-group animationDuration="150ms" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="schedaIniziale">
     <!-- ======================= CONTROLLO ======================= -->
     <mat-tab label="Controllo">
+      @if (eventi.componenti(); as k) {
+        @if (k.mancanti.length && !k.errore) {
+          <section class="stato-connessione componenti">
+            <mat-icon>face_retouching_natural</mat-icon>
+            <div class="testo-stato">
+              <div class="valore">Manca IPAdapter Plus</div>
+              <div class="nota">{{ nomiMancanti() }}: senza, i volti del dataset somigliano poco al riferimento.</div>
+            </div>
+            <div class="azioni-stato">
+              <button mat-flat-button (click)="componenti.apri()"><mat-icon>download</mat-icon> Installa…</button>
+            </div>
+          </section>
+        }
+      }
       @if (rapporto(); as r) {
         <section class="riepilogo">
           <div class="scheda hw">

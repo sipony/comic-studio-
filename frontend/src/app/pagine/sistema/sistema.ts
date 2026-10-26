@@ -14,6 +14,7 @@ import { ApiService, ImpostazioniIA } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
 import { SceltaIAService } from '../../core/scelta-ia.service';
+import { ComponentiService } from '../../core/componenti.service';
 import { ActivatedRoute } from '@angular/router';
 import { apribile } from '../../core/link';
 import { Esito, Installazione, PromptScena, StatoIA, VoceControllo, gb } from '../../core/modelli';
@@ -31,6 +32,8 @@ const PESO: Record<Esito, number> = { errore: 0, avviso: 1, info: 2, ok: 3 };
 export class SistemaPage {
   protected eventi = inject(EventiService);
   private sceltaIA = inject(SceltaIAService);
+  protected componenti = inject(ComponentiService);
+  protected nomiMancanti = computed(() => (this.eventi.componenti()?.mancanti ?? []).map((c) => c.nome).join(', '));
   /** scheda aperta all'arrivo (?scheda=ia apre l'IA locale) */
   protected schedaIniziale = inject(ActivatedRoute).snapshot.queryParamMap.get('scheda') === 'ia' ? 1 : 0;
   private api = inject(ApiService);
