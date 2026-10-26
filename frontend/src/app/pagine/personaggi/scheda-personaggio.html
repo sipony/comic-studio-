@@ -117,11 +117,80 @@
             @for (n of [2, 4, 6, 8]; track n) { <mat-option [value]="n">{{ n }}</mat-option> }
           </mat-select>
         </mat-form-field>
+        <mat-form-field class="ck">
+          <mat-label>LoRA di stile (facoltativa)</mat-label>
+          <mat-select [value]="lora()" (valueChange)="lora.set($event)">
+            <mat-option [value]="null">— nessuna —</mat-option>
+            @for (m of elencoLora(); track m) { <mat-option [value]="m">{{ m }}</mat-option> }
+          </mat-select>
+          <mat-hint>Se la LoRA ha una parola chiave, scrivila nello stile</mat-hint>
+        </mat-form-field>
+        @if (lora()) {
+          <mat-form-field class="corto">
+            <mat-label>Forza LoRA</mat-label>
+            <input matInput type="number" min="0" max="2" step="0.05" [ngModel]="forzaLora()" (ngModelChange)="forzaLora.set(numeroValido($event, 0, 2, 0.8))" />
+          </mat-form-field>
+        }
         <mat-form-field class="stile">
           <mat-label>Stile (facoltativo, in inglese)</mat-label>
           <input matInput [ngModel]="stile()" (ngModelChange)="stile.set($event)" placeholder="western comics (style), cel shading" />
         </mat-form-field>
+        <mat-form-field class="stile">
+          <mat-label>Tag in più (facoltativi)</mat-label>
+          <input matInput [ngModel]="extra()" (ngModelChange)="extra.set($event)" placeholder="ink lines, flat colors" />
+        </mat-form-field>
       </div>
+      <button mat-button type="button" class="apri-avanzate" (click)="avanzate.set(!avanzate())" [attr.aria-expanded]="avanzate()">
+        <mat-icon>{{ avanzate() ? 'expand_less' : 'tune' }}</mat-icon> Negativo e campionamento
+      </button>
+      @if (avanzate()) {
+        <div class="opzioni avanzate">
+          <mat-form-field class="pieno">
+            <mat-label>Prompt negativo</mat-label>
+            <textarea matInput rows="2" [ngModel]="negativo()" (ngModelChange)="negativo.set($event)"></textarea>
+            <mat-hint>{{ '{' }}negativo_qualita{{ '}' }} diventa i tag negativi del checkpoint (es. score_4… per Pony)</mat-hint>
+          </mat-form-field>
+          @if (negativo() !== negativoPredefinito) {
+            <button mat-button type="button" (click)="negativo.set(negativoPredefinito)"><mat-icon>undo</mat-icon> Negativo predefinito</button>
+          }
+          <mat-form-field class="corto">
+            <mat-label>Passi</mat-label>
+            <input matInput type="number" min="1" max="150" [ngModel]="passi()" (ngModelChange)="passi.set(numeroValido($event, 1, 150, 28))" />
+          </mat-form-field>
+          <mat-form-field class="corto">
+            <mat-label>CFG</mat-label>
+            <input matInput type="number" min="1" max="30" step="0.5" [ngModel]="cfg()" (ngModelChange)="cfg.set(numeroValido($event, 1, 30, 6))" />
+          </mat-form-field>
+          <mat-form-field class="corto">
+            <mat-label>Sampler</mat-label>
+            <mat-select [value]="sampler()" (valueChange)="sampler.set($event)">
+              @for (s of samplerDisponibili; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field class="corto">
+            <mat-label>Scheduler</mat-label>
+            <mat-select [value]="scheduler()" (valueChange)="scheduler.set($event)">
+              @for (s of schedulerDisponibili; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+        </div>
+      }
+      @if (anteprima(); as a) {
+        <div class="anteprima-prompt">
+          <div class="riga-ant"><span class="tag-famiglia">{{ famiglia() }}</span>
+            <span class="nota">tag di qualità messi da soli per questo tipo di checkpoint</span></div>
+          @if (a.positivo) {
+            <div><strong>Positivo</strong> <code>{{ a.positivo }}</code></div>
+            <div><strong>Negativo</strong> <code>{{ a.negativo }}</code></div>
+          } @else {
+            <div class="nota">{{ a.nota }}</div>
+          }
+        </div>
+      }
+      <p class="nota">
+        Queste scelte valgono anche per il dataset: con «Usa questa» Comic Studio prepara il workflow del dataset con
+        lo stesso checkpoint, la stessa LoRA, lo stesso stile e lo stesso negativo.
+      </p>
       <div class="azioni">
         <button mat-flat-button (click)="generaProposte(null)" [disabled]="!!lavoroProposte() || !checkpoint() || modificato() || !eventi.comfy()?.connesso">
           <mat-icon>casino</mat-icon> Genera {{ numero() }} proposte
@@ -149,6 +218,10 @@
                 <button mat-flat-button (click)="usa(pr.file)" [disabled]="pr.scelta || occupato()">Usa questa</button>
                 <button mat-button (click)="generaProposte(pr.file)" [disabled]="!!lavoroProposte() || !eventi.comfy()?.connesso"
                   matTooltip="Altre immagini simili a questa">Varianti</button>
+                @if (pr.ricetta) {
+                  <button mat-icon-button (click)="usaScelte(pr)" [matTooltip]="'Riprendi le scelte di questa proposta: ' + pr.ricetta.checkpoint + (pr.ricetta.lora_stile ? ' + ' + pr.ricetta.lora_stile : '')"
+                    aria-label="Riprendi le scelte di questa proposta"><mat-icon>settings_backup_restore</mat-icon></button>
+                }
               </figcaption>
             </figure>
           }

@@ -26,9 +26,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 12 | Scelta del modello dell'IA: finestra che si apre quando manca Ollama o il modello, elenco dal registro di Ollama con le quantizzazioni, ordinato per la VRAM e la RAM del computer | ✅ unita |
 | 13 | Dataset: pose e inquadrature diverse anche con i workflow img2img; Scarica (ZIP), Scarica e cancella, Elimina e Svuota il cestino per liberare spazio | ✅ unita |
 | 14 | Staccare i nodi del workflow dall'interfaccia: Comic Studio ricollega il resto da solo, stacca a cascata i nodi che non possono più funzionare e spiega quando non si può | ✅ unita |
-| 15 | IA locale: eliminare dall'interfaccia i modelli scaricati con Ollama; gestione del processo di Ollama (avvio all'apertura, riavvio se si chiude o si blocca, Avvia / Riavvia / Ferma) | ✅ questa PR |
-| 16 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 17 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 15 | IA locale: eliminare dall'interfaccia i modelli scaricati con Ollama; gestione del processo di Ollama (avvio all'apertura, riavvio se si chiude o si blocca, Avvia / Riavvia / Ferma) | ✅ unita |
+| 16 | Personaggio dal nulla con più scelte (LoRA di stile, negativo, campionamento, anteprima del prompt) che passano da sole al dataset: stesso checkpoint, LoRA e stile, così il personaggio resta lo stesso | ✅ questa PR |
+| 17 | Pose guidate (ControlNet OpenPose) nelle scene di gruppo e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 18 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -670,4 +671,47 @@ quando bastava avviarlo, e se si chiudeva nessuno se ne accorgeva.
   :11434 è stato fermato e sostituito da Riavvia, come un Ollama aperto fuori da Comic Studio. Gli avvisi di Ollama
   sui servizi online di ollama.com (senza rete) vanno in «Dettagli», non tra gli avvisi
 
-Prossimo passo: PR 16, pose guidate e costruttore di workflow.
+Prossimo passo: PR 16, dal personaggio dal nulla al dataset.
+
+## PR 16 — Dal personaggio dal nulla al dataset, con le stesse scelte
+
+Richiesta: «quando creo un personaggio da zero, il workflow che ha generato il programma me lo deve riproporre in
+automatico quando genera il dataset, altrimenti per forza vengono fuori soggetti diversi»; e «posso scegliere se
+generarlo con Pony o con Illustrious, dargli uno stile presente nei LoRA, o più in generale scegliere diverse
+opzioni?».
+
+**Cosa succedeva.** Le proposte (PR 9) si generavano con un workflow interno (checkpoint scelto, tag di stile,
+campionamento fisso) di cui non restava traccia: la proposta salvava solo seme e prompt. Il dataset ripartiva da
+zero, con il workflow scelto a mano dalla libreria (spesso con un altro checkpoint) e senza i tag di stile: il
+personaggio del dataset, e quindi del LoRA, poteva essere un altro.
+
+- `proposte.Ricetta`: checkpoint, LoRA di stile e forza, stile, tag in più, negativo (solo se cambiato), passi,
+  CFG, sampler, scheduler, inquadratura; ogni `Proposta` ha la sua; le proposte più vecchie no (`None`)
+- `ConfigProposte`: `lora_stile`, `forza_lora`; il workflow delle proposte mette il `LoraLoader` tra checkpoint,
+  testi e campionatore
+- `Personaggio.origine`: la ricetta della proposta scelta con «Usa questa»; un riferimento caricato a mano la
+  toglie
+- `ArchivioDataset.come_proposte`: workflow integrato con lo stesso checkpoint, LoRA di stile e campionamento;
+  IPAdapter Plus e CLIP Vision ViT-H scelti da soli se installati, altrimenti txt2img con un avviso (la somiglianza
+  la fa la selezione automatica); riusa il workflow se in libreria ce n'è già uno con gli stessi parametri;
+  configurazione con `stile` (nuovo segnaposto `{stile}`, ora anche nel prompt predefinito) e negativo delle
+  proposte. `integrato()` funziona anche senza IPAdapter
+- «Usa questa» prepara il dataset così se non ha ancora un workflow; `GET …/dataset` dà `origine` con
+  `coerente`; `POST …/dataset/come-proposte` per tornare alle scelte delle proposte
+- `POST …/proposte/anteprima`: il prompt esatto (con i tag di qualità della famiglia del checkpoint) senza generare
+- interfaccia, proposte: LoRA di stile (dalle LoRA di ComfyUI) con la forza, tag in più, «Negativo e
+  campionamento» (negativo con ripristino, passi, CFG, sampler, scheduler), anteprima del prompt con la famiglia
+  (Pony, Illustrious…) aggiornata mentre si scelgono le opzioni; il pannello riparte dalle scelte dell'ultima
+  proposta; ⟲ su ogni proposta per riprenderne le scelte
+- interfaccia, dataset: riquadro «Come le proposte da cui è nato …» oppure l'avviso quando il workflow usa un altro
+  checkpoint o non ha la LoRA, con **Usa le scelte delle proposte**; campo **Stile** e segnaposto `{stile}`
+- l'addestramento propone già il checkpoint del workflow del dataset, quindi anche il LoRA si addestra sullo stesso
+- Versione 0.16.0
+- **Test**: `test_dataset_come_le_proposte` (anteprima Pony, LoRA nel workflow delle proposte, ricetta salvata,
+  «Usa questa» → dataset pronto con checkpoint, LoRA, sampler, stile e negativo; esempi dei prompt; un altro
+  workflow → non coerente; «come le proposte» con IPAdapter installato → nodo di riferimento, senza doppioni;
+  riferimento caricato a mano → nessuna origine). Collaudo con Chromium: Pony + LoRA Western_Ink_XL + stile →
+  anteprima, 4 proposte, «Usa questa» → dataset «Come le proposte · ponyDiffusionV6XL + Western_Ink_XL»; scelto un
+  workflow Illustrious → avviso; «Usa le scelte delle proposte» → di nuovo coerente, stile nel campo
+
+Prossimo passo: PR 17, pose guidate e costruttore di workflow.

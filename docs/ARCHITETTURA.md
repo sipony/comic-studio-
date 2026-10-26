@@ -84,7 +84,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
       progetto.json                  nome, descrizione, personaggi[]
       workflows/<id>.json            libreria dei workflow (formato API + ruoli)
       personaggi/<id>/riferimento.png
-      personaggi/<id>/proposte/          proposte generate dal testo (proposte.json + png)
+      personaggi/<id>/proposte/          proposte generate dal testo (proposte.json con la ricetta di ognuna + png)
       personaggi/<id>/dataset/
         config.json                  workflow, ruoli, prompt, varianti, parametri dei nodi, quantità
         immagini.json                variante, prompt, seme, stato (tenuta/scartata), punteggio
@@ -132,9 +132,10 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `…/fumetto/vignette/{v}/analizza` | descrizione → analisi → prompt (lavoro) |
 | GET | `…/fumetto/vignette/{v}/prompt` | il prompt dall'ultima analisi e se è ancora valida |
 | GET | `/api/progetti/{p}/personaggi/{c}/proposte` | proposte d'immagine di riferimento |
-| POST | `…/personaggi/{c}/proposte` | `{checkpoint, numero, inquadratura, stile, extra, da}` genera proposte o varianti (lavoro GPU) |
+| POST | `…/personaggi/{c}/proposte` | `{checkpoint, numero, inquadratura, stile, extra, negativo, passi, cfg, sampler, scheduler, lora_stile, forza_lora, da}` genera proposte o varianti (lavoro GPU); ogni proposta ricorda la sua `ricetta` |
+| POST | `…/proposte/anteprima` | stessa configurazione: il prompt positivo e negativo che verrebbe usato e la famiglia del checkpoint, senza generare |
 | GET | `…/proposte/{file}` | immagine di una proposta |
-| POST | `…/proposte/{file}/scegli` | la proposta diventa l'immagine di riferimento |
+| POST | `…/proposte/{file}/scegli` | la proposta diventa l'immagine di riferimento; il personaggio ricorda la ricetta (`origine`) e, se il dataset non ha ancora un workflow, lo prepara come le proposte |
 | POST | `…/proposte/scarta` | sposta nel cestino le proposte non scelte |
 | POST | `…/fumetto/storia` | `{testo, sostituisci}` racconto libero → pagine e vignette (lavoro) |
 | POST | `/api/esci` | `{comfy}` chiude Comic Studio (e, se richiesto, il ComfyUI avviato da lui) |
@@ -158,7 +159,8 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `/api/progetti/{id}/workflows/integrato` | crea il workflow integrato SDXL + IPAdapter |
 | GET / PATCH / DELETE | `/api/progetti/{id}/workflows/{wid}` | dettaglio con analisi / nome e ruoli / elimina |
 | GET | `/api/progetti/{id}/workflows/{wid}/scarica` | il workflow in formato API |
-| GET | `/api/progetti/{id}/personaggi/{pid}/dataset` | configurazione e riepilogo |
+| GET | `/api/progetti/{id}/personaggi/{pid}/dataset` | configurazione, riepilogo e `origine` (ricetta delle proposte, checkpoint del workflow, `coerente`) |
+| POST | `…/dataset/come-proposte` | workflow integrato con lo stesso checkpoint, LoRA di stile e campionamento delle proposte (IPAdapter se installato; riusato se è già in libreria), stile e negativo nella configurazione |
 | PUT | `…/dataset/config` | salva la configurazione |
 | POST | `…/dataset/esempi` | esempi dei prompt che verranno generati |
 | POST | `…/dataset/genera` | `{quantita, sostituisci}` avvia la generazione (lavoro GPU) |

@@ -71,7 +71,7 @@ def varianti_predefinite() -> Varianti:
     )
 
 
-POSITIVO_PREDEFINITO = "{qualita}, {genere}, solo, {descrizione}, {variante}"
+POSITIVO_PREDEFINITO = "{qualita}, {genere}, solo, {descrizione}, {variante}, {stile}"
 NEGATIVO_PREDEFINITO = ("{negativo_qualita}, lowres, blurry, bad anatomy, bad hands, extra fingers, deformed, "
                         "multiple people, 2girls, 2boys, text, watermark, signature, speech bubble, frame")
 
@@ -83,6 +83,7 @@ class ConfigDataset(BaseModel):
     prompt_negativo: str = NEGATIVO_PREDEFINITO
     tag_qualita: str | None = None                   # None = automatici in base al checkpoint
     tag_qualita_negativi: str | None = None
+    stile: str = ""                                  # {stile}: tag di stile (presi dalle proposte, se ci sono)
     varianti: Varianti = Field(default_factory=varianti_predefinite)
     modifiche: dict[str, dict[str, Any]] = Field(default_factory=dict)
     # con un workflow img2img: "libera" genera ogni immagine da zero con la posa e l'inquadratura della variante,
@@ -167,10 +168,24 @@ def crea_variante(varianti: Varianti, conteggio: dict[str, int], rng: random.Ran
     return v
 
 
-def valori_prompt(p: Personaggio, variante: dict[str, str], qualita: tuple[str, str]) -> dict[str, str]:
+def valori_prompt(p: Personaggio, variante: dict[str, str], qualita: tuple[str, str],
+                  stile: str = "") -> dict[str, str]:
     return {**{k: v for k, v in variante.items() if not k.startswith("_")},
             "nome": p.nome, "genere": p.genere, "descrizione": p.descrizione, "trigger": p.trigger,
-            "qualita": qualita[0], "negativo_qualita": qualita[1]}
+            "qualita": qualita[0], "negativo_qualita": qualita[1], "stile": stile}
+
+
+# preferenze per scegliere da soli i modelli di IPAdapter (come nell'interfaccia)
+PREFERENZE_IPADAPTER = [r"plus.*sdxl.*vit-?h", r"sdxl.*vit-?h", r"sdxl|xl"]
+PREFERENZE_CLIP_VISION = [r"vit-?h", r"laion"]
+
+
+def scegli_primo(elenco: list[str], preferenze: list[str]) -> str | None:
+    for r in preferenze:
+        trovato = next((x for x in elenco if re.search(r, x, re.I)), None)
+        if trovato:
+            return trovato
+    return None
 
 
 # ---------------------------------------------------------------- archivio
@@ -245,6 +260,42 @@ class ArchivioDataset:
         v, _ = self.aggiungi_workflow(pid, nome, "integrato", wf, [], ruoli, parametri)
         return v
 
+    def come_proposte(self, pid: str, cid: str, ricetta: dict, modelli: dict[str, list[str]]
+                      ) -> tuple[ConfigDataset, VoceWorkflow, list[str]]:
+        """Configura il dataset del personaggio con le stesse scelte delle proposte da cui viene il riferimento:
+        workflow integrato con lo stesso checkpoint, LoRA di stile e campionamento (con IPAdapter sul riferimento se
+        i modelli ci sono), stessi tag di stile e stesso negativo. Il workflow si riusa se è già in libreria."""
+        avvisi = []
+        ipadapter = scegli_primo(modelli.get("ipadapter") or [], PREFERENZE_IPADAPTER)
+        clip_vision = scegli_primo(modelli.get("clip_vision") or [], PREFERENZE_CLIP_VISION)
+        if not (ipadapter and clip_vision):
+            ipadapter = clip_vision = None
+            avvisi.append("IPAdapter non è installato (modelli in models/ipadapter e models/clip_vision): il dataset "
+                          "parte dai tratti scritti e la somiglianza al riferimento la garantisce solo la selezione "
+                          "automatica. Con IPAdapter Plus i volti vengono molto più simili.")
+        parametri = {"checkpoint": ricetta["checkpoint"], "ipadapter": ipadapter, "clip_vision": clip_vision,
+                     "lora_stile": ricetta.get("lora_stile"), "forza_stile": ricetta.get("forza_lora", 0.8),
+                     "peso_ipadapter": 0.7, "fine_ipadapter": 0.8, "passi": ricetta.get("passi", 28),
+                     "cfg": ricetta.get("cfg", 6.0), "sampler": ricetta.get("sampler", "euler_ancestral"),
+                     "scheduler": ricetta.get("scheduler", "karras")}
+        voce = next((v for v in self.elenco_workflow(pid) if v.origine == "integrato" and v.parametri == parametri),
+                    None)
+        if voce is None:
+            wf, ruoli = integrato(**parametri)
+            nome = f"Come le proposte · {Path(parametri['checkpoint']).stem}"
+            if parametri["lora_stile"]:
+                nome += f" + {Path(parametri['lora_stile']).stem}"
+            voce, _ = self.aggiungi_workflow(pid, nome, "integrato", wf, [], ruoli, parametri)
+        c = self.config(pid, cid)
+        c.workflow, c.ruoli, c.modifiche, c.disattivati, c.composizione = voce.id, None, {}, [], "libera"
+        c.stile = ", ".join(x for x in (ricetta.get("stile", ""), ricetta.get("extra", "")) if x)
+        if c.stile and "{stile}" not in c.prompt_positivo:
+            c.prompt_positivo = c.prompt_positivo + ", {stile}"
+        if ricetta.get("negativo"):
+            c.prompt_negativo = ricetta["negativo"]
+        self.salva_config(pid, cid, c)
+        return c, voce, avvisi
+
     # --- configurazione del personaggio
 
     def cartella(self, pid: str, cid: str) -> Path:
@@ -300,7 +351,7 @@ class ArchivioDataset:
         rng, conteggio, out = random.Random(7), {}, []
         for _ in range(n):
             v = crea_variante(c.varianti, conteggio, rng)
-            val = valori_prompt(pers, v, q)
+            val = valori_prompt(pers, v, q, c.stile)
             out.append({"inquadratura": v["_nome_inquadratura"], "dimensioni": v["_dimensioni"],
                         "positivo": componi(c.prompt_positivo, val), "negativo": componi(c.prompt_negativo, val)})
         return out

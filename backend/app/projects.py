@@ -63,6 +63,8 @@ class Personaggio(BaseModel):
     storia: str = Field(default="", max_length=20000)        # descrizione libera e lunga, in qualsiasi lingua
     adulto: bool | None = None              # ricavato dall'IA dalla descrizione (None = non analizzato)
     riferimento: str | None = None          # nome del file dentro la cartella del personaggio
+    # se il riferimento è una proposta generata da Comic Studio: come è stata fatta (proposte.Ricetta)
+    origine: dict | None = None
     creato: float = Field(default_factory=time.time)
 
     @field_validator("trigger")
@@ -238,8 +240,9 @@ class Archivio:
                 cestino.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(d), str(cestino / f"{id_}-{pid}-{int(time.time())}"))
 
-    def salva_riferimento(self, id_: str, pid: str, dati: bytes) -> Personaggio:
-        """Salva l'immagine di riferimento convertita in PNG (accetta png, jpg, webp)."""
+    def salva_riferimento(self, id_: str, pid: str, dati: bytes, origine: dict | None = None) -> Personaggio:
+        """Salva l'immagine di riferimento convertita in PNG (accetta png, jpg, webp); `origine` è la ricetta
+        della proposta da cui viene (None per un'immagine caricata dall'utente)."""
         if len(dati) > 40 * 1024 * 1024:
             raise ErroreProgetto("Immagine troppo grande (massimo 40 MB)")
         try:
@@ -256,6 +259,7 @@ class Archivio:
             d.mkdir(parents=True, exist_ok=True)
             img.save(d / "riferimento.png")
             c.riferimento = "riferimento.png"
+            c.origine = origine
             self.salva(p)
             return c
 

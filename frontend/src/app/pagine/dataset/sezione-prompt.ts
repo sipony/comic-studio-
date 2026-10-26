@@ -37,6 +37,7 @@ export class SezionePrompt {
     { t: '{posa}', d: 'solo la posa' },
     { t: '{sfondo}', d: 'solo lo sfondo' },
     { t: '{nome}', d: 'il nome del personaggio' },
+    { t: '{stile}', d: 'i tag di stile (campo qui sotto; presi dalle proposte se il personaggio è nato lì)' },
   ];
   protected liste: { chiave: ListaTesto; etichetta: string }[] = [
     { chiave: 'angolazioni', etichetta: 'Angolazioni' },

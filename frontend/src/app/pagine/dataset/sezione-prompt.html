@@ -14,6 +14,12 @@
     <textarea matInput rows="3" [ngModel]="cfg.prompt_negativo" (ngModelChange)="imposta('prompt_negativo', $event)"></textarea>
   </mat-form-field>
 
+  <mat-form-field>
+    <mat-label>Stile ({{ '{' }}stile{{ '}' }})</mat-label>
+    <input matInput [ngModel]="cfg.stile ?? ''" (ngModelChange)="imposta('stile', $event)" placeholder="western comics (style), cel shading" />
+    <mat-hint>Gli stessi tag di stile delle proposte, così il personaggio resta uguale</mat-hint>
+  </mat-form-field>
+
   <div class="due">
     <mat-form-field>
       <mat-label>Tag di qualità</mat-label>
