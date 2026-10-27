@@ -35,7 +35,8 @@
               <img [src]="urlProposta(k.proposta.file)" alt="Proposta scelta come riferimento" />
               <mat-icon>{{ k.coerente ? 'verified' : 'compare_arrows' }}</mat-icon>
               <span class="c-titolo">
-                @if (k.coerente) { Il dataset usa lo stesso prompt e lo stesso workflow della proposta da cui è nato {{ pers.nome }}, con in più l'immagine di riferimento }
+                @if (k.coerente && k.workflow.senza_riferimento) { Il dataset nasce come la proposta da cui è nato {{ pers.nome }}: stesso workflow, stesso prompt, cambiano solo posa, angolazione ed espressione }
+                @else if (k.coerente) { Il dataset usa lo stesso prompt e lo stesso workflow della proposta da cui è nato {{ pers.nome }}, con in più l'immagine di riferimento }
                 @else if (k.workflow.uguale === null) { Questa proposta non ricorda il checkpoint: indicalo per verificare il workflow }
                 @else { Il dataset non è identico alla proposta: le immagini verranno diverse }
               </span>
@@ -66,8 +67,8 @@
               }
               <span class="spazio"></span>
               <button mat-flat-button (click)="massimaSomiglianza()" [disabled]="preparando() || !!lavoro()"
-                matTooltip="Aspetto del riferimento nel prompt (tagger), sfondi come le proposte, IPAdapter più forte su tutta la figura, pose guidate">
-                <mat-icon>person_search</mat-icon> Massima somiglianza al riferimento</button>
+                matTooltip="Le immagini nascono come le proposte (stesso workflow senza IPAdapter, stesso prompt, stesse dimensioni, sfondo bianco), con in più l'aspetto del riferimento: cambiano solo posa, angolazione ed espressione">
+                <mat-icon>person_search</mat-icon> Stessa persona, come le proposte</button>
               @if (sfondiDiversi()) {
                 <button mat-button (click)="sfondiComeProposte()" matTooltip="Solo sfondo bianco o semplice, come nelle proposte: con le LoRA da fumetto gli sfondi di città o interni cambiano anche il tratto">
                   <mat-icon>wallpaper</mat-icon> Sfondi come le proposte</button>

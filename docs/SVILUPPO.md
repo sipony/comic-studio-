@@ -35,9 +35,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 21 | Impostazioni dei nodi modificabili dal grafo della console, controllate come in ComfyUI e salvate nel workflow del personaggio (dataset e proposte) | ✅ unita |
 | 22 | Dataset identico alle proposte: stesso workflow con in più solo il riferimento, stesso prompt salvo le varianti, stesso negativo; verifica tag per tag e nodo per nodo; proposte vecchie completate con il checkpoint | ✅ unita |
 | 23 | Pose guidate nel dataset (ControlNet OpenPose con gli scheletri disegnati da Comic Studio, installabile); «Massima somiglianza al riferimento» (aspetto dal tagger, sfondi, IPAdapter più forte su tutta la figura); workflow di ogni proposta e immagine salvato, grafi confrontati fianco a fianco | ✅ unita |
-| 24 | Pose guidate: solo ControlNet della stessa architettura del checkpoint (un OpenPose per SD 1.5 con Pony / Illustrious faceva fallire il KSampler) | ✅ questa PR |
-| 25 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 26 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 24 | Pose guidate: solo ControlNet della stessa architettura del checkpoint (un OpenPose per SD 1.5 con Pony / Illustrious faceva fallire il KSampler) | ✅ unita |
+| 25 | «Stessa persona, come le proposte»: il dataset nasce come le proposte (stesso workflow senza IPAdapter, prompt nello stesso ordine, stesse dimensioni, sfondo bianco), cambiano solo posa, angolazione ed espressione; aspetto del riferimento dal tagger | ✅ questa PR |
+| 26 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 27 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -1008,4 +1009,37 @@ installato», quindi non proponeva l'installazione di quello SDXL e il KSampler 
 - **Test**: `test_controlnet_della_stessa_architettura` (architettura dal file e dal nome, scelta automatica, scelta a
   mano sbagliata, errore di ComfyUI tradotto), `test_openpose_sd15_non_conta_come_installato`
 
-Prossimo passo: PR 25, pose guidate nelle scene di gruppo e costruttore di workflow.
+Prossimo passo: PR 25, stessa persona come le proposte.
+
+## PR 25 — Stessa persona, come le proposte
+
+Collaudo dell'utente: le pose guidate (scheletro + IPAdapter 0,9 + ControlNet) su Illustrious danno «roba senza
+senso». E la sua osservazione: «quando creo un personaggio dal nulla le 4 proposte sembrano sempre la stessa persona,
+con pose leggermente diverse e vestiti diversi: se riesce lì, perché non il dataset?».
+
+**Perché le proposte vengono la stessa persona.** Stesso checkpoint e LoRA, stesso prompt nello stesso ordine, stesse
+dimensioni (832×1216), sfondo bianco, sguardo in camera, espressione neutra, nient'altro nel workflow: cambia solo il
+seme, e il modello per quella descrizione disegna sempre lo stesso viso. Nel dataset invece cambiavano 5 parti del
+prompt (anche sfondi complessi, primi piani, espressioni forti), le dimensioni (1024×1024) e c'era IPAdapter, che
+con Illustrious e Pony (addestrati lontano da SDXL base) sporca il risultato invece di aiutare.
+
+**«Stessa persona, come le proposte»** (sostituisce «Massima somiglianza al riferimento», stesso `POST …/somiglianza`):
+- workflow delle proposte (`come_proposte`) con **IPAdapter staccato** (`disattivati`) e le sue modifiche tolte;
+  pose guidate spente
+- prompt **nell'ordine delle proposte**: `{qualita}, {genere}, solo, looking at viewer, {espressione}, {sfondo},
+  {descrizione}, {aspetto}, <tag in più>, {inquadratura}, {posa}, {angolazione}, {stile}`
+- varianti leggere alla **risoluzione delle proposte**: figura intera, tre quarti, mezzo busto (tutte 832×1216);
+  angolazioni soprattutto di fronte; espressioni tranquille; pose semplici; sfondo «simple background, white background»
+- l'aspetto del riferimento dal tagger in `{aspetto}` (le proposte cambiano divisa da un seme all'altro: così resta
+  quella scelta); un tag già detto dai tratti con altre parole («blonde hair» in «long blonde hair») non si ripete
+- poi «Tieni le migliori» sceglie le più somiglianti al riferimento; con 20-30 buone si addestra il LoRA
+- `workflows.senza_inutili`: staccando un nodo, i nodi rimasti senza uso (caricatori di IPAdapter, LoadImage del
+  riferimento) non si mandano più a ComfyUI, e il riferimento non si carica se non serve
+- confronto con la proposta: IPAdapter staccato apposta non è una differenza (`senza_riferimento`), il riquadro dice
+  «il dataset nasce come la proposta»
+- Versione 0.24.0
+- **Test**: `test_stessa_persona_come_le_proposte` (dalla proposta al dataset: aspetto, varianti, risoluzione,
+  IPAdapter staccato, confronto coerente, prompt mandato nell'ordine delle proposte, grafo dell'immagine uguale a quello
+  della proposta salvo il prompt)
+
+Prossimo passo: PR 26, pose guidate nelle scene di gruppo e costruttore di workflow.

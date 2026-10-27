@@ -6,6 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
@@ -14,7 +15,7 @@ import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
 
 @Component({
   selector: 'app-sezione-genera',
-  imports: [AnteprimaLavoro, DecimalPipe, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule],
+  imports: [AnteprimaLavoro, DecimalPipe, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatTooltipModule],
   template: `
     @if (config(); as cfg) {
       <div class="due">
@@ -58,8 +59,9 @@ import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
             </button>
           }
         </div>
-        <button mat-button class="massima" (click)="massima.emit()" [disabled]="avvio()">
-          <mat-icon>person_search</mat-icon> Massima somiglianza al riferimento</button>
+        <button mat-button class="massima" (click)="massima.emit()" [disabled]="avvio()"
+          matTooltip="Le immagini nascono come le proposte (stesso workflow senza IPAdapter, stesso prompt, stesse dimensioni, sfondo bianco), con in più l'aspetto del riferimento: cambiano solo posa, angolazione ed espressione">
+          <mat-icon>person_search</mat-icon> Stessa persona, come le proposte</button>
         <p class="nota">Puoi fermarla quando vuoi: le immagini già fatte restano. Su una GPU da 8 GB conta circa 15-30 secondi a immagine.</p>
       }
     }
@@ -86,7 +88,7 @@ export class SezioneGenera {
   readonly riepilogo = input<RiepilogoDataset | null>(null);
   readonly lavoro = input<Lavoro | null>(null);
   readonly prima = input<() => Promise<boolean>>(async () => true);
-  /** «Massima somiglianza al riferimento» (la prepara la pagina) */
+  /** «Stessa persona, come le proposte» (la prepara la pagina) */
   readonly massima = output<void>();
 
   private api = inject(ApiService);

@@ -123,7 +123,10 @@ def confronta_workflow(ricetta: dict, wf: dict | None, config: ConfigDataset) ->
     prop, _ = workflow_proposte(cp, "", "", 0, None)
     ds = effettivo(wf, config)
     diff = []
-    if config.disattivati:
+    # IPAdapter staccato apposta («Stessa persona, come le proposte»): il dataset è proprio il workflow delle proposte
+    senza_riferimento = bool(config.disattivati) and all(
+        ds.get(k, {}).get("class_type") in NODI_RIFERIMENTO for k in config.disattivati)
+    if config.disattivati and not senza_riferimento:
         diff.append(f"Nel dataset ci sono nodi staccati ({', '.join(config.disattivati)}): le proposte non li hanno.")
     per_classe_p: dict[str, list[dict]] = {}
     per_classe_d: dict[str, list[dict]] = {}
@@ -160,7 +163,7 @@ def confronta_workflow(ricetta: dict, wf: dict | None, config: ConfigDataset) ->
     riferimento = False
     if ks_d:
         catena_d = _a_monte(ds, ks_d, "model")
-        riferimento = any(c.startswith("IPAdapter") for c in catena_d)
+        riferimento = any(c.startswith("IPAdapter") for c in catena_d) and not senza_riferimento
         if [c for c in catena_d if c not in NODI_RIFERIMENTO] != _a_monte(prop, ks_p, "model"):
             diff.append("Il modello arriva al campionatore per un'altra strada: proposte "
                         f"{' ← '.join(_a_monte(prop, ks_p, 'model'))}, dataset {' ← '.join(catena_d) or '—'}.")
@@ -172,10 +175,11 @@ def confronta_workflow(ricetta: dict, wf: dict | None, config: ConfigDataset) ->
             if cl_d != cl_p:
                 diff.append(f"Il CLIP del prompt arriva per un'altra strada: proposte {' ← '.join(cl_p)}, dataset "
                             f"{' ← '.join(cl_d) or '—'}.")
-    if not riferimento:
+    if not riferimento and not senza_riferimento:
         diff.append("Manca l'immagine di riferimento: nel dataset non c'è IPAdapter collegato al modello (installalo da "
                     "Sistema → Controllo, poi «Rendi il dataset identico alle proposte»).")
-    return {"uguale": not diff, "riferimento": riferimento, "differenze": diff}
+    return {"uguale": not diff, "riferimento": riferimento, "senza_riferimento": senza_riferimento,
+            "differenze": diff}
 
 
 # ---------------------------------------------------------------- confronto completo
@@ -223,7 +227,8 @@ def confronta(proposta: Proposta, pers, config: ConfigDataset, wf: dict | None, 
                                f"in più: {', '.join(negativo['in_piu'])}" if negativo["in_piu"] else "",
                                "" if negativo["ordine_ok"] else "ordine diverso") if x))
     riga("Workflow", "Checkpoint → LoRA → Prompt → KSampler → VAE → Salva" if r else "non registrato",
-         "uguale + immagine di riferimento" if workflow["uguale"] else (
+         ("uguale (senza IPAdapter, proprio come le proposte)" if workflow.get("senza_riferimento")
+          else "uguale + immagine di riferimento") if workflow["uguale"] else (
              f"{len(workflow['differenze'])} differenze" if workflow["uguale"] is False else "da verificare"),
          workflow["uguale"], " ".join(workflow["differenze"]))
     riga("Checkpoint", r["checkpoint"] if r else f"non registrato ({famiglia_proposta or '?'} dai tag di qualità)",

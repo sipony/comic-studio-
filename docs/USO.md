@@ -112,11 +112,12 @@ Per ogni personaggio (scegli in alto quale):
 4. **Generazione** — scegli quante immagini (80-120) e quante tenerne (20-40), poi **Genera**. Segui
    l'avanzamento qui e nella console; puoi fermarla quando vuoi.
 
-   **Massima somiglianza al riferimento** (nel riquadro in alto e qui) prepara il dataset perché le immagini, in pose
-   diverse, vengano il più possibile uguali al riferimento: il tagger legge l'aspetto del riferimento e lo mette nel
-   prompt, sfondi bianchi o semplici come nelle proposte, IPAdapter con peso 0,9 fino all'ultimo passo e sul
-   riferimento intero (ritaglio «pad», così vede anche scarpe e pantaloni), pose guidate se c'è il ControlNet. Per un
-   personaggio identico al 100%: addestra un primo LoRA sulle migliori e rigenera il dataset con quel LoRA.
+   **Stessa persona, come le proposte** (nel riquadro in alto e qui) fa nascere le immagini del dataset come le
+   proposte, che sembrano sempre la stessa persona: stesso workflow (senza IPAdapter), stesso prompt nello stesso
+   ordine, stesse dimensioni, sfondo bianco e sguardo in camera; cambiano solo posa, angolazione, espressione e quanto
+   si vede della figura. In più il tagger legge vestiti e accessori del riferimento e li mette nel prompt, così la
+   divisa resta quella scelta. Poi **Tieni le N migliori** sceglie le più somiglianti; con 20-30 buone addestra il
+   LoRA: con quello il personaggio resta uguale in qualunque posa e scena.
 
    **Grafi**: nella proposta (pagina Personaggi) il pulsante 🌳 mostra il workflow con cui è stata fatta; aprendo
    un'immagine del dataset, **Grafo** mostra il suo e **Confronta con la proposta** mette i due grafi fianco a fianco

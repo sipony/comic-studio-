@@ -441,9 +441,21 @@ def applica(wf: dict, ruoli: Ruoli, *, riferimento: str | None = None, positivo:
         e = escludi(w, disattivati, info, protetti=(ruoli.seme, ruoli.salva, ruoli.positivo))
         if e.problemi:
             raise ErroreWorkflow("Nodi staccati: " + " ".join(e.problemi))
-        w = e.wf
+        w = senza_inutili(e.wf)
     # niente _meta nel workflow inviato: ComfyUI lo accetta, ma è inutile
     return w
+
+
+def senza_inutili(w: dict) -> dict:
+    """Toglie i nodi rimasti senza uso dopo aver staccato qualcosa (es. i caricatori di IPAdapter quando IPAdapter è
+    staccato): non arrivano a nessun nodo che salva o mostra un'immagine."""
+    uscite = [k for k, n in w.items() if n.get("class_type") in SALVATAGGIO | {"PreviewImage"}]
+    if not uscite:
+        return w
+    tenuti = set(uscite)
+    for k in uscite:
+        tenuti |= set(_a_monte(w, k))
+    return {k: v for k, v in w.items() if k in tenuti}
 
 
 # ---------------------------------------------------------------- pose guidate
