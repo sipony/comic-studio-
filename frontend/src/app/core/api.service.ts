@@ -2,7 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpEventType } from '@angular/common/ht
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import {
-  AnteprimaPromptProposte, ConfrontoGrafi, ControlnetDataset, Posa, RicettaProposta, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
+  AnteprimaPromptProposte, AnteprimaTrasformazione, DefinizioneTrasformazione, Trasformazione, ConfrontoGrafi, ControlnetDataset, Posa, RicettaProposta, CatalogoIA, ImpostazioniGrafo, ConfrontoDataset, StatoComponenti, WorkflowLavoro, ConfigAddestramento, OrigineDataset, EsitoEsclusione, ConfigDataset, ConfigDidascalie, DettaglioWorkflow, Impostazioni, ImpostazioniAvvio, PromptScena, Proposta, ConfigProposte, StatoIA, Preset, RiassuntoAddestramento,
   StatoAddestramento, StatoKohya, Fumetto, ImmaginiVignetta, StatoFumetto, EsempioPrompt, Genere, ImmagineDataset, Lavoro, ParametriIntegrato, Personaggio,
   Progetto, Rapporto, RiassuntoWorkflow, RiepilogoDataset, RigaLog, Ruoli, Sistema, SpecNodo, StatoComfy, StatoDidascalie, StatoImmagine,
 } from './modelli';
@@ -29,6 +29,9 @@ export class ApiService {
   private patch<T>(url: string, corpo: unknown) {
     return this.chiama(firstValueFrom(this.http.patch<T>(url, corpo)));
   }
+  private put<T>(url: string, corpo: unknown) {
+    return this.chiama(firstValueFrom(this.http.put<T>(url, corpo)));
+  }
   private del(url: string) {
     return this.chiama(firstValueFrom(this.http.delete<void>(url)));
   }
@@ -47,6 +50,32 @@ export class ApiService {
       if (e instanceof HttpErrorResponse && Array.isArray(e.error?.errori)) err.errori = e.error.errori;
       throw err;
     }
+  }
+  // trasformazioni
+  private tr(progetto: string, pers: string) { return `/api/progetti/${progetto}/personaggi/${pers}/trasformazioni`; }
+  trasformazioni(progetto: string, pers: string) { return this.get<Trasformazione[]>(this.tr(progetto, pers)); }
+  creaTrasformazione(progetto: string, pers: string, d: DefinizioneTrasformazione) {
+    return this.post<Trasformazione>(this.tr(progetto, pers), d);
+  }
+  modificaTrasformazione(progetto: string, pers: string, id: string, d: DefinizioneTrasformazione) {
+    return this.put<Trasformazione>(`${this.tr(progetto, pers)}/${id}`, d);
+  }
+  eliminaTrasformazione(progetto: string, pers: string, id: string) { return this.del(`${this.tr(progetto, pers)}/${id}`); }
+  anteprimaTrasformazione(progetto: string, pers: string, definizione: DefinizioneTrasformazione, checkpoint: string | null) {
+    return this.post<AnteprimaTrasformazione>(`${this.tr(progetto, pers)}/anteprima`, { definizione, checkpoint });
+  }
+  generaTrasformazione(progetto: string, pers: string, id: string, dati: { nuovo_seme?: boolean; checkpoint?: string | null }) {
+    return this.post<Lavoro>(`${this.tr(progetto, pers)}/${id}/genera`, dati);
+  }
+  urlFotogramma(progetto: string, pers: string, id: string, file: string, v = 0) {
+    return `${this.tr(progetto, pers)}/${id}/fotogrammi/${file}?v=${v}`;
+  }
+  urlGrafoFotogramma(progetto: string, pers: string, id: string, file: string) {
+    return `${this.tr(progetto, pers)}/${id}/fotogrammi/${file}/workflow`;
+  }
+  urlGif(progetto: string, pers: string, id: string) { return `${this.tr(progetto, pers)}/${id}/gif`; }
+  personaggioDaStatoB(progetto: string, pers: string, id: string, fotogramma: string) {
+    return this.post<{ personaggio: Personaggio; avviso: string | null }>(`${this.tr(progetto, pers)}/${id}/personaggio`, { fotogramma });
   }
   grafoSalvato(url: string) { return this.get<WorkflowLavoro>(url); }
   urlGrafoProposta(progetto: string, pers: string, file: string) {

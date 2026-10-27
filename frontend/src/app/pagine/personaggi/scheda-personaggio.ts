@@ -15,6 +15,7 @@ import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
 import { SceltaIAService } from '../../core/scelta-ia.service';
 import { AnteprimaLavoro } from '../../shell/anteprima-lavoro';
+import { TrasformazioniComponent } from './trasformazioni';
 import {
   AnteprimaPromptProposte, ConfigProposte, GENERI, Genere, InquadraturaProposta, NEGATIVO_PROPOSTE, NOMI_FAMIGLIA, Personaggio,
   Proposta, RicettaProposta, SAMPLER, SCHEDULER, TrattiRicavati,
@@ -22,7 +23,7 @@ import {
 
 @Component({
   selector: 'app-scheda-personaggio',
-  imports: [AnteprimaLavoro, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule,
+  imports: [AnteprimaLavoro, TrasformazioniComponent, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule,
     MatTooltipModule],
   templateUrl: './scheda-personaggio.html',
   styleUrl: './scheda-personaggio.scss',
@@ -32,6 +33,8 @@ export class SchedaPersonaggio {
   readonly personaggio = input.required<Personaggio>();
   readonly cambiato = output<Personaggio>();
   readonly eliminato = output<string>();
+  /** personaggio nuovo creato da qui (stato B di una trasformazione) */
+  readonly aggiunto = output<Personaggio>();
 
   private api = inject(ApiService);
   private avvisi = inject(AvvisiService);

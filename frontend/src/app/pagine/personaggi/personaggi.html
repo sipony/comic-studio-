@@ -23,7 +23,8 @@
 
   <div class="elenco">
     @for (c of progetto().personaggi; track c.id) {
-      <app-scheda-personaggio [progetto]="progetto().id" [personaggio]="c" (cambiato)="cambiato($event)" (eliminato)="eliminato($event)" />
+      <app-scheda-personaggio [progetto]="progetto().id" [personaggio]="c" (cambiato)="cambiato($event)" (eliminato)="eliminato($event)"
+        (aggiunto)="aggiunto($event)" />
     }
   </div>
 

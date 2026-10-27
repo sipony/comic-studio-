@@ -260,4 +260,7 @@
       }
     </section>
   }
+  @if (personaggio().riferimento) {
+    <app-trasformazioni [progetto]="progetto()" [personaggio]="personaggio()" (nuovoPersonaggio)="aggiunto.emit($event)" />
+  }
 </article>

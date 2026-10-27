@@ -37,9 +37,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 23 | Pose guidate nel dataset (ControlNet OpenPose con gli scheletri disegnati da Comic Studio, installabile); «Massima somiglianza al riferimento» (aspetto dal tagger, sfondi, IPAdapter più forte su tutta la figura); workflow di ogni proposta e immagine salvato, grafi confrontati fianco a fianco | ✅ unita |
 | 24 | Pose guidate: solo ControlNet della stessa architettura del checkpoint (un OpenPose per SD 1.5 con Pony / Illustrious faceva fallire il KSampler) | ✅ unita |
 | 25 | «Stessa persona, come le proposte»: il dataset nasce come le proposte (stesso workflow senza IPAdapter, prompt nello stesso ordine, stesse dimensioni, sfondo bianco), cambiano solo posa, angolazione ed espressione; aspetto del riferimento dal tagger | ✅ unita |
-| 26 | «Ho già il prompt»: proposte con positivo e negativo dell'utente parola per parola; il dataset li riusa con i tag di inquadratura, posa, angolazione, espressione e sfondo al posto delle varianti | ✅ questa PR |
-| 27 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 28 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 26 | «Ho già il prompt»: proposte con positivo e negativo dell'utente parola per parola; il dataset li riusa con i tag di inquadratura, posa, angolazione, espressione e sfondo al posto delle varianti | ✅ unita |
+| 27 | Trasformazioni del personaggio (stato A → stato B, es. il prete che diventa mostro): sequenza di fotogrammi con prompt che scivola da A a B, LoRA della trasformazione che sale, stesso seme; GIF; personaggio «stato B» con il suo dataset | ✅ questa PR |
+| 28 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 29 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -1066,4 +1067,37 @@ positivo no: Comic Studio lo compone da qualità, genere, base, tratti, tag in p
 - **Test**: `test_prompt_proprio.py` (divisione e riconoscimento dei tag; anteprima, LoRA alla A1111 rifiutata,
   prompt mandati parola per parola, ricetta, dataset coerente, «stessa persona», prompt del dataset)
 
-Prossimo passo: PR 27, pose guidate nelle scene di gruppo e costruttore di workflow.
+Prossimo passo: PR 27, trasformazioni.
+
+## PR 27 — Trasformazioni del personaggio
+
+Richiesta: «se volessi creare un prete che poi si trasforma in un mostro, è possibile far vedere le transizioni?
+Una sezione nella creazione dei personaggi per generare immagini con una trasformazione; gore, body horror o niente
+lo decido io».
+
+- `trasformazioni.py`: una trasformazione si definisce nella scheda del personaggio: nome dello stato B, tag dello
+  stato B, tag di A da togliere, negativo in più, LoRA della trasformazione (facoltativa) con la forza, passi, denoise
+  iniziale e finale
+- stato A = la proposta scelta come riferimento, parola per parola (prompt, negativo, checkpoint, LoRA di stile,
+  campionamento); per i riferimenti caricati a mano il prompt dai tratti con il checkpoint indicato
+- sequenza: img2img dal riferimento, **stesso seme** per tutti i fotogrammi; a ogni passo t (da 0 a 1):
+  `ConditioningAverage(B, A, t)` sul positivo e sul negativo (prompt che scivola da A a B), LoRA della trasformazione a
+  forza × t, denoise da «inizio» a «fine». Così la prima immagine è il personaggio, l'ultima lo stato B, nella stessa
+  inquadratura
+- il contenuto dello stato B lo decidono solo i tag e la LoRA dell'utente; vivono solo nella trasformazione (il dataset
+  e le altre immagini del personaggio non li vedono). Passano dallo stesso controllo dei contenuti delle proposte
+- fotogrammi e workflow salvati (`<personaggio>/trasformazioni/<id>/`), una nuova sequenza manda la vecchia nel
+  cestino; grafo di ogni fotogramma; **GIF** avanti e indietro con pausa sugli estremi
+- **Crea il personaggio dello stato B**: un personaggio a sé («Padre Anselmo (Il mostro)») con il fotogramma come
+  riferimento, i tratti di A meno quelli tolti più quelli di B, la ricetta con il prompt dello stato B (come «Ho già il
+  prompt») e la LoRA della trasformazione come LoRA di stile se non ce n'è già una; il suo dataset è già pronto
+- interfaccia: sezione **Trasformazioni** nella scheda del personaggio (editor con l'anteprima dei prompt A e B e dei
+  valori di ogni fotogramma, sequenza con avanzamento e anteprima dal vivo, rigenera con lo stesso seme o uno nuovo,
+  GIF, grafo, crea il personaggio dello stato B)
+- Versione 0.26.0
+- **Test**: `test_trasformazioni.py` (prompt B e valori; sequenza: stesso seme, ConditioningAverage, denoise e LoRA
+  che salgono, prompt A della proposta; GIF; nuovo seme; personaggio dello stato B con il dataset pronto; cestino).
+  Collaudo con Chromium
+
+Prossimo passo: PR 28, la vignetta «Trasformazione» nel fumetto, pose guidate nelle scene di gruppo e costruttore di
+workflow.

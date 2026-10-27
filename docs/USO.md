@@ -53,6 +53,11 @@ Nel riquadro **Consigli** trovi le impostazioni più adatte alla tua scheda vide
      parola (pesi compresi) e non servono descrizione né tratti. Le LoRA non si scrivono nel prompt (`<lora:…>` in
      ComfyUI non fa niente): si scelgono in «LoRA di stile». Nel dataset i tag di inquadratura, posa, angolazione,
      espressione e sfondo del tuo prompt diventano le varianti, il resto resta identico.
+   - **Trasformazioni** (in fondo alla scheda, quando c'è il riferimento): per un personaggio che cambia stato (il prete
+     che diventa mostro) premi **Nuova trasformazione**, scrivi il nome dello stato B, i suoi tag (li decidi tu: valgono
+     solo qui), i tag di A da togliere, se vuoi una LoRA, e quanti passi. **Genera la sequenza** crea i fotogrammi da A a
+     B nella stessa inquadratura; **Rigenera** con lo stesso seme o **Nuovo seme**, **Scarica GIF**. Sotto un
+     fotogramma, 👤+ crea il personaggio dello stato B, con il suo dataset già pronto.
    - **Il dataset è identico alle proposte.** Con «Usa questa» Comic Studio prepara anche il dataset del personaggio:
      lo stesso workflow delle proposte con in più solo l'immagine di riferimento (IPAdapter, se è installato), lo
      stesso prompt salvo la parte che cambia a ogni immagine, lo stesso negativo. Così il dataset, e quindi il LoRA,
