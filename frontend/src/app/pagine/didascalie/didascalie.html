@@ -91,7 +91,14 @@
                 <mat-slide-toggle [checked]="c.togli_tratti_fissi" (change)="imposta('togli_tratti_fissi', $event.checked)">
                   Togli i tratti fissi della descrizione
                 </mat-slide-toggle>
-                <p class="nota">«{{ personaggio()?.descrizione || 'descrizione vuota' }}»</p>
+                <p class="nota">«{{ personaggio()?.descrizione || 'descrizione vuota' }}» (anche detti con meno parole, es.
+                  «blonde hair» per «long straight blonde hair», e l'aspetto del riferimento usato nel dataset)</p>
+                <mat-slide-toggle [checked]="c.togli_ricorrenti ?? true" (change)="imposta('togli_ricorrenti', $event.checked)">
+                  Togli anche l'aspetto che ricorre in quasi tutte le immagini
+                </mat-slide-toggle>
+                <p class="nota">Capelli, occhi, divisa presenti nel 70% delle immagini o più: fuori dalle didascalie li impara la
+                  trigger word, così basta lei a richiamare il personaggio. Se restano, il LoRA li lega a quei tag e la trigger
+                  da sola non porta quasi niente.</p>
                 <mat-form-field>
                   <mat-label>Tag sempre presenti (dopo la trigger)</mat-label>
                   <input matInput [ngModel]="elenco(c.aggiunti)" (change)="impostaElenco('aggiunti', $any($event.target).value)" placeholder="es. police" />

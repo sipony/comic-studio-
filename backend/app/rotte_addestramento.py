@@ -410,6 +410,24 @@ async def _nome_lora(client, file: str) -> str:
     return f"comic_studio/{file}"
 
 
+PAROLE_ITALIANE = re.compile(r"\b(con|una|uno|il|lo|la|gli|le|di|che|nel|nella|sul|sulla|per|mentre|dei|delle|"
+                             r"è|sono|seduta|seduto|in piedi|capelli|occhi)\b", re.I)
+
+
+def non_inglese(p: str) -> bool:
+    return len(PAROLE_ITALIANE.findall(p)) >= 2
+
+
+def prompt_di_prova(p: str, pers) -> str:
+    """Il prompt di prova con la trigger word e il genere davanti, se mancano: senza trigger il LoRA non si accende."""
+    testa = []
+    if "{trigger}" not in p and pers.trigger not in p:
+        testa.append("{trigger}")
+    if "{genere}" not in p and pers.genere not in p:
+        testa.append("{genere}")
+    return ", ".join(testa + [p]) if testa else p
+
+
 @rotte.post("/prova")
 async def prova(pid: str, cid: str, dati: Prova, req: Request):
     app = _app(req)
@@ -435,8 +453,13 @@ async def prova(pid: str, cid: str, dati: Prova, req: Request):
 
     async def lavoro(l: Lavoro):
         stato = a.stato(pid, cid)
-        prompt = [componi(f"{qualita[0]}, {p}", {"trigger": pers.trigger, "genere": pers.genere, "nome": pers.nome})
+        prompt = [componi(f"{qualita[0]}, {prompt_di_prova(p, pers)}",
+                          {"trigger": pers.trigger, "genere": pers.genere, "nome": pers.nome})
                   for p in stato.prompt_test]
+        if any(non_inglese(p) for p in stato.prompt_test):
+            l.log("Alcuni prompt di prova sembrano in italiano: il modello capisce solo l'inglese a tag (es. «"
+                  "{trigger}, {genere}, solo, sitting, smile, upper body»). In italiano il risultato dice poco sul "
+                  "LoRA.", "avviso")
         dest = a.cartella(pid, cid) / "test"
         dest.mkdir(parents=True, exist_ok=True)
         risultati: dict[str, dict] = {}

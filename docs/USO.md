@@ -147,9 +147,11 @@ Per ogni personaggio (scegli in alto quale):
 1. Scegli il personaggio. Vengono usate le immagini che hai tenuto nello Step 1.
 2. **Analizza** fa guardare le immagini al tagger WD14 (la prima volta lo scarica, circa 400 MB). Se sei offline
    scegli **Solo prompt**: i tag vengono dal prompt con cui ogni immagine è stata generata.
-3. Ogni didascalia inizia con la trigger word. I **tratti fissi** della descrizione vengono tolti da soli; nella
-   tabella **Tag del dataset** i tag segnati «fisso?» sono tratti dell'aspetto presenti in quasi tutte le immagini:
-   **Togli i suggeriti** li toglie tutti, oppure fai clic su un tag per toglierlo o rimetterlo.
+3. Ogni didascalia inizia con la trigger word. Escono da soli i **tratti fissi** della descrizione (anche detti con
+   meno parole: «blonde hair» per «long straight blonde hair»), l'aspetto del riferimento usato nel dataset e, con
+   **Togli anche l'aspetto che ricorre** (acceso), capelli, occhi e vestiti presenti in quasi tutte le immagini: così
+   li impara la trigger word, e basta lei a richiamare il personaggio. Nella tabella **Tag del dataset** fai clic su un
+   tag per toglierlo o rimetterlo.
 4. Se una didascalia non va, correggila a mano nel suo riquadro (torna a quella automatica con **Automatica**).
 5. **Scarica il dataset** ti dà uno zip con immagini e `.txt`, utile per addestrare anche altrove.
 
@@ -162,8 +164,12 @@ Per ogni personaggio (scegli in alto quale):
    **parametri avanzati** puoi cambiare tutto; il conto ti dice quanti passi farà.
 4. **Addestra**: segui passi, epoche, tempo rimanente e il grafico della loss. Con 8 GB conta 1-3 ore. ComfyUI può
    restare aperto.
-5. **Prova le epoche**: scegli quali (di solito sono già selezionate 4) e premi **Prova**. Confronta le immagini
-   affiancate e premi **Usa questa** sull'epoca migliore: quella «consigliata» è un buon punto di partenza.
+5. **Prova le epoche**: un'epoca è un giro completo su tutte le immagini; dopo ogni giro Comic Studio salva il LoRA
+   com'è in quel momento. Le prime epoche hanno imparato poco, le ultime rischiano di copiare le immagini del dataset
+   (stesse pose, disegno rigido): la prova le mette a confronto con lo stesso seme. Scegli quali (di solito sono già
+   selezionate 4), scrivi i **prompt di prova in inglese a tag** (`{trigger}, {genere}, solo, sitting, smile, upper
+   body`) e premi **Prova**. Confronta le immagini affiancate e premi **Usa questa** sull'epoca migliore: quella
+   «consigliata» è la più somigliante al riferimento.
 6. Hai già un LoRA addestrato altrove? Sceglilo in **Oppure usa un LoRA già addestrato**.
 
 ## 7. Step 4 · Fumetto

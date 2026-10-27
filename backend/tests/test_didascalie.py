@@ -9,7 +9,7 @@ from app import rotte_didascalie
 from app.dataset import ArchivioDataset, InfoImmagine
 from app.didascalie import ArchivioDidascalie, ConfigDidascalie, Tagger, componi, normalizza_tag
 from app.main import crea_app
-from app.projects import Archivio, NuovoPersonaggio, Personaggio
+from app.projects import Archivio, ModificaPersonaggio, NuovoPersonaggio, Personaggio
 from app.settings import Archivio as ArchivioImpostazioni
 from app.state import App
 
@@ -100,10 +100,15 @@ def test_stato_frequenze_e_suggerimenti(archivio):
     s = a.stato(pid, "agente")
     assert s["totale"] == 2 and s["da_selezione"] and s["analizzate"] == 2
     f = {x["tag"]: x for x in s["frequenze"]}
-    assert f["blue eyes"]["quota"] == 1.0 and f["blue eyes"]["suggerito"]          # aspetto in ogni immagine
+    # aspetto in ogni immagine: lo impara la trigger word, quindi esce dalle didascalie da solo
+    assert f["blue eyes"]["quota"] == 1.0 and f["blue eyes"]["rimosso"] and f["blue eyes"]["fisso"]
+    assert all("blue eyes" not in i["testo"] for i in s["immagini"])
     assert f["long blonde hair"]["rimosso"] and f["long blonde hair"]["fisso"]
-    assert not f["smile"]["suggerito"]
-    c = ConfigDidascalie(rimossi=["blue eyes"])
+    assert not f["smile"]["suggerito"] and not f["smile"]["rimosso"]
+    a.salva_config(pid, "agente", ConfigDidascalie(togli_ricorrenti=False))
+    f = {x["tag"]: x for x in a.stato(pid, "agente")["frequenze"]}
+    assert f["blue eyes"]["suggerito"] and not f["blue eyes"]["rimosso"]
+    c = ConfigDidascalie(rimossi=["blue eyes"], togli_ricorrenti=False)
     a.salva_config(pid, "agente", c)
     s = a.stato(pid, "agente")
     assert all("blue eyes" not in i["testo"] for i in s["immagini"])
@@ -155,8 +160,11 @@ def test_api_didascalie(casa, tmp_path, monkeypatch):
                 break
         assert l["stato"] == "completato", l["errore"]
         s = c.get(base).json()
-        assert s["analizzate"] == 2 and "blue hair" in s["immagini"][0]["testo"]
-        cfg = s["config"]
+        # «blue hair» in ogni immagine: tratto del personaggio, fuori dalle didascalie
+        assert s["analizzate"] == 2 and "blue hair" not in s["immagini"][0]["testo"]
+        cfg = s["config"] | {"togli_ricorrenti": False}
+        s = c.put(f"{base}/config", json=cfg).json()
+        assert "blue hair" in s["immagini"][0]["testo"]
         cfg["rimossi"] = ["blue hair"]
         s = c.put(f"{base}/config", json=cfg).json()
         assert "blue hair" not in s["immagini"][0]["testo"]
@@ -167,3 +175,25 @@ def test_api_didascalie(casa, tmp_path, monkeypatch):
         z = c.get(f"{base}/zip")
         assert z.headers["content-type"] == "application/zip" and "vglcop" in z.headers["content-disposition"]
         assert len(zipfile.ZipFile(io.BytesIO(z.content)).namelist()) == 4
+
+
+def test_tratti_detti_con_meno_parole_e_aspetto_del_riferimento(archivio):
+    """«blonde hair» e «long hair» sono nel tratto «long straight blonde hair»; l'aspetto letto dal riferimento per il
+    dataset è del personaggio: niente di tutto questo resta nelle didascalie."""
+    from app.didascalie import e_tratto
+    a, pid = archivio
+    tratti = {"long straight blonde hair", "piercing blue eyes"}
+    assert e_tratto("blonde hair", tratti) and e_tratto("long hair", tratti) and e_tratto("blue eyes", tratti)
+    assert not e_tratto("black hair", tratti) and not e_tratto("hair", tratti)
+    a.dataset.progetti.modifica_personaggio(pid, "agente", ModificaPersonaggio(
+        descrizione="long straight blonde hair, piercing blue eyes"))
+    cds = a.dataset.config(pid, "agente")
+    cds.aspetto = "necktie, police hat"
+    a.dataset.salva_config(pid, "agente", cds)
+    a.salva_tag(pid, "agente", {"0001.png": {"blonde hair": 0.9, "necktie": 0.8, "police hat": 0.6, "smile": 0.7},
+                                "0002.png": {"long hair": 0.9, "sitting": 0.8}})
+    a.salva_config(pid, "agente", ConfigDidascalie(togli_ricorrenti=False))
+    testi = {i["file"]: i["testo"] for i in a.stato(pid, "agente")["immagini"]}
+    assert "smile" in testi["0001.png"] and "sitting" in testi["0002.png"]
+    for t in ("blonde hair", "long hair", "necktie", "police hat"):
+        assert all(t not in x for x in testi.values()), t

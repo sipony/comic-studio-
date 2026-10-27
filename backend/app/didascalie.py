@@ -57,6 +57,9 @@ class ConfigDidascalie(BaseModel):
     modello: str = "wd-vit-tagger-v3"
     soglia: float = Field(default=0.35, ge=0.05, le=0.95)
     togli_tratti_fissi: bool = True          # toglie i tag che compaiono nella descrizione del personaggio
+    # toglie anche i tratti dell'aspetto che ricorrono in quasi tutte le immagini (capelli, occhi, divisa…): così li
+    # impara la trigger word. Se restano nelle didascalie il LoRA li lega a quei tag e la trigger da sola non li porta
+    togli_ricorrenti: bool = True
     rimossi: list[str] = Field(default_factory=list)
     aggiunti: list[str] = Field(default_factory=list)     # sempre presenti, dopo trigger e genere
     sostituzioni: dict[str, str] = Field(default_factory=dict)
@@ -165,6 +168,24 @@ def tratti_fissi(p: Personaggio) -> set[str]:
     return set(separa(p.descrizione))
 
 
+def e_tratto(t: str, tratti: set[str]) -> bool:
+    """Il tag è uno dei tratti, anche detto con meno parole: «blonde hair» e «long hair» stanno in «long straight
+    blonde hair», «blue eyes» in «piercing blue eyes»."""
+    if t in tratti:
+        return True
+    parole = set(t.split())
+    return len(parole) > 1 and any(parole <= set(x.split()) for x in tratti)
+
+
+QUOTA_RICORRENTI = 0.7
+
+
+def ricorrenti(conteggio: dict[str, int], n: int) -> set[str]:
+    """Tratti dell'aspetto presenti in quasi tutte le immagini: fanno parte del personaggio."""
+    return {t for t, k in conteggio.items() if t not in GENERI and k / max(1, n) >= QUOTA_RICORRENTI
+            and ASPETTO.search(t)}
+
+
 def candidati(info: InfoImmagine, grezzi: dict[str, float] | None, c: ConfigDidascalie) -> list[tuple[str, float]]:
     """Tag dell'immagine prima della pulizia, ordinati per importanza."""
     tag: dict[str, float] = {}
@@ -185,8 +206,16 @@ def rimossi_effettivi(p: Personaggio, c: ConfigDidascalie) -> set[str]:
     return via
 
 
-def componi(p: Personaggio, info: InfoImmagine, grezzi: dict[str, float] | None, c: ConfigDidascalie) -> str:
-    via = rimossi_effettivi(p, c)
+def da_togliere(t: str, p: Personaggio, c: ConfigDidascalie, extra: set[str] | frozenset = frozenset()) -> bool:
+    """Il tag va tolto dalle didascalie: tolto a mano, tratto del personaggio (anche detto con meno parole), aspetto
+    del riferimento usato nel dataset, o tratto che ricorre in quasi tutte le immagini (`extra`)."""
+    if t in rimossi_effettivi(p, c) or t in extra:
+        return True
+    return c.togli_tratti_fissi and e_tratto(t, tratti_fissi(p))
+
+
+def componi(p: Personaggio, info: InfoImmagine, grezzi: dict[str, float] | None, c: ConfigDidascalie,
+            extra: set[str] | frozenset = frozenset()) -> str:
     sost = {normalizza_tag(k): normalizza_tag(v) for k, v in c.sostituzioni.items() if k.strip()}
     testa = [p.trigger, p.genere]
     if p.genere != "1other":
@@ -197,7 +226,7 @@ def componi(p: Personaggio, info: InfoImmagine, grezzi: dict[str, float] | None,
     corpo = []
     for t, _ in candidati(info, grezzi, c):
         t = sost.get(t, t)
-        if not t or t in via or t in visti or t in GENERI:
+        if not t or da_togliere(t, p, c, extra) or t in visti or t in GENERI:
             continue
         visti.add(t)
         corpo.append(t)
@@ -266,12 +295,29 @@ class ArchivioDidascalie:
             return tenute, True
         return [i for i in tutte if i.stato != "scartata"], False
 
+    def _da_togliere_in_piu(self, pid: str, cid: str, pers, c: ConfigDidascalie, imm, tag) -> tuple[set[str], Counter]:
+        """I tag tolti in automatico oltre ai tratti: l'aspetto del riferimento usato nel dataset e, se richiesto, i
+        tratti dell'aspetto che ricorrono in quasi tutte le immagini. Restituisce anche il conteggio dei tag."""
+        conteggio: Counter[str] = Counter()
+        for i in imm:
+            for t, _ in candidati(i, tag.get(i.file), c):
+                conteggio[t] += 1
+        extra: set[str] = set()
+        if c.togli_tratti_fissi:
+            try:
+                extra |= set(separa(self.dataset.config(pid, cid).aspetto))
+            except Exception:  # noqa: BLE001 - senza configurazione del dataset
+                pass
+        if c.togli_ricorrenti:
+            extra |= ricorrenti(conteggio, len(imm))
+        return extra - {normalizza_tag(t) for t in c.aggiunti}, conteggio
+
     def stato(self, pid: str, cid: str) -> dict:
         _, pers = self.dataset.personaggio(pid, cid)
         c = self.config(pid, cid)
         imm, da_selezione = self.immagini(pid, cid)
         tag, manuali = self.tag(pid, cid), self.manuali(pid, cid)
-        via = rimossi_effettivi(pers, c)
+        extra, _ = self._da_togliere_in_piu(pid, cid, pers, c, imm, tag)
         conteggio: Counter[str] = Counter()
         prob_media: dict[str, list[float]] = {}
         righe = []
@@ -279,7 +325,7 @@ class ArchivioDidascalie:
             for t, p in candidati(i, tag.get(i.file), c):
                 conteggio[t] += 1
                 prob_media.setdefault(t, []).append(p)
-            auto = componi(pers, i, tag.get(i.file), c)
+            auto = componi(pers, i, tag.get(i.file), c, extra)
             righe.append({"file": i.file, "numero": i.numero, "auto": auto, "testo": manuali.get(i.file, auto),
                           "manuale": i.file in manuali, "analizzata": i.file in tag, "creato": i.creato})
         n = max(1, len(imm))
@@ -288,10 +334,11 @@ class ArchivioDidascalie:
         for t, k in conteggio.most_common():
             if t in GENERI:
                 continue
-            fisso = t in tratti_fissi(pers) and c.togli_tratti_fissi
-            suggerito = (not (t in via) and k / n >= 0.7 and bool(ASPETTO.search(t)))
+            rimosso = da_togliere(t, pers, c, extra)
+            fisso = rimosso and t not in {normalizza_tag(x) for x in c.rimossi}
+            suggerito = (not rimosso and k / n >= QUOTA_RICORRENTI and bool(ASPETTO.search(t)))
             frequenze.append({"tag": t, "conteggio": k, "quota": round(k / n, 3),
-                              "probabilita": round(float(np.mean(prob_media[t])), 3), "rimosso": t in via,
+                              "probabilita": round(float(np.mean(prob_media[t])), 3), "rimosso": rimosso,
                               "fisso": fisso, "suggerito": suggerito, "sostituito": sost.get(t)})
         return {"config": c.model_dump(), "immagini": righe, "frequenze": frequenze, "totale": len(imm),
                 "analizzate": sum(1 for i in imm if i.file in tag), "da_selezione": da_selezione,
@@ -302,7 +349,8 @@ class ArchivioDidascalie:
         c = self.config(pid, cid)
         imm, _ = self.immagini(pid, cid)
         tag, manuali = self.tag(pid, cid), self.manuali(pid, cid)
-        return [(i, manuali.get(i.file) or componi(pers, i, tag.get(i.file), c)) for i in imm]
+        extra, _ = self._da_togliere_in_piu(pid, cid, pers, c, imm, tag)
+        return [(i, manuali.get(i.file) or componi(pers, i, tag.get(i.file), c, extra)) for i in imm]
 
     def esporta(self, pid: str, cid: str, dest: Path) -> int:
         """Scrive immagini e .txt in una cartella (quella che userà l'addestramento)."""
