@@ -237,7 +237,25 @@ def _riassunto(req: Request, pid: str, cid: str) -> dict:
             suggerito = analizza(ds.leggi_workflow(pid, conf.workflow).workflow).checkpoint
     except ErroreProgetto:
         pass
-    return {"config": c.model_dump(), "stato": stato.model_dump(), "epoche": ad.file_epoche(uscita, pers.trigger),
+    if stato.lora_finale and stato.origine == "addestrato" and not stato.storico:
+        # LoRA scelto con le versioni di prima della 0.28: diventa la prima voce dello storico
+        stato.storico.append(ad.VersioneLora(versione=1, file=stato.lora_finale,
+                                             nome_file=stato.lora_finale.replace("\\", "/").split("/")[-1],
+                                             epoca=stato.epoca_finale, creato=stato.ultimo_avvio or time.time(),
+                                             nota="scelto prima della versione 0.28"))
+        a.salva_stato(pid, cid, stato)
+    storico = []
+    try:
+        cartella_lora = ad.cartella_lora_comfy(app.comfy.cartella or app.impostazioni.valori.comfy_dir)
+    except ErroreProgetto:
+        cartella_lora = None
+    for v in reversed(stato.storico):
+        f = cartella_lora / v.nome_file if cartella_lora else None
+        storico.append(v.model_dump() | {"in_uso": v.file == stato.lora_finale,
+                                         "esiste": bool(f and f.exists()) if cartella_lora else None,
+                                         "byte": f.stat().st_size if f and f.exists() else None})
+    return {"config": c.model_dump(), "stato": stato.model_dump(), "storico": storico,
+            "epoche": ad.file_epoche(uscita, pers.trigger),
             "loss": a.loss(pid, cid), "immagini": immagini,
             "ripetizioni": ad.ripetizioni(c, immagini) if immagini else None,
             "passi_totali": ad.passi_totali(c, immagini) if immagini else 0,
@@ -326,7 +344,16 @@ async def avvia(pid: str, cid: str, req: Request):
 
         stato = a.stato(pid, cid)
         stato.ultimo_avvio, stato.ultimo_esito, stato.test = time.time(), "in corso", {}
+        registro = ad.RegistroAddestramento(inizio=stato.ultimo_avvio, parametri=ad.riassunto_parametri(c, n))
+        stato.addestramenti.append(registro)
         a.salva_stato(pid, cid, stato)
+
+        def chiudi_registro(esito: str, epoche_salvate: int = 0):
+            s = a.stato(pid, cid)
+            for r in s.addestramenti:
+                if r.inizio == registro.inizio:
+                    r.esito, r.durata, r.epoche_salvate = esito, time.time() - registro.inizio, epoche_salvate
+            a.salva_stato(pid, cid, s)
         av = ad.Avanzamento(totale=totale, epoche=c.epoche)
         punti: list[list[float]] = []
         ultimo_punto = [-1]
@@ -372,6 +399,9 @@ async def avvia(pid: str, cid: str, req: Request):
         l.avanza(0.0, "avvio di kohya (la prima volta prepara la cache: qualche minuto)")
         try:
             codice = await esegui_processo(cmd, k.cartella, l, riga, coda)
+        except BaseException:
+            chiudi_registro("annullato" if l.annullato else "errore", len(ad.file_epoche(uscita, pers.trigger)))
+            raise
         finally:
             a.salva_loss(pid, cid, punti)
             stato = a.stato(pid, cid)
@@ -382,11 +412,22 @@ async def avvia(pid: str, cid: str, req: Request):
         if codice != 0 or not epoche:
             stato.ultimo_esito = "errore"
             a.salva_stato(pid, cid, stato)
+            chiudi_registro("errore", len(epoche))
             testo = "\n".join(coda)
             spiegazione = ad.spiega_errore(testo) or "Guarda i dettagli nella console (filtro «Dettagli»)."
             raise ErroreProgetto(f"L'addestramento si è fermato (codice {codice}). {spiegazione}")
         stato.ultimo_esito = "completato"
         a.salva_stato(pid, cid, stato)
+        chiudi_registro("completato", len(epoche))
+        # il LoRA c'è subito: l'ultima epoca va in ComfyUI come nuova versione (poi la prova può sceglierne un'altra)
+        ultima = max(epoche, key=lambda e: e["epoca"])
+        try:
+            v = await salva_versione(app, a, pid, cid, pers, uscita / ultima["file"], ultima["epoca"],
+                                     automatica=True, addestramento=registro.inizio, parametri=registro.parametri,
+                                     usa=not a.stato(pid, cid).lora_finale)
+            l.log(f"LoRA salvato in ComfyUI: {v.file} (versione {v.versione}, epoca {v.epoca})", "ok")
+        except Exception as e:  # noqa: BLE001 - le epoche restano comunque
+            l.log(f"Non sono riuscito a copiare il LoRA in ComfyUI: {e}", "avviso")
         l.log(f"Addestramento di {pers.nome} completato in {ad.durata(time.time() - inizio)}: {len(epoche)} epoche "
               "salvate. Ora prova le epoche per scegliere la migliore.", "ok")
         app.bus.pubblica({"tipo": "addestramento", "progetto": pid, "personaggio": cid, "epoche_cambiate": True})
@@ -453,9 +494,18 @@ async def prova(pid: str, cid: str, dati: Prova, req: Request):
 
     async def lavoro(l: Lavoro):
         stato = a.stato(pid, cid)
-        prompt = [componi(f"{qualita[0]}, {prompt_di_prova(p, pers)}",
+        # lo stesso disegno del dataset: la LoRA di stile e i tag di stile delle proposte da cui è nato
+        origine = pers.origine or {}
+        lora_stile, forza_stile = origine.get("lora_stile"), origine.get("forza_lora", 0.8)
+        tag_stile = (origine.get("stile") or conf_ds.stile or "").strip()
+        prompt = [componi(f"{qualita[0]}, {prompt_di_prova(p, pers)}"
+                          + (f", {tag_stile}" if tag_stile and tag_stile.lower() not in p.lower() else ""),
                           {"trigger": pers.trigger, "genere": pers.genere, "nome": pers.nome})
                   for p in stato.prompt_test]
+        if lora_stile or tag_stile:
+            l.log("Prova con lo stile del dataset: " + ", ".join(x for x in (
+                f"LoRA {lora_stile} {forza_stile}" if lora_stile else "", f"tag «{tag_stile}»" if tag_stile else "")
+                if x))
         if any(non_inglese(p) for p in stato.prompt_test):
             l.log("Alcuni prompt di prova sembrano in italiano: il modello capisce solo l'inglese a tag (es. «"
                   "{trigger}, {genere}, solo, sitting, smile, upper body»). In italiano il risultato dice poco sul "
@@ -473,7 +523,8 @@ async def prova(pid: str, cid: str, dati: Prova, req: Request):
                 files = []
                 for i, p in enumerate(prompt):
                     l.controlla()
-                    wf, salva = workflow_test_lora(checkpoint, nome, p, negativo, 1000 + i)
+                    wf, salva = workflow_test_lora(checkpoint, nome, p, negativo, 1000 + i,
+                                                   lora_stile=lora_stile, forza_stile=forza_stile)
                     def avanza(v, t, fatte=fatte):
                         l.avanza((fatte + v) / totale, f"epoca {e['epoca']} · prova {i + 1}/{len(prompt)} · {t}")
                     l.registra_workflow(wf)
@@ -544,11 +595,32 @@ async def scegli(pid: str, cid: str, dati: Scegli, req: Request):
     e = next((x for x in ad.file_epoche(uscita, pers.trigger) if x["epoca"] == dati.epoca), None)
     if not e:
         raise HTTPException(404, f"L'epoca {dati.epoca} non esiste.")
+    s = a.stato(pid, cid)
+    ultimo = s.addestramenti[-1] if s.addestramenti else None
+    punteggio = (s.test.get(str(dati.epoca)) or {}).get("punteggio")
+    v = await salva_versione(app, a, pid, cid, pers, uscita / e["file"], dati.epoca, automatica=False,
+                             addestramento=ultimo.inizio if ultimo else None,
+                             parametri=ultimo.parametri if ultimo else {}, punteggio=punteggio, usa=True)
     cartella_lora = ad.cartella_lora_comfy(app.comfy.cartella or app.impostazioni.valori.comfy_dir)
-    dest = cartella_lora / f"{pers.trigger}.safetensors"
-    await asyncio.to_thread(shutil.copy2, uscita / e["file"], dest)
     for prova_vecchia in cartella_lora.glob(f"test_{pers.trigger}-*.safetensors"):
         prova_vecchia.unlink(missing_ok=True)
+    app.bus.log(f"LoRA di {pers.nome} pronto: epoca {dati.epoca} → {v.file} (versione {v.versione})", "ok")
+    return a.stato(pid, cid).model_dump()
+
+
+async def salva_versione(app, a, pid: str, cid: str, pers, sorgente: Path, epoca: int | None, *, automatica: bool,
+                         addestramento: float | None, parametri: dict, punteggio: float | None = None,
+                         usa: bool = True) -> ad.VersioneLora:
+    """Copia un'epoca in ComfyUI come nuova versione del LoRA (<trigger>_v<n>.safetensors): le versioni di prima
+    restano, così si può tornare indietro."""
+    cartella_lora = ad.cartella_lora_comfy(app.comfy.cartella or app.impostazioni.valori.comfy_dir)
+    s = a.stato(pid, cid)
+    n = max((v.versione for v in s.storico), default=0) + 1
+    dest = cartella_lora / f"{pers.trigger}_v{n}.safetensors"
+    while dest.exists():
+        n += 1
+        dest = cartella_lora / f"{pers.trigger}_v{n}.safetensors"
+    await asyncio.to_thread(shutil.copy2, sorgente, dest)
     nome = f"comic_studio/{dest.name}"
     if app.comfy.connesso:
         try:
@@ -556,11 +628,54 @@ async def scegli(pid: str, cid: str, dati: Scegli, req: Request):
                 nome = await _nome_lora(client, dest.name)
         except ComfyErrore:
             pass
+    v = ad.VersioneLora(versione=n, file=nome, nome_file=dest.name, epoca=epoca, punteggio=punteggio,
+                        addestramento=addestramento, parametri=parametri, automatica=automatica)
     s = a.stato(pid, cid)
-    s.lora_finale, s.epoca_finale, s.origine = nome, dati.epoca, "addestrato"
+    s.storico.append(v)
+    if usa:
+        s.lora_finale, s.epoca_finale, s.origine = nome, epoca, "addestrato"
     a.salva_stato(pid, cid, s)
-    app.bus.log(f"LoRA di {pers.nome} pronto: epoca {dati.epoca} → {nome}", "ok")
-    return s.model_dump()
+    app.bus.pubblica({"tipo": "addestramento", "progetto": pid, "personaggio": cid, "epoche_cambiate": True})
+    return v
+
+
+@rotte.post("/storico/{versione}/usa")
+async def usa_versione(pid: str, cid: str, versione: int, req: Request):
+    """Torna a una versione precedente del LoRA: è quella che useranno il fumetto e le trasformazioni."""
+    app = _app(req)
+    a = _arch(req)
+    s = a.stato(pid, cid)
+    v = next((x for x in s.storico if x.versione == versione), None)
+    if not v:
+        raise HTTPException(404, f"La versione {versione} non c'è.")
+    f = ad.cartella_lora_comfy(app.comfy.cartella or app.impostazioni.valori.comfy_dir) / v.nome_file
+    if not f.exists():
+        raise HTTPException(409, f"Il file {v.nome_file} non c'è più nella cartella dei LoRA di ComfyUI.")
+    s.lora_finale, s.epoca_finale, s.origine = v.file, v.epoca, "addestrato"
+    a.salva_stato(pid, cid, s)
+    app.bus.log(f"LoRA in uso: versione {versione} ({v.file})", "ok")
+    return await asyncio.to_thread(_riassunto, req, pid, cid)
+
+
+@rotte.delete("/storico/{versione}")
+async def elimina_versione(pid: str, cid: str, versione: int, req: Request):
+    """Sposta nel cestino una versione del LoRA (non quella in uso)."""
+    app = _app(req)
+    a = _arch(req)
+    s = a.stato(pid, cid)
+    v = next((x for x in s.storico if x.versione == versione), None)
+    if not v:
+        raise HTTPException(404, f"La versione {versione} non c'è.")
+    if v.file == s.lora_finale:
+        raise HTTPException(409, "È la versione in uso: scegline prima un'altra.")
+    f = ad.cartella_lora_comfy(app.comfy.cartella or app.impostazioni.valori.comfy_dir) / v.nome_file
+    if f.exists():
+        cestino = app.progetti.radice / ".cestino"
+        cestino.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(f), str(cestino / f"{pid}-{cid}-{int(time.time())}-{v.nome_file}"))
+    s.storico = [x for x in s.storico if x.versione != versione]
+    a.salva_stato(pid, cid, s)
+    return await asyncio.to_thread(_riassunto, req, pid, cid)
 
 
 class Esistente(BaseModel):

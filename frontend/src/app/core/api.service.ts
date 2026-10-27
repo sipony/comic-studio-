@@ -320,6 +320,12 @@ export class ApiService {
     return this.post<StatoAddestramento>(`${this.da(progetto, pers)}/esistente`, { lora });
   }
   urlTest(progetto: string, pers: string, file: string) { return `${this.da(progetto, pers)}/test/${file}`; }
+  usaVersioneLora(progetto: string, pers: string, versione: number) {
+    return this.post<RiassuntoAddestramento>(`${this.da(progetto, pers)}/storico/${versione}/usa`);
+  }
+  async eliminaVersioneLora(progetto: string, pers: string, versione: number) {
+    return this.chiama(firstValueFrom(this.http.delete<RiassuntoAddestramento>(`${this.da(progetto, pers)}/storico/${versione}`)));
+  }
 
   // ------------------------------------------------------------ Step 4: fumetto
   private df(progetto: string) { return `/api/progetti/${progetto}/fumetto`; }

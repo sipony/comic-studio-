@@ -543,8 +543,10 @@ def per_invio(wf: dict) -> dict:
 
 def workflow_test_lora(checkpoint: str, lora: str, positivo: str, negativo: str, seme: int,
                        larghezza: int = 832, altezza: int = 1216, forza: float = 0.85, passi: int = 28,
-                       cfg: float = 6.0, sampler: str = "euler_ancestral", scheduler: str = "karras") -> tuple[dict, str]:
-    """Workflow minimo per provare un LoRA: restituisce (workflow, id del nodo SaveImage)."""
+                       cfg: float = 6.0, sampler: str = "euler_ancestral", scheduler: str = "karras",
+                       lora_stile: str | None = None, forza_stile: float = 0.8) -> tuple[dict, str]:
+    """Workflow minimo per provare un LoRA: restituisce (workflow, id del nodo SaveImage). Con `lora_stile` prima del
+    LoRA del personaggio c'è la LoRA di stile usata per il dataset, così la prova ha lo stesso disegno."""
     wf = {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
         "2": {"class_type": "LoraLoader", "inputs": {"model": ["1", 0], "clip": ["1", 1], "lora_name": lora,
@@ -558,5 +560,9 @@ def workflow_test_lora(checkpoint: str, lora: str, positivo: str, negativo: str,
         "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["1", 2]}},
         "8": {"class_type": "SaveImage", "inputs": {"images": ["7", 0], "filename_prefix": "comic_studio/test_lora"}},
     }
+    if lora_stile:
+        wf["9"] = {"class_type": "LoraLoader", "inputs": {"model": ["1", 0], "clip": ["1", 1], "lora_name": lora_stile,
+                                                          "strength_model": forza_stile, "strength_clip": forza_stile}}
+        wf["2"]["inputs"]["model"], wf["2"]["inputs"]["clip"] = ["9", 0], ["9", 1]
     return wf, "8"
 

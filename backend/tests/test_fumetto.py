@@ -148,3 +148,18 @@ def test_flusso_fumetto(casa, finto_comfy, cartella_comfy):
         assert r.content[:4] == b"%PDF"
         z = zipfile.ZipFile(io.BytesIO(c.get(f"{base}/esporta?formato=zip").content))
         assert z.namelist() == ["storia_pagina_01.png"]
+
+
+def test_fumetto_nuovo_con_lo_stile_dei_personaggi(tmp_path):
+    """Un fumetto nuovo parte dal checkpoint, dalla LoRA di stile e dai tag di stile delle proposte dei personaggi."""
+    from app.projects import Archivio as ArchivioProgetti, ModificaPersonaggio, NuovoPersonaggio
+    pr = ArchivioProgetti(tmp_path)
+    pid = pr.crea("Fumetto").id
+    c = pr.aggiungi_personaggio(pid, NuovoPersonaggio(nome="Ada"))
+    assert fm.ArchivioFumetto(pr).leggi(pid).impostazioni.lora_stile is None
+    pr.modifica_personaggio(pid, c.id, ModificaPersonaggio(origine={
+        "checkpoint": "wai.safetensors", "lora_stile": "KonicsXL_Style.safetensors", "forza_lora": 0.8,
+        "stile": "western comics"}))
+    imp = fm.ArchivioFumetto(pr).leggi(pid).impostazioni
+    assert (imp.checkpoint, imp.lora_stile, imp.forza_stile) == ("wai.safetensors", "KonicsXL_Style.safetensors", 0.8)
+    assert imp.positivo == "{qualita}, western comics"

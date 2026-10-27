@@ -116,7 +116,7 @@ def attendi(c, lid):
     raise AssertionError("lavoro bloccato")
 
 
-def test_flusso_addestramento(ambiente, monkeypatch):
+def test_flusso_addestramento(ambiente, monkeypatch, finto_comfy):
     c, p, stato, comfy = ambiente
     base = f"/api/progetti/{p}/personaggi/agente/addestramento"
     r = c.get(base).json()
@@ -136,23 +136,47 @@ def test_flusso_addestramento(ambiente, monkeypatch):
     assert [e["epoca"] for e in r["epoche"]] == [1, 2, 3, 4]
     assert len(r["loss"]) >= 10 and r["loss"][0][1] > r["loss"][-1][1]
     assert r["stato"]["ultimo_esito"] == "completato"
+    # a fine addestramento il LoRA c'è già: l'ultima epoca, versione 1, in uso
+    assert [(v["versione"], v["epoca"], v["automatica"], v["in_uso"], v["esiste"]) for v in r["storico"]] == \
+        [(1, 4, True, True, True)]
+    assert r["stato"]["lora_finale"] == "comic_studio/vglcop_v1.safetensors"
+    assert r["stato"]["addestramenti"][-1]["esito"] == "completato"
+    assert r["stato"]["addestramenti"][-1]["parametri"]["rank"] == 32
     cartella = stato.progetti.cartella_personaggio(p, "agente") / "addestramento"
     assert sorted(f.name for f in (cartella / "dataset").iterdir())[:2] == ["0001.png", "0001.txt"]
     assert "--dataset_config" in (cartella / "comando.txt").read_text()
     log = [x["msg"] for x in c.get("/api/log").json()]
     assert any("Salvata l'epoca" in m for m in log) and not any("steps:" in m for m in log)
 
+    # la prova usa lo stesso disegno del dataset: LoRA e tag di stile delle proposte da cui è nato il personaggio
+    from app.projects import ModificaPersonaggio
+    stato.progetti.modifica_personaggio(p, "agente", ModificaPersonaggio(origine={
+        "checkpoint": "ck0.safetensors", "lora_stile": "KonicsXL_Style.safetensors", "forza_lora": 0.8,
+        "stile": "western comics (style)"}))
     l = attendi(c, c.post(f"{base}/prova", json={"epoche": [2, 4]}).json()["id"])
     assert l["stato"] == "completato", l["errore"]
+    w = finto_comfy.ricevuti[-1]
+    assert w["9"]["inputs"]["lora_name"] == "KonicsXL_Style.safetensors" and w["2"]["inputs"]["model"] == ["9", 0]
+    assert w["3"]["inputs"]["text"].endswith("western comics (style)") and "vglcop" in w["3"]["inputs"]["text"]
     test = c.get(base).json()["stato"]["test"]
     assert set(test) == {"2", "4"} and len(test["2"]["immagini"]) == 3 and test["2"]["punteggio"] is not None
     assert c.get(f"{base}/test/{test['2']['immagini'][0]}").headers["content-type"] == "image/png"
     assert (comfy / "models" / "loras" / "comic_studio" / "test_vglcop-002.safetensors").exists()
 
     s = c.post(f"{base}/scegli", json={"epoca": 2}).json()
-    assert s["lora_finale"] == "comic_studio/vglcop.safetensors" and s["epoca_finale"] == 2
-    assert (comfy / "models" / "loras" / "comic_studio" / "vglcop.safetensors").exists()
-    assert not list((comfy / "models" / "loras" / "comic_studio").glob("test_*"))
+    assert s["lora_finale"] == "comic_studio/vglcop_v2.safetensors" and s["epoca_finale"] == 2
+    loras = comfy / "models" / "loras" / "comic_studio"
+    assert (loras / "vglcop_v2.safetensors").exists() and (loras / "vglcop_v1.safetensors").exists()
+    assert not list(loras.glob("test_*"))
+    r = c.get(base).json()
+    assert [(v["versione"], v["in_uso"]) for v in r["storico"]] == [(2, True), (1, False)]
+    assert r["storico"][0]["punteggio"] is not None
+    # si torna alla versione 1; quella in uso non si elimina; la 2 va nel cestino
+    assert c.delete(f"{base}/storico/2").status_code == 409
+    r = c.post(f"{base}/storico/1/usa").json()
+    assert r["stato"]["lora_finale"] == "comic_studio/vglcop_v1.safetensors" and r["stato"]["epoca_finale"] == 4
+    r = c.delete(f"{base}/storico/2").json()
+    assert [v["versione"] for v in r["storico"]] == [1] and not (loras / "vglcop_v2.safetensors").exists()
 
     s = c.post(f"{base}/esistente", json={"lora": "altro/mio.safetensors"}).json()
     assert s["origine"] == "esistente" and s["lora_finale"] == "altro/mio.safetensors"
@@ -161,7 +185,9 @@ def test_flusso_addestramento(ambiente, monkeypatch):
     monkeypatch.setenv("FINTO_KOHYA_ERRORE", "oom")
     l = attendi(c, c.post(f"{base}/avvia").json()["id"])
     assert l["stato"] == "errore" and "Memoria della scheda video" in l["errore"]
-    assert c.get(base).json()["epoche"] == []
+    r = c.get(base).json()
+    assert r["epoche"] == [] and r["stato"]["addestramenti"][-1]["esito"] == "errore"
+    assert [v["versione"] for v in r["storico"]] == [1]                  # lo storico resta
 
 
 def test_senza_kohya(casa, monkeypatch):

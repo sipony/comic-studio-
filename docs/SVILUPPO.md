@@ -39,9 +39,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 25 | «Stessa persona, come le proposte»: il dataset nasce come le proposte (stesso workflow senza IPAdapter, prompt nello stesso ordine, stesse dimensioni, sfondo bianco), cambiano solo posa, angolazione ed espressione; aspetto del riferimento dal tagger | ✅ unita |
 | 26 | «Ho già il prompt»: proposte con positivo e negativo dell'utente parola per parola; il dataset li riusa con i tag di inquadratura, posa, angolazione, espressione e sfondo al posto delle varianti | ✅ unita |
 | 27 | Trasformazioni del personaggio (stato A → stato B, es. il prete che diventa mostro): sequenza di fotogrammi con prompt che scivola da A a B, LoRA della trasformazione che sale, stesso seme; GIF; personaggio «stato B» con il suo dataset | ✅ unita |
-| 28 | LoRA che somiglia: didascalie senza i tratti del personaggio (anche detti con meno parole, l'aspetto del riferimento, quelli ricorrenti), preset «8 GB» che impara abbastanza (Adafactor 4e-4), prompt di prova con la trigger e in inglese | ✅ questa PR |
-| 29 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 30 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 28 | LoRA che somiglia: didascalie senza i tratti del personaggio (anche detti con meno parole, l'aspetto del riferimento, quelli ricorrenti), preset «8 GB» che impara abbastanza (Adafactor 4e-4), prompt di prova con la trigger e in inglese | ✅ unita |
+| 29 | Prova delle epoche e fumetto con lo stile del dataset (LoRA e tag di stile delle proposte); storico dei LoRA: ogni addestramento salva da solo l'ultima epoca come nuova versione, le versioni restano, si torna indietro; registro degli addestramenti | ✅ questa PR |
+| 30 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 31 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -1126,5 +1127,37 @@ Collaudo dell'utente: 62 immagini tenute (la stessa ragazza bionda in divisa azz
   didascalie aggiornati (i ricorrenti escono da soli, con `togli_ricorrenti` spento restano «suggeriti»),
   `test_prompt_di_prova_e_preset_8gb`
 
-Prossimo passo: PR 29, la vignetta «Trasformazione» nel fumetto, pose guidate nelle scene di gruppo e costruttore di
+Prossimo passo: PR 29, stile nelle prove e storico dei LoRA.
+
+## PR 29 — Stile nelle prove, storico dei LoRA
+
+Collaudo dell'utente con la 0.27: il LoRA ora somiglia (bionda, divisa azzurra), ma la prova dell'epoca 10 ha il viso
+anime e non lo stile «western comics» delle proposte. E: «dopo l'addestramento mi aspetto la creazione di un file
+LoRA, e deve essere visibile uno storico dei file generati nel tempo».
+
+**Stile.** Il dataset nasce con la LoRA di stile (KonicsXL 0,8) e i tag di stile delle proposte; la prova delle epoche
+invece usava solo il LoRA del personaggio e il prompt di prova, e il fumetto partiva da impostazioni predefinite. Il
+LoRA del personaggio (rank 16, solo UNet) impara soprattutto il personaggio: lo stile va dato come nel dataset.
+- `workflow_test_lora(…, lora_stile, forza_stile)`: Checkpoint → LoRA di stile → LoRA del personaggio
+- la prova usa la LoRA di stile e i tag di stile delle proposte da cui è nato il personaggio (`origine`, o lo stile del
+  dataset), aggiunti in fondo al prompt se non ci sono; nella console «Prova con lo stile del dataset: …»
+- fumetto nuovo: checkpoint, LoRA di stile con la forza e tag di stile dalle proposte dei personaggi
+
+**Storico dei LoRA.**
+- a fine addestramento l'ultima epoca va da sola in ComfyUI come nuova versione
+  (`models/loras/comic_studio/<trigger>_v<n>.safetensors`), in uso se non ce n'era un'altra
+- «Usa questa» nella prova aggiunge una versione (con la somiglianza misurata) invece di sovrascrivere
+  `<trigger>.safetensors`; le versioni di prima restano
+- `StatoAddestramento.storico` (versione, file, epoca, data, somiglianza, parametri dell'addestramento, automatica) e
+  `addestramenti` (registro: inizio, durata, esito, epoche salvate, parametri), anche per errori e annullamenti
+- `POST …/storico/{v}/usa` torna a una versione, `DELETE …/storico/{v}` la sposta nel cestino (non quella in uso);
+  il LoRA scelto con le versioni di prima diventa la prima voce dello storico
+- interfaccia: tabella «Storico dei LoRA» (in uso, automatica, data, epoca, somiglianza, parametri, file e peso,
+  «non c'è più» se il file è stato tolto da ComfyUI) e «Addestramenti fatti»
+- Versione 0.28.0
+- **Test**: `test_flusso_addestramento` (versione automatica a fine addestramento, «Usa questa» che aggiunge la v2,
+  ritorno alla v1, la versione in uso non si elimina, registro con l'errore, prova con LoRA e tag di stile),
+  `test_fumetto_nuovo_con_lo_stile_dei_personaggi`. Collaudo con Chromium della tabella
+
+Prossimo passo: PR 30, la vignetta «Trasformazione» nel fumetto, pose guidate nelle scene di gruppo e costruttore di
 workflow.

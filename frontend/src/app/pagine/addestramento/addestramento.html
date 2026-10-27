@@ -275,6 +275,51 @@
             <p class="nota">La consigliata è la prima epoca che somiglia quasi quanto la migliore: le ultime tendono a «cuocere» il LoRA, che poi rifà sempre le stesse pose e gli stessi sfondi.</p>
           }
 
+          @if (d.storico?.length) {
+            <div class="storico">
+              <h3><mat-icon>history</mat-icon> Storico dei LoRA di questo personaggio</h3>
+              <p class="nota">Ogni addestramento salva da solo l'ultima epoca in ComfyUI (models/loras/comic_studio) e ogni
+                «Usa questa» ne aggiunge un'altra: le versioni di prima restano, così puoi confrontarle e tornare indietro.
+                Quella «in uso» è quella del fumetto e delle trasformazioni.</p>
+              <table>
+                <thead><tr><th>Versione</th><th>Creata</th><th>Epoca</th><th>Somiglianza</th><th>Addestramento</th><th>File</th><th></th></tr></thead>
+                <tbody>
+                  @for (v of d.storico; track v.versione) {
+                    <tr [class.in-uso]="v.in_uso" [class.mancante]="v.esiste === false">
+                      <td><strong>v{{ v.versione }}</strong>
+                        @if (v.in_uso) { <span class="badge">in uso</span> }
+                        @if (v.automatica) { <span class="nota">automatica</span> }</td>
+                      <td>{{ data(v.creato) }}</td>
+                      <td>{{ v.epoca ?? '—' }}</td>
+                      <td>{{ v.punteggio !== null ? (v.punteggio | number: '1.3-3') : '—' }}</td>
+                      <td class="nota">{{ parametri(v.parametri) || v.nota }}</td>
+                      <td class="file" [matTooltip]="v.file">{{ v.nome_file }}
+                        @if (v.byte) { <span class="nota">· {{ mb(v.byte) }} MB</span> }
+                        @if (v.esiste === false) { <span class="errore">non c'è più</span> }</td>
+                      <td class="azioni">
+                        @if (!v.in_uso) {
+                          <button mat-button (click)="usaVersione(v)" [disabled]="v.esiste === false">Usa</button>
+                          <button mat-icon-button (click)="eliminaVersione(v)" matTooltip="Sposta nel cestino" aria-label="Elimina"><mat-icon>delete</mat-icon></button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          @if (d.stato.addestramenti?.length) {
+            <details class="registro">
+              <summary>Addestramenti fatti ({{ d.stato.addestramenti!.length }})</summary>
+              <ul>
+                @for (r of d.stato.addestramenti!.slice().reverse(); track r.inizio) {
+                  <li><strong>{{ data(r.inizio) }}</strong> · {{ r.esito }} · {{ durata(r.durata) }} ·
+                    {{ r.epoche_salvate }} epoche · <span class="nota">{{ parametri(r.parametri) }}</span></li>
+                }
+              </ul>
+            </details>
+          }
+
           <div class="esistente">
             <mat-form-field>
               <mat-label>Oppure usa un LoRA già addestrato</mat-label>

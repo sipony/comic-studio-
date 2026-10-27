@@ -481,11 +481,38 @@ export interface StatoAddestramento {
   ultimo_esito: string | null;
   test: Record<string, { immagini: string[]; punteggio: number | null }>;
   prompt_test: string[];
+  addestramenti?: RegistroAddestramento[];
+}
+
+export interface RegistroAddestramento {
+  inizio: number;
+  durata: number | null;
+  esito: string;
+  epoche_salvate: number;
+  parametri: Record<string, unknown>;
+}
+
+/** Una versione del LoRA del personaggio salvata in ComfyUI (lo storico non si sovrascrive). */
+export interface VersioneLora {
+  versione: number;
+  file: string;
+  nome_file: string;
+  epoca: number | null;
+  creato: number;
+  punteggio: number | null;
+  addestramento: number | null;
+  parametri: Record<string, unknown>;
+  automatica: boolean;
+  nota: string;
+  in_uso: boolean;
+  esiste: boolean | null;
+  byte: number | null;
 }
 
 export interface RiassuntoAddestramento {
   config: ConfigAddestramento;
   stato: StatoAddestramento;
+  storico?: VersioneLora[];
   epoche: EpocaLora[];
   loss: [number, number][];
   immagini: number;

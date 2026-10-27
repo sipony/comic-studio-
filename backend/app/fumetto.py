@@ -113,7 +113,21 @@ class ArchivioFumetto:
         try:
             return Fumetto.model_validate_json((self.cartella(pid) / "fumetto.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return Fumetto()
+            return Fumetto(impostazioni=self.impostazioni_dai_personaggi(pid))
+
+    def impostazioni_dai_personaggi(self, pid: str) -> Impostazioni:
+        """Per un fumetto nuovo: checkpoint, LoRA di stile e tag di stile delle proposte da cui sono nati i personaggi
+        (lo stesso disegno del loro dataset e quindi dei loro LoRA)."""
+        imp = Impostazioni()
+        origine = next((p.origine for p in self.progetti.leggi(pid).personaggi
+                        if p.origine and p.origine.get("checkpoint")), None)
+        if origine:
+            imp.checkpoint = origine["checkpoint"]
+            if origine.get("lora_stile"):
+                imp.lora_stile, imp.forza_stile = origine["lora_stile"], origine.get("forza_lora", 0.8)
+            if (origine.get("stile") or "").strip():
+                imp.positivo = "{qualita}, " + origine["stile"].strip()
+        return imp
 
     def salva(self, pid: str, f: Fumetto) -> Fumetto:
         self.progetti.leggi(pid)
