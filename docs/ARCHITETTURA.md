@@ -45,6 +45,8 @@ backend/app/
   proposte.py             personaggio dal nulla: proposte d'immagine di riferimento dal testo
   grafo.py                workflow mandato a ComfyUI: riassunto per i log e grafo da disegnare
   coerenza.py             dataset confrontato con la proposta da cui è nato il personaggio
+  trasformazioni.py       trasformazioni del personaggio (stato A → stato B): definizioni, sequenza, GIF
+  rotte_trasformazioni.py API delle trasformazioni
   pose.py                 pose guidate: scheletri OpenPose (18 punti) da poche misure, specchiati, tagliati per
                           inquadratura, disegnati come i preprocessori di ControlNet
   ritocchi.py             impostazioni dei nodi cambiate dal grafo: cosa si può cambiare e dove si salva
@@ -95,6 +97,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
       personaggi/<id>/riferimento.png
       personaggi/<id>/proposte/          proposte generate dal testo (proposte.json con la ricetta di ognuna + png)
         workflow/<proposta>.json     il workflow mandato a ComfyUI per quella proposta (dalla 0.23)
+      personaggi/<id>/trasformazioni/    trasformazioni.json; <id>/01.png …, <id>/workflow/01.json …
       personaggi/<id>/dataset/
         config.json                  workflow, ruoli, prompt, varianti, parametri dei nodi, quantità
         immagini.json                variante, prompt, seme, stato (tenuta/scartata), punteggio
@@ -145,6 +148,13 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | POST | `/api/progetti/{p}/personaggi/{c}/tratti` | `{storia}` ricava i tratti fissi dalla descrizione (lavoro) |
 | POST | `…/fumetto/vignette/{v}/analizza` | descrizione → analisi → prompt (lavoro) |
 | GET | `…/fumetto/vignette/{v}/prompt` | il prompt dall'ultima analisi e se è ancora valida |
+| GET / POST | `…/personaggi/{c}/trasformazioni` | elenco / nuova trasformazione `{nome, tag_b, togli, negativo_b, lora, forza_lora, passi, inizio, fine}` |
+| PUT / DELETE | `…/trasformazioni/{id}` | modifica / nel cestino con i fotogrammi |
+| POST | `…/trasformazioni/anteprima` | `{definizione, checkpoint}`: prompt e negativo di A e B, t e denoise di ogni fotogramma |
+| POST | `…/trasformazioni/{id}/genera` | `{nuovo_seme, seme, checkpoint}`: la sequenza A → B (lavoro `trasformazione`) |
+| GET | `…/trasformazioni/{id}/fotogrammi/{nn}.png` (e `/workflow`) | fotogramma e il suo grafo |
+| GET | `…/trasformazioni/{id}/gif` | la sequenza come GIF animata |
+| POST | `…/trasformazioni/{id}/personaggio` | `{fotogramma}`: personaggio a sé per lo stato B, con il dataset pronto |
 | GET | `/api/pose` | libreria delle pose guidate (anche specchiate) e tagli |
 | GET | `/api/pose/{id}/scheletro` | `?larghezza&altezza&taglio=intera\|tre_quarti\|mezzo_busto\|primo_piano`: PNG dello scheletro OpenPose |
 | GET | `/api/componenti` | `?gruppo=ipadapter` (predefinito) o `pose` (ControlNet OpenPose): componenti mancanti con il peso, spazio per disco (`basta_spazio`, `messaggio_spazio`), `chiedi` |

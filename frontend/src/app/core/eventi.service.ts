@@ -21,6 +21,7 @@ export class EventiService {
   /** IPAdapter Plus: cosa manca (controllato all'apertura e dopo ogni installazione) */
   readonly componenti = signal<StatoComponenti | null>(null);
   readonly proposte = signal<{ progetto: string; personaggio: string } | null>(null, { equal: () => false });
+  readonly trasformazioni = signal<{ progetto: string; personaggio: string } | null>(null, { equal: () => false });
   readonly log = signal<RigaLog[]>([]);
   readonly lavori = signal<Record<string, Lavoro>>({});
   readonly comfy = signal<StatoComfy | null>(null);
@@ -127,6 +128,9 @@ export class EventiService {
         break;
       case 'kohya':
         this.kohya.update((n) => n + 1);
+        break;
+      case 'trasformazioni':
+        this.trasformazioni.set({ progetto: e.progetto, personaggio: e.personaggio });
         break;
       case 'proposte':
       case 'personaggi':

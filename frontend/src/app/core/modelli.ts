@@ -174,6 +174,7 @@ export type Evento =
   | { tipo: 'chiusura'; ts: number }
   | { tipo: 'ia'; dati: StatoIA; ts: number }
   | { tipo: 'proposte'; progetto: string; personaggio: string; ts: number }
+  | { tipo: 'trasformazioni'; progetto: string; personaggio: string; ts: number }
   | { tipo: 'anteprima'; lavoro: string; n: number; finale: boolean; ts: number }
   | { tipo: 'personaggi'; progetto: string; personaggio: string; ts: number };
 
@@ -904,4 +905,37 @@ export interface ConfrontoDataset {
   workflow: { uguale: boolean | null; riferimento: boolean | null; senza_riferimento?: boolean; differenze: string[] };
   righe: { voce: string; proposte: string; dataset: string; uguale: boolean | null; nota: string }[];
   coerente: boolean;
+}
+
+// ------------------------------------------------------------ trasformazioni (stato A → stato B)
+
+export interface DefinizioneTrasformazione {
+  nome: string;
+  tag_b: string;
+  togli: string;
+  negativo_b: string;
+  lora: string | null;
+  forza_lora: number;
+  passi: number;
+  inizio: number;
+  fine: number;
+}
+
+export interface FotogrammaTrasformazione { file: string; t: number; denoise: number; seme: number; prompt_b: string }
+
+export interface Trasformazione extends DefinizioneTrasformazione {
+  id: string;
+  creato: number;
+  fotogrammi: FotogrammaTrasformazione[];
+  seme: number | null;
+}
+
+export interface AnteprimaTrasformazione {
+  errore?: string;
+  checkpoint?: string;
+  prompt_a?: string;
+  negativo_a?: string;
+  prompt_b?: string;
+  negativo_b?: string;
+  fotogrammi?: { t: number; denoise: number }[];
 }

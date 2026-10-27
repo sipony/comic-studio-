@@ -49,6 +49,12 @@ export class PersonaggiPage {
     this.aggiorna({ ...this.progetto(), personaggi: this.progetto().personaggi.map((x) => (x.id === c.id ? c : x)) });
   }
 
+  protected aggiunto(c: Personaggio) {
+    if (!this.progetto().personaggi.some((x) => x.id === c.id)) {
+      this.aggiorna({ ...this.progetto(), personaggi: [...this.progetto().personaggi, c] });
+    }
+  }
+
   protected eliminato(id: string) {
     this.aggiorna({ ...this.progetto(), personaggi: this.progetto().personaggi.filter((x) => x.id !== id) });
   }
