@@ -715,6 +715,8 @@ export interface ConfigProposte {
   forza_lora?: number;
   forza_variante?: number;
   da?: string | null;
+  /** «Ho già il prompt»: il positivo usato così com'è */
+  positivo?: string | null;
 }
 
 /** Come è stata generata una proposta: il dataset riparte dalle stesse scelte. */
@@ -731,6 +733,7 @@ export interface RicettaProposta {
   scheduler: string;
   inquadratura: string;
   forza_variante?: number;
+  positivo?: string | null;
 }
 
 export interface AnteprimaPromptProposte {
@@ -738,6 +741,7 @@ export interface AnteprimaPromptProposte {
   negativo: string | null;
   famiglia: string;
   nota: string | null;
+  proprio?: boolean;
 }
 
 /** Le scelte delle proposte da cui viene il riferimento, viste dal dataset. */

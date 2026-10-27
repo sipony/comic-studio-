@@ -7,6 +7,7 @@ l'immagine di riferimento per il dataset. Da una proposta si possono chiedere va
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from pathlib import Path
@@ -36,8 +37,77 @@ PARTE_VARIABILE = {t.strip().lower() for t in BASE.split(",") if t.strip() != "s
     {t.strip().lower() for v in TAG_INQUADRATURA.values() for t in v.split(",")}
 
 
+# ---------------------------------------------------------------- prompt proprio («Ho già il prompt»)
+
+# tag che descrivono inquadratura, posa, angolazione, espressione o sfondo: nel dataset diventano le varianti
+_VARIABILE = re.compile(
+    r"^(full body|upper body|lower body|cowboy shot|portrait|close-?up|half body|wide shot|medium shot|"
+    r"front view|from (side|behind|above|below|front)|three-quarter view|side view|back view|profile|dutch angle|"
+    r"standing|sitting|kneeling|squatting|lying|walking|running|jumping|leaning.*|contrapposto|"
+    r"hands? on (own )?hips?|arms? crossed|crossed arms|arms? up|arms? behind (back|head)|waving|pointing.*|"
+    r"hand up|legs? crossed|crossed legs|"
+    r"smil(e|ing)|light smile|grin|neutral expression|expressionless|serious|angry|sad|happy|surprised|"
+    r"open mouth|closed mouth|blush|laughing|frown(ing)?|"
+    r".*\bbackground|outdoors|indoors|city.*|street.*|night|sky|beach|forest|scenery|bedroom|classroom|office)$")
+
+
+def nucleo(t: str) -> str:
+    """Il tag senza peso né parentesi: «(full body:1.2)» → «full body»."""
+    t = t.strip().lower()
+    t = re.sub(r"^[\(\[\{]+|[\)\]\}]+$", "", t)
+    t = re.sub(r":\s*[\d.]+$", "", t)
+    return re.sub(r"\s+", " ", t.replace("_", " ")).strip()
+
+
+def e_variabile(t: str) -> bool:
+    return bool(_VARIABILE.match(nucleo(t)))
+
+
+def dividi_tag(testo: str) -> list[str]:
+    """I tag separati dalle virgole fuori dalle parentesi («(a, b:1.2)» resta un tag solo)."""
+    out, cur, livello = [], "", 0
+    for ch in testo.replace("\n", ","):
+        if ch in "([{":
+            livello += 1
+        elif ch in ")]}":
+            livello = max(0, livello - 1)
+        if ch == "," and livello == 0:
+            out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    out.append(cur)
+    return [x.strip() for x in out if x.strip()]
+
+
+def controlla_prompt_proprio(testo: str):
+    if re.search(r"<\s*(lora|lyco|hypernet)\s*:", testo, re.I):
+        raise ErroreProgetto("Nel prompt c'è una LoRA scritta alla maniera di A1111 (<lora:…>): in ComfyUI quel testo "
+                             "non fa niente. Toglila dal prompt e sceglila in «LoRA di stile».")
+
+
+def modello_da_prompt_proprio(positivo: str) -> str:
+    """Il modello del dataset dal prompt dell'utente: i tag di inquadratura, posa, angolazione, espressione e sfondo
+    diventano le varianti, nello stesso punto; prima ci va l'aspetto del riferimento. Il resto resta identico."""
+    tags = dividi_tag(positivo)
+    blocco = "{aspetto}, {inquadratura}, {posa}, {angolazione}, {espressione}, {sfondo}"
+    out, messo = [], False
+    for t in tags:
+        if e_variabile(t):
+            if not messo:
+                out.append(blocco)
+                messo = True
+        else:
+            out.append(t)
+    if not messo:
+        out.append(blocco)
+    return ", ".join(out)
+
+
 def modello_dataset(ricetta: dict) -> tuple[str, str]:
     """I modelli del prompt positivo e negativo del dataset, ricavati dalla ricetta delle proposte."""
+    if (ricetta.get("positivo") or "").strip():
+        return modello_da_prompt_proprio(ricetta["positivo"]), ricetta.get("negativo") or NEGATIVO
     extra = pulisci(ricetta.get("extra") or "")
     positivo = "{qualita}, {genere}, solo, {descrizione}" + (f", {extra}" if extra else "") + ", {variante}, {stile}"
     return positivo, ricetta.get("negativo") or NEGATIVO
@@ -61,6 +131,8 @@ class ConfigProposte(BaseModel):
     forza_lora: float = Field(0.8, ge=0, le=2)
     da: str | None = None               # file di una proposta: varianti di quella
     forza_variante: float = Field(0.55, ge=0.1, le=1.0)
+    # «Ho già il prompt»: il positivo usato così com'è (al posto di qualità + tratti + base + inquadratura + stile)
+    positivo: str | None = Field(default=None, max_length=8000)
 
 
 class Ricetta(BaseModel):
@@ -78,6 +150,7 @@ class Ricetta(BaseModel):
     scheduler: str = "karras"
     inquadratura: str = "mezzo_busto"
     forza_variante: float = 0.55        # denoise delle varianti (img2img da una proposta)
+    positivo: str | None = None         # prompt dell'utente usato così com'è («Ho già il prompt»)
 
 
 def ricetta_da(c: ConfigProposte) -> Ricetta:
@@ -85,7 +158,7 @@ def ricetta_da(c: ConfigProposte) -> Ricetta:
                    stile=pulisci(c.stile), extra=pulisci(c.extra),
                    negativo=None if pulisci(c.negativo) == pulisci(NEGATIVO) else c.negativo, passi=c.passi,
                    cfg=c.cfg, sampler=c.sampler, scheduler=c.scheduler, inquadratura=c.inquadratura,
-                   forza_variante=c.forza_variante)
+                   forza_variante=c.forza_variante, positivo=(c.positivo or "").strip() or None)
 
 
 class Proposta(BaseModel):
@@ -103,11 +176,14 @@ def pulisci(t: str) -> str:
 
 
 def prompt_proposta(p: Personaggio, c: ConfigProposte, qualita: tuple[str, str]) -> tuple[str, str]:
+    negativo = pulisci(c.negativo.replace("{negativo_qualita}", qualita[1]))
+    if (c.positivo or "").strip():
+        controlla_prompt_proprio(c.positivo)
+        return ", ".join(dividi_tag(c.positivo)), negativo
     if not p.descrizione.strip():
         raise ErroreProgetto(f"{p.nome} non ha ancora i tratti: scrivi la descrizione e premi «Ricava i tratti».")
     positivo = pulisci(f"{qualita[0]}, {p.genere}, {BASE}, {p.descrizione}, {c.extra}, "
                        f"{TAG_INQUADRATURA[c.inquadratura]}, {c.stile}")
-    negativo = pulisci(c.negativo.replace("{negativo_qualita}", qualita[1]))
     return positivo, negativo
 
 

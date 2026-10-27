@@ -73,7 +73,8 @@ def inquadratura_da_prompt(prompt: str) -> str:
 
 
 def parti_fisse(tags: list[str]) -> list[str]:
-    return [t for t in tags if norm(t) not in PARTE_VARIABILE]
+    from .proposte import e_variabile
+    return [t for t in tags if norm(t) not in PARTE_VARIABILE and not e_variabile(t)]
 
 
 def _confronta_liste(a: list[str], b: list[str]) -> dict:

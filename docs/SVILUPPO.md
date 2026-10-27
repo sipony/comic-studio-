@@ -36,9 +36,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 22 | Dataset identico alle proposte: stesso workflow con in più solo il riferimento, stesso prompt salvo le varianti, stesso negativo; verifica tag per tag e nodo per nodo; proposte vecchie completate con il checkpoint | ✅ unita |
 | 23 | Pose guidate nel dataset (ControlNet OpenPose con gli scheletri disegnati da Comic Studio, installabile); «Massima somiglianza al riferimento» (aspetto dal tagger, sfondi, IPAdapter più forte su tutta la figura); workflow di ogni proposta e immagine salvato, grafi confrontati fianco a fianco | ✅ unita |
 | 24 | Pose guidate: solo ControlNet della stessa architettura del checkpoint (un OpenPose per SD 1.5 con Pony / Illustrious faceva fallire il KSampler) | ✅ unita |
-| 25 | «Stessa persona, come le proposte»: il dataset nasce come le proposte (stesso workflow senza IPAdapter, prompt nello stesso ordine, stesse dimensioni, sfondo bianco), cambiano solo posa, angolazione ed espressione; aspetto del riferimento dal tagger | ✅ questa PR |
-| 26 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 27 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 25 | «Stessa persona, come le proposte»: il dataset nasce come le proposte (stesso workflow senza IPAdapter, prompt nello stesso ordine, stesse dimensioni, sfondo bianco), cambiano solo posa, angolazione ed espressione; aspetto del riferimento dal tagger | ✅ unita |
+| 26 | «Ho già il prompt»: proposte con positivo e negativo dell'utente parola per parola; il dataset li riusa con i tag di inquadratura, posa, angolazione, espressione e sfondo al posto delle varianti | ✅ questa PR |
+| 27 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 28 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -1042,4 +1043,27 @@ con Illustrious e Pony (addestrati lontano da SDXL base) sporca il risultato inv
   IPAdapter staccato, confronto coerente, prompt mandato nell'ordine delle proposte, grafo dell'immagine uguale a quello
   della proposta salvo il prompt)
 
-Prossimo passo: PR 26, pose guidate nelle scene di gruppo e costruttore di workflow.
+Prossimo passo: PR 26, il prompt dell'utente.
+
+## PR 26 — «Ho già il prompt»
+
+Richiesta: «nella creazione del personaggio non permetti l'immissione del prompt positivo e negativo: c'è la
+descrizione in testo libero, ma se uno ha già i prompt?». Il negativo c'era (sotto «Negativo e campionamento»), il
+positivo no: Comic Studio lo compone da qualità, genere, base, tratti, tag in più, inquadratura e stile.
+
+- `ConfigProposte.positivo` / `Ricetta.positivo`: con l'interruttore «Ho già il prompt» il positivo è usato parola per
+  parola (pesi `(tag:1.2)` compresi), il negativo pure (`{negativo_qualita}` resta un segnaposto facoltativo); non
+  servono descrizione né tratti, e l'IA non li ricava
+- `<lora:…>` nel prompt (sintassi di A1111, che in ComfyUI non fa niente): l'anteprima lo segnala, la generazione si
+  rifiuta e dice di scegliere la LoRA nel menù
+- dataset: `modello_da_prompt_proprio` divide il prompt in tag (le virgole dentro le parentesi non dividono),
+  riconosce quelli di inquadratura, posa, angolazione, espressione e sfondo (`e_variabile`, anche con i pesi) e al
+  posto del primo mette `{aspetto}, {inquadratura}, {posa}, {angolazione}, {espressione}, {sfondo}`; gli altri restano
+  identici e nello stesso ordine. Lo usano «Usa questa» (`come_proposte`) e «Stessa persona, come le proposte»
+- confronto con la proposta: le parti fisse tolgono anche i tag variabili riconosciuti (vale per i due lati);
+  l'aspetto del riferimento non ripete i tag già nel prompt, anche con i pesi
+- Versione 0.25.0
+- **Test**: `test_prompt_proprio.py` (divisione e riconoscimento dei tag; anteprima, LoRA alla A1111 rifiutata,
+  prompt mandati parola per parola, ricetta, dataset coerente, «stessa persona», prompt del dataset)
+
+Prossimo passo: PR 27, pose guidate nelle scene di gruppo e costruttore di workflow.

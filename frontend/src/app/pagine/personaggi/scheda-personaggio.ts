@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
@@ -21,7 +22,7 @@ import {
 
 @Component({
   selector: 'app-scheda-personaggio',
-  imports: [AnteprimaLavoro, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule,
+  imports: [AnteprimaLavoro, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule, MatSlideToggleModule,
     MatTooltipModule],
   templateUrl: './scheda-personaggio.html',
   styleUrl: './scheda-personaggio.scss',
@@ -61,6 +62,9 @@ export class SchedaPersonaggio {
   protected forzaLora = signal(0.8);
   protected extra = signal('');
   protected negativo = signal(NEGATIVO_PROPOSTE);
+  /** «Ho già il prompt»: positivo e negativo dell'utente, usati così come sono */
+  protected promptProprio = signal(false);
+  protected positivoProprio = signal('');
   protected passi = signal(28);
   protected cfg = signal(6);
   protected sampler = signal('euler_ancestral');
@@ -73,8 +77,10 @@ export class SchedaPersonaggio {
   protected readonly negativoPredefinito = NEGATIVO_PROPOSTE;
   /** tutte le scelte delle proposte (le stesse passano poi al dataset) */
   protected scelte = computed<ConfigProposte>(() => ({
-    checkpoint: this.checkpoint(), numero: this.numero(), inquadratura: this.inquadratura(), stile: this.stile().trim(),
-    extra: this.extra().trim(), negativo: this.negativo().trim() || NEGATIVO_PROPOSTE, passi: this.passi(), cfg: this.cfg(),
+    checkpoint: this.checkpoint(), numero: this.numero(), inquadratura: this.inquadratura(),
+    stile: this.promptProprio() ? '' : this.stile().trim(), extra: this.promptProprio() ? '' : this.extra().trim(),
+    positivo: this.promptProprio() ? this.positivoProprio().trim() || null : null,
+    negativo: this.negativo().trim() || NEGATIVO_PROPOSTE, passi: this.passi(), cfg: this.cfg(),
     sampler: this.sampler(), scheduler: this.scheduler(), lora_stile: this.lora(), forza_lora: this.forzaLora(),
     forza_variante: this.forzaVariante(),
   }));
@@ -227,6 +233,8 @@ export class SchedaPersonaggio {
     this.sampler.set(r.sampler);
     this.scheduler.set(r.scheduler);
     this.forzaVariante.set(r.forza_variante ?? 0.55);
+    this.promptProprio.set(!!r.positivo);
+    if (r.positivo) this.positivoProprio.set(r.positivo);
     if (['figura_intera', 'mezzo_busto', 'primo_piano'].includes(r.inquadratura)) {
       this.inquadratura.set(r.inquadratura as InquadraturaProposta);
     }
