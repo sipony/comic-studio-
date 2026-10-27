@@ -897,7 +897,7 @@ export interface ConfrontoDataset {
   prompt: ConfrontoListe & { proposta: string[]; dataset: string[] };
   negativo: ConfrontoListe & { proposta: string; dataset: string };
   /** uguale = stessi nodi, valori e catene, in più solo il riferimento; null = proposta senza ricetta */
-  workflow: { uguale: boolean | null; riferimento: boolean | null; differenze: string[] };
+  workflow: { uguale: boolean | null; riferimento: boolean | null; senza_riferimento?: boolean; differenze: string[] };
   righe: { voce: string; proposte: string; dataset: string; uguale: boolean | null; nota: string }[];
   coerente: boolean;
 }

@@ -160,9 +160,15 @@ def test_dataset_con_pose_guidate(ambiente):
     assert campi["11"]["steps"]["modificabile"]
 
 
-def test_massima_somiglianza(ambiente, monkeypatch):
-    """Aspetto del riferimento dal tagger, sfondi come le proposte, IPAdapter più forte su tutta la figura, pose."""
+def test_stessa_persona_come_le_proposte(casa, finto_comfy, cartella_comfy, monkeypatch):
+    """«Stessa persona, come le proposte»: il dataset nasce come le proposte (stesso workflow senza IPAdapter, prompt
+    nello stesso ordine, stessa risoluzione, sfondo bianco), cambiano solo posa, angolazione ed espressione; in più
+    l'aspetto del riferimento dal tagger."""
+    from fastapi.testclient import TestClient
     from app import rotte_dataset
+    from app.main import crea_app
+    from app.settings import Archivio
+    from app.state import App
 
     class TaggerFinto:
         def tagga(self, immagini, *a, **k):
@@ -170,35 +176,50 @@ def test_massima_somiglianza(ambiente, monkeypatch):
                                        "latex": 0.5, "white background": 0.95, "standing": 0.9, "smile": 0.6,
                                        "police uniform": 0.8, "armband": 0.4, "hand on hip": 0.6}}
     monkeypatch.setattr(rotte_dataset, "carica_tagger", lambda *a, **k: TaggerFinto())
-    c, p, stato, finto = ambiente
-    base = f"/api/progetti/{p}/personaggi/agente/dataset"
-    assert c.post(f"{base}/somiglianza").status_code == 400                 # senza riferimento
-    c.put(f"/api/progetti/{p}/personaggi/agente/riferimento", files={"file": ("r.png", png(), "image/png")})
-    assert "workflow" in c.post(f"{base}/somiglianza").json()["detail"]
-    wf = c.post(f"/api/progetti/{p}/workflows/integrato", json={"checkpoint": "ponyDiffusionV6XL.safetensors",
-                                                               "ipadapter": "ip.safetensors",
-                                                               "clip_vision": "cv.safetensors"}).json()
-    cfg = c.get(base).json()["config"]
-    cfg["workflow"] = wf["id"]
-    c.put(f"{base}/config", json=cfg)
-    finto.modelli["controlnet"] = ["controlnet-openpose-sdxl-1.0.safetensors"]
-    l = attendi(c, c.post(f"{base}/somiglianza").json()["id"])
-    assert l["stato"] == "completato", l["errore"]
-    cfg = c.get(base).json()["config"]
-    # «blonde hair» e «police uniform» sono già nei tratti; posa, sfondo, espressione non sono aspetto
-    assert cfg["aspetto"] == "necktie, blue pants, latex, armband"
-    assert cfg["varianti"]["sfondi"] == ["white background", "white background", "simple background"]
-    assert cfg["modifiche"]["7"] == {"weight": 0.9, "end_at": 1.0}
-    assert cfg["modifiche"]["6"] == {"crop_position": "pad"}
-    assert cfg["pose"]["attive"] is True
-    # l'aspetto finisce in ogni prompt, subito dopo i tratti
-    esempi = c.post(f"{base}/esempi", json=cfg).json()
-    assert all("blonde hair, police uniform, necktie, blue pants, latex, armband" in e["positivo"] for e in esempi)
-    l = attendi(c, c.post(f"{base}/genera", json={"quantita": 1}).json()["id"])
-    assert l["stato"] == "completato", l["errore"]
-    w = finto.ricevuti[-1]
-    assert w["7"]["inputs"]["weight"] == 0.9 and w["6"]["inputs"]["crop_position"] == "pad"
-    assert "blue pants" in w["8"]["inputs"]["text"]
+    finto_comfy.modelli |= {"ipadapter": ["ip-adapter-plus_sdxl_vit-h.safetensors"],
+                            "clip_vision": ["CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"]}
+    stato = App(Archivio(casa / "impostazioni.json"))
+    with TestClient(crea_app(stato, sorveglia=False)) as c:
+        c.post("/api/comfy/usa", json={"url": finto_comfy.url, "cartella": str(cartella_comfy)})
+        p = c.post("/api/progetti", json={"nome": "Polizia"}).json()["id"]
+        c.post(f"/api/progetti/{p}/personaggi", json={"nome": "Ada", "genere": "1girl",
+                                                      "descrizione": "long blonde hair, police uniform"})
+        base = f"/api/progetti/{p}/personaggi/ada"
+        assert c.post(f"{base}/dataset/somiglianza").status_code == 400          # senza riferimento
+        conf = {"checkpoint": "waiIllustriousSDXL_v170.safetensors", "numero": 1, "inquadratura": "figura_intera",
+                "stile": "western comics", "lora_stile": "Comic_Style.safetensors"}
+        assert attendi(c, c.post(f"{base}/proposte", json=conf).json()["id"])["stato"] == "completato"
+        prop = c.get(f"{base}/proposte").json()[0]
+        c.post(f"{base}/proposte/{prop['file']}/scegli")
+        cfg = c.get(f"{base}/dataset").json()["config"]
+        cfg["pose"]["attive"] = True
+        c.put(f"{base}/dataset/config", json=cfg)
+
+        l = attendi(c, c.post(f"{base}/dataset/somiglianza").json()["id"])
+        assert l["stato"] == "completato", l["errore"]
+        ds = c.get(f"{base}/dataset").json()
+        cfg = ds["config"]
+        assert cfg["aspetto"] == "necktie, blue pants, latex, armband"
+        assert cfg["varianti"]["sfondi"] == ["simple background, white background"]
+        assert {(i["larghezza"], i["altezza"]) for i in cfg["varianti"]["inquadrature"]} == {(832, 1216)}
+        assert cfg["pose"]["attive"] is False
+        wf = c.get(f"/api/progetti/{p}/workflows/{cfg['workflow']}").json()["workflow"]
+        ip = [k for k, n in wf.items() if n["class_type"] == "IPAdapterAdvanced"]
+        assert ip and cfg["disattivati"] == ip
+        # il confronto con la proposta: identico, proprio come le proposte (senza IPAdapter)
+        assert ds["origine"]["coerente"], ds["origine"]
+        k = c.post(f"{base}/dataset/confronto", json=cfg).json()
+        assert k["workflow"]["senza_riferimento"] and k["coerente"]
+
+        # il prompt mandato: ordine delle proposte, il workflow è quello delle proposte
+        assert attendi(c, c.post(f"{base}/dataset/genera", json={"quantita": 2}).json()["id"])["stato"] == "completato"
+        img = c.get(f"{base}/dataset/immagini").json()[-1]
+        assert img["prompt"].startswith("masterpiece, best quality, amazing quality, 1girl, solo, looking at viewer, ")
+        assert ", simple background, white background, long blonde hair, police uniform, necktie, blue pants" in img["prompt"]
+        assert img["prompt"].endswith("western comics") and (img["larghezza"], img["altezza"]) == (832, 1216)
+        g = c.get(f"{base}/dataset/immagini/{img['file']}/confronto").json()
+        assert not [r for r in g["righe"] if r["tipo"] in ("solo_a", "solo_b", "collegamento", "passa_per")], g["righe"]
+        assert {r["campo"] for r in g["righe"]} <= {"text"}
 
 
 def _safetensors(f, contesto: int):

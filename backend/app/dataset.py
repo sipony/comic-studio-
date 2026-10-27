@@ -222,8 +222,12 @@ def aspetto_da_tag(tag: dict[str, float], p: Personaggio, gia: str = "", soglia:
     def norm(t: str) -> str:
         return re.sub(r"\s+", " ", t.replace("_", " ").strip().lower())
     noti = {norm(x) for x in f"{p.descrizione},{p.genere},{gia}".split(",") if x.strip()}
+    parole_noti = [set(x.split()) for x in noti]
+
+    def detto(t: str) -> bool:      # «blonde hair» è già in «long blonde hair»
+        return t in noti or any(set(t.split()) <= p for p in parole_noti)
     scelti = [norm(t) for t, v in sorted(tag.items(), key=lambda kv: -kv[1])
-              if v >= soglia and not NON_ASPETTO.search(norm(t)) and norm(t) not in noti and "(" not in t]
+              if v >= soglia and not NON_ASPETTO.search(norm(t)) and not detto(norm(t)) and "(" not in t]
     return list(dict.fromkeys(scelti))[:massimo]
 
 

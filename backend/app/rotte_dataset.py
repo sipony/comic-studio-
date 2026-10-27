@@ -454,6 +454,9 @@ async def genera(pid: str, cid: str, dati: Genera, req: Request):
         if prova.problemi:
             raise HTTPException(400, "Con i nodi staccati il workflow non funziona: " + " ".join(prova.problemi))
         usa_riferimento = usa_riferimento and ruoli.riferimento not in prova.esclusi
+        if usa_riferimento:     # il riferimento serve ancora? (staccato IPAdapter, il suo LoadImage resta senza uso)
+            from .workflows import senza_inutili
+            usa_riferimento = ruoli.riferimento in senza_inutili(prova.wf)
     if usa_riferimento and not pers.riferimento:
         raise HTTPException(400, f"{pers.nome} non ha un'immagine di riferimento: caricala nella pagina Personaggi.")
     con_pose = config.pose.attive or dati.una_per_posa
@@ -761,9 +764,38 @@ async def confronto_grafi(pid: str, cid: str, file: str, req: Request):
             "file_proposta": scelta.file, **d}
 
 
-# ---------------------------------------------------------------- massima somiglianza al riferimento
+# ---------------------------------------------------------------- stessa persona, come le proposte
 
-SFONDI_PROPOSTE = ["white background", "white background", "simple background"]
+SFONDI_PROPOSTE = ["simple background, white background"]
+
+
+def varianti_leggere(larghezza: int = 832, altezza: int = 1216):
+    """Le varianti «come le proposte»: stessa risoluzione delle proposte, sfondo bianco, sguardo in camera,
+    espressioni tranquille; cambiano solo posa, angolazione e quanto della figura si vede. Nelle proposte il
+    personaggio resta lo stesso proprio perché il prompt e le dimensioni non cambiano: qui cambia il meno possibile."""
+    from .dataset import Inquadratura, Varianti
+    return Varianti(
+        inquadrature=[Inquadratura(nome="figura intera", testo="full body", larghezza=larghezza, altezza=altezza,
+                                   quota=0.5),
+                      Inquadratura(nome="tre quarti", testo="cowboy shot", larghezza=larghezza, altezza=altezza,
+                                   quota=0.3),
+                      Inquadratura(nome="mezzo busto", testo="upper body", larghezza=larghezza, altezza=altezza,
+                                   quota=0.2)],
+        angolazioni=["front view", "front view", "front view", "three-quarter view", "three-quarter view",
+                     "from side"],
+        espressioni=["neutral expression", "neutral expression", "light smile", "smile", "serious", "closed mouth"],
+        pose=["standing", "standing, contrapposto", "hands on hips", "hand on own hip", "arms crossed",
+              "arms behind back", "walking", "waving", "hand up", "sitting"],
+        sfondi=list(SFONDI_PROPOSTE))
+
+
+def modello_come_proposte(extra: str = "") -> str:
+    """Il prompt nell'ordine delle proposte (qualità, genere, solo, sguardo, espressione, sfondo, tratti, aspetto,
+    tag in più, inquadratura, posa, angolazione, stile): le parti fisse sono le stesse delle proposte."""
+    from .proposte import pulisci
+    extra = pulisci(extra or "")
+    return ("{qualita}, {genere}, solo, looking at viewer, {espressione}, {sfondo}, {descrizione}, {aspetto}"
+            + (f", {extra}" if extra else "") + ", {inquadratura}, {posa}, {angolazione}, {stile}")
 
 
 def carica_tagger(*a, **k):
@@ -773,23 +805,34 @@ def carica_tagger(*a, **k):
 
 @rotte.post("/personaggi/{cid}/dataset/somiglianza")
 async def massima_somiglianza(pid: str, cid: str, req: Request):
-    """Prepara il dataset perché le immagini, in pose diverse, vengano il più possibile uguali al riferimento:
-    aspetto del riferimento nel prompt (tagger), sfondi come le proposte, IPAdapter più forte e su tutta la figura,
-    pose guidate (se c'è il ControlNet). Cambia solo la configurazione del personaggio, il workflow resta com'è."""
+    """«Stessa persona, come le proposte»: le proposte sembrano sempre la stessa persona perché nascono con lo stesso
+    prompt, alle stesse dimensioni, con lo stesso workflow e senza nient'altro; cambia solo il seme. Il dataset fa lo
+    stesso: workflow delle proposte (IPAdapter staccato, niente ControlNet), prompt nello stesso ordine, stessa
+    risoluzione, sfondo bianco; cambiano poco posa, angolazione ed espressione. In più l'aspetto del riferimento letto
+    dal tagger (le proposte cambiano divisa da un seme all'altro: così la divisa è quella scelta). Poi «Tieni le
+    migliori» sceglie le più somiglianti al riferimento."""
     app = _app(req)
     a = _archivio(req)
     _, pers = a.personaggio(pid, cid)
     if not pers.riferimento:
         raise HTTPException(400, f"{pers.nome} non ha un'immagine di riferimento: caricala o scegli una proposta.")
     config = a.config(pid, cid)
-    if not config.workflow:
-        raise HTTPException(400, "Scegli prima un workflow (o «Rendi il dataset identico alle proposte»).")
+    if not config.workflow and not pers.origine:
+        raise HTTPException(400, "Scegli prima un workflow (o crea il personaggio dalle proposte).")
 
     async def lavoro(l: Lavoro):
         from .dataset import aspetto_da_tag
         from .didascalie import ConfigDidascalie
+        from .proposte import DIMENSIONI
         fatto: list[str] = []
-        c = a.config(pid, cid)
+        origine = pers.origine or {}
+        if origine.get("checkpoint"):
+            # lo stesso workflow delle proposte (stesso checkpoint, LoRA, campionamento, negativo)
+            c, voce, _ = a.come_proposte(pid, cid, origine, await app.modelli())
+            fatto.append(f"workflow delle proposte: {voce.nome}")
+        else:
+            c = a.config(pid, cid)
+            l.log(f"{pers.nome} non viene dalle proposte: tengo il workflow scelto e sistemo prompt e varianti.", "info")
         voce, _ = a.ruoli_effettivi(pid, c)
         # 1) aspetto dal riferimento
         l.avanza(0.02, "preparo il tagger")
@@ -807,44 +850,33 @@ async def massima_somiglianza(pid: str, cid: str, req: Request):
         except ErroreProgetto as e:
             l.log(f"Aspetto dal riferimento saltato: {e}", "avviso")
         l.controlla()
-        # 2) sfondi come le proposte
-        if any(s.strip().lower() not in ("white background", "simple background") for s in c.varianti.sfondi):
-            c.varianti.sfondi = list(SFONDI_PROPOSTE)
-            fatto.append("sfondi bianchi o semplici come nelle proposte")
-        # 3) IPAdapter più forte e su tutta la figura
-        mod = {k: dict(v) for k, v in c.modifiche.items()}
+        # 2) prompt nell'ordine delle proposte e varianti leggere alla stessa risoluzione
+        c.prompt_positivo = modello_come_proposte(origine.get("extra", ""))
+        dim = DIMENSIONI.get(origine.get("inquadratura") or "", (832, 1216))
+        dim = dim if dim[1] >= dim[0] else (832, 1216)
+        c.varianti = varianti_leggere(*dim)
+        fatto.append(f"prompt nell'ordine delle proposte; tutte a {dim[0]}×{dim[1]} come le proposte, sfondo bianco, "
+                     "sguardo in camera; cambiano solo posa, angolazione, espressione e quanto si vede della figura")
+        # 3) niente IPAdapter (le proposte non l'hanno) e niente ControlNet
         ip = [k for k, n in voce.workflow.items() if n.get("class_type") in ("IPAdapterAdvanced", "IPAdapter")]
-        prep = [k for k, n in voce.workflow.items() if n.get("class_type") == "PrepImageForClipVision"]
-        for k in ip:
-            ing = voce.workflow[k]["inputs"]
-            mod.setdefault(k, {}).update({x: v for x, v in (("weight", 0.9), ("end_at", 1.0)) if x in ing})
-        for k in prep:
-            mod.setdefault(k, {})["crop_position"] = "pad"
+        c.disattivati = sorted(set(c.disattivati) | set(ip))
+        c.modifiche = {k: v for k, v in c.modifiche.items()
+                       if voce.workflow.get(k, {}).get("class_type") not in NODI_IPADAPTER}
         if ip:
-            c.modifiche = mod
-            fatto.append("IPAdapter con peso 0,9 fino all'ultimo passo, sul riferimento intero (ritaglio «pad»)")
-        else:
-            l.log("Nel workflow non c'è IPAdapter: senza, l'aspetto lo tengono solo prompt e seme. Usa «Rendi il "
-                  "dataset identico alle proposte» con IPAdapter Plus installato, poi ripeti.", "avviso")
-        # 4) pose guidate
-        ck = analizza(voce.workflow).checkpoint
-        cn_elenco = await elenco_controlnet(app, ck)
-        cn = scegli_controlnet_posa([x["nome"] for x in cn_elenco], famiglia_da_nome(ck or ""),
-                                    {x["nome"]: x["architettura"] for x in cn_elenco})
-        if cn or c.pose.controlnet:
-            if not c.pose.attive:
-                c.pose.attive = True
-                fatto.append("pose guidate dallo scheletro (ControlNet OpenPose)")
-        else:
-            l.log("Per le pose guidate manca il ControlNet OpenPose: installalo da Dataset → Pose guidate.", "avviso")
+            fatto.append("IPAdapter staccato: con Illustrious e Pony peggiora le immagini, e le proposte non l'hanno")
+        if c.pose.attive:
+            c.pose.attive = False
+            fatto.append("pose guidate spente")
         a.salva_config(pid, cid, c)
         app.bus.pubblica({"tipo": "dataset", "progetto": pid, "personaggio": cid, "azione": "config"})
         for x in fatto:
-            l.log(f"Massima somiglianza · {x}", "ok")
-        l.log("Fatto. Le immagini già generate restano: rigenera (o «Rifai da capo») per vedere la differenza. "
-              "Per un personaggio identico al 100%: addestra un primo LoRA sulle migliori e rigenera il dataset con "
-              "quel LoRA.", "ok")
+            l.log(f"Stessa persona · {x}", "ok")
+        l.log("Pronto: genera (o «Rifai da capo»), poi «Tieni le migliori» sceglie le più somiglianti al riferimento. "
+              "Con 20-30 buone addestra il LoRA: con quello il personaggio resta uguale in qualunque posa.", "ok")
         return {"fatto": fatto, "aspetto": c.aspetto}
 
-    return app.gestore.avvia("dataset_somiglianza", f"Massima somiglianza per {pers.nome}", lavoro,
+    return app.gestore.avvia("dataset_somiglianza", f"Stessa persona per {pers.nome}, come le proposte", lavoro,
                              progetto=pid).dict()
+
+
+NODI_IPADAPTER = {"IPAdapterAdvanced", "IPAdapter", "PrepImageForClipVision"}

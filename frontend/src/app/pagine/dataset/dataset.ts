@@ -266,7 +266,7 @@ export class DatasetPage {
     try {
       if (!(await this.salvaSubito())) return;
       await this.api.massimaSomiglianza(this.progetto().id, id);
-      this.avvisi.ok('Preparo il dataset per la massima somiglianza: i dettagli nella console');
+      this.avvisi.ok('Preparo il dataset come le proposte: i dettagli nella console');
     } catch (e) {
       this.avvisi.errore(e);
     } finally {

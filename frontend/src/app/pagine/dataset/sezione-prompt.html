@@ -23,7 +23,7 @@
   <mat-form-field>
     <mat-label>Aspetto dal riferimento ({{ '{' }}aspetto{{ '}' }})</mat-label>
     <textarea matInput rows="2" [ngModel]="cfg.aspetto ?? ''" (ngModelChange)="imposta('aspetto', $event)"
-      placeholder="vuoto: lo riempie «Massima somiglianza al riferimento»"></textarea>
+      placeholder="vuoto: lo riempie «Stessa persona, come le proposte»"></textarea>
     <mat-hint>Vestiti, capelli e accessori dell'immagine di riferimento: va subito dopo i tratti in ogni prompt</mat-hint>
   </mat-form-field>
 
