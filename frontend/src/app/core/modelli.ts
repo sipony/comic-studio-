@@ -388,6 +388,8 @@ export interface ConfigDidascalie {
   modello: string;
   soglia: number;
   togli_tratti_fissi: boolean;
+  /** toglie anche l'aspetto che ricorre in quasi tutte le immagini (lo impara la trigger word) */
+  togli_ricorrenti?: boolean;
   rimossi: string[];
   aggiunti: string[];
   sostituzioni: Record<string, string>;

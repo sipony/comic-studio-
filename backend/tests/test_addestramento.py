@@ -193,3 +193,22 @@ async def test_lettura_processo_anche_in_thread(tmp_path):
             codice = await rotte_addestramento.esegui_processo([sys.executable, str(script)], None, l, righe.append, coda)
         await asyncio.sleep(0.05)
         assert codice == 0 and righe == ["uno", "due", "tre"], funzione
+
+
+def test_prompt_di_prova_e_preset_8gb(tmp_path):
+    """La trigger word e il genere davanti ai prompt di prova se mancano; l'italiano si segnala; il preset «8 GB»
+    impara abbastanza (Adafactor a 4e-4) anche nelle configurazioni salvate prima."""
+    from types import SimpleNamespace
+    from app.rotte_addestramento import non_inglese, prompt_di_prova
+    p = SimpleNamespace(trigger="scrtrxj", genere="1girl")
+    assert prompt_di_prova("sitting, smile", p) == "{trigger}, {genere}, sitting, smile"
+    assert prompt_di_prova("{trigger}, {genere}, solo", p) == "{trigger}, {genere}, solo"
+    assert prompt_di_prova("scrtrxj, 1girl, solo", p) == "scrtrxj, 1girl, solo"
+    assert non_inglese("scrtrxj seduta su una sedia con il cappello") and not non_inglese("{trigger}, sitting, smile")
+    assert ad.preset("8gb").learning_rate == 4e-4
+    a = ad.ArchivioAddestramento.__new__(ad.ArchivioAddestramento)
+    vecchia = ad.ConfigAddestramento(preset="8gb", learning_rate=1e-4)
+    f = tmp_path / "config.json"
+    f.write_text(vecchia.model_dump_json())
+    a.cartella = lambda pid, cid: tmp_path
+    assert a.config("p", "c").learning_rate == 4e-4

@@ -241,7 +241,8 @@
             <mat-form-field class="prompt-test">
               <mat-label>Prompt di prova (uno per riga)</mat-label>
               <textarea matInput rows="3" [ngModel]="promptTest()" (ngModelChange)="promptTest.set($event)"></textarea>
-              <mat-hint>{{ '{trigger}' }} e {{ '{genere}' }} vengono sostituiti; i tag di qualità si aggiungono da soli</mat-hint>
+              <mat-hint>In inglese, a tag (es. {{ '{trigger}' }}, {{ '{genere}' }}, solo, sitting, smile, upper body): il modello non capisce
+                l'italiano. Trigger e genere si aggiungono davanti se mancano; i tag di qualità da soli</mat-hint>
             </mat-form-field>
             <div class="pulsanti">
               <button mat-flat-button (click)="prova()" [disabled]="!daProvare().size || !!lavoro() || !eventi.comfy()?.connesso">

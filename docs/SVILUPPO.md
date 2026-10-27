@@ -38,9 +38,10 @@ la massima libertà su workflow, modelli e parametri, una console con tutti i lo
 | 24 | Pose guidate: solo ControlNet della stessa architettura del checkpoint (un OpenPose per SD 1.5 con Pony / Illustrious faceva fallire il KSampler) | ✅ unita |
 | 25 | «Stessa persona, come le proposte»: il dataset nasce come le proposte (stesso workflow senza IPAdapter, prompt nello stesso ordine, stesse dimensioni, sfondo bianco), cambiano solo posa, angolazione ed espressione; aspetto del riferimento dal tagger | ✅ unita |
 | 26 | «Ho già il prompt»: proposte con positivo e negativo dell'utente parola per parola; il dataset li riusa con i tag di inquadratura, posa, angolazione, espressione e sfondo al posto delle varianti | ✅ unita |
-| 27 | Trasformazioni del personaggio (stato A → stato B, es. il prete che diventa mostro): sequenza di fotogrammi con prompt che scivola da A a B, LoRA della trasformazione che sale, stesso seme; GIF; personaggio «stato B» con il suo dataset | ✅ questa PR |
-| 28 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
-| 29 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
+| 27 | Trasformazioni del personaggio (stato A → stato B, es. il prete che diventa mostro): sequenza di fotogrammi con prompt che scivola da A a B, LoRA della trasformazione che sale, stesso seme; GIF; personaggio «stato B» con il suo dataset | ✅ unita |
+| 28 | LoRA che somiglia: didascalie senza i tratti del personaggio (anche detti con meno parole, l'aspetto del riferimento, quelli ricorrenti), preset «8 GB» che impara abbastanza (Adafactor 4e-4), prompt di prova con la trigger e in inglese | ✅ questa PR |
+| 29 | Pose guidate nelle scene di gruppo (Step 4) e costruttore di workflow: scelta di checkpoint (riconoscimento Pony / Illustrious / SDXL / Flux), LoRA, IPAdapter, ControlNet e di ogni parametro di ogni nodo | da fare |
+| 30 | Aggiornamenti con un clic (ComfyUI, custom node, librerie) con conferma esplicita | da fare |
 
 ## Decisioni
 
@@ -1099,5 +1100,31 @@ lo decido io».
   che salgono, prompt A della proposta; GIF; nuovo seme; personaggio dello stato B con il dataset pronto; cestino).
   Collaudo con Chromium
 
-Prossimo passo: PR 28, la vignetta «Trasformazione» nel fumetto, pose guidate nelle scene di gruppo e costruttore di
+Prossimo passo: PR 28, il LoRA che somiglia.
+
+## PR 28 — Il LoRA che somiglia
+
+Collaudo dell'utente: 62 immagini tenute (la stessa ragazza bionda in divisa azzurra), addestramento con il preset
+«8 GB», prova delle epoche: nessuna somiglianza (capelli rossi, occhiali, un'altra divisa). Tre cause nel programma:
+
+1. **Didascalie con l'aspetto dentro.** Il tagger scrive «blonde hair, long hair, blue eyes, necktie, police hat…»;
+   i tratti fissi si toglievano solo se scritti identici alla descrizione («long straight blonde hair» ≠ «blonde
+   hair»), e l'aspetto del riferimento aggiunto al dataset (`{aspetto}`) restava tutto. Un LoRA addestrato così lega
+   capelli e divisa a quei tag: la trigger word da sola non porta quasi niente. Ora si tolgono da soli:
+   - i tratti anche detti con meno parole (`e_tratto`: le parole del tag stanno tutte in un tratto)
+   - l'aspetto del riferimento usato nel dataset
+   - con `togli_ricorrenti` (predefinito) i tag dell'aspetto presenti nel 70% delle immagini o più (prima erano solo
+     «suggeriti» e andavano tolti a mano)
+2. **Preset «8 GB» troppo timido.** Adafactor a passo fisso 1e-4 con alpha 8 / rank 16: impara poco in 2000 passi.
+   Ora 4e-4 (come i trainer di Civitai per SDXL); le configurazioni salvate con il vecchio valore si aggiornano.
+3. **Prompt di prova.** Il prompt di prova era in italiano («… a pecorina …»): il modello capisce solo l'inglese a tag,
+   e il risultato non dice niente sul LoRA. Ora trigger e genere si aggiungono davanti se mancano, l'italiano si
+   segnala nella console e l'aiuto lo dice.
+
+- Versione 0.27.0
+- **Test**: `test_tratti_detti_con_meno_parole_e_aspetto_del_riferimento`, test delle frequenze e dell'API delle
+  didascalie aggiornati (i ricorrenti escono da soli, con `togli_ricorrenti` spento restano «suggeriti»),
+  `test_prompt_di_prova_e_preset_8gb`
+
+Prossimo passo: PR 29, la vignetta «Trasformazione» nel fumetto, pose guidate nelle scene di gruppo e costruttore di
 workflow.

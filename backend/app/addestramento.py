@@ -160,7 +160,9 @@ class ConfigAddestramento(BaseModel):
 def preset(nome: Preset, base: ConfigAddestramento | None = None) -> ConfigAddestramento:
     c = (base or ConfigAddestramento()).model_copy()
     valori = {
-        "8gb": dict(rank=16, alpha=8, ottimizzatore="Adafactor", learning_rate=1e-4, batch=1, fp8=True,
+        # Adafactor a passo fisso: 4e-4 (come i trainer di Civitai per SDXL). Con 1e-4 e alpha 8/rank 16 il LoRA
+        # imparava troppo poco: la trigger word da sola non portava il personaggio
+        "8gb": dict(rank=16, alpha=8, ottimizzatore="Adafactor", learning_rate=4e-4, batch=1, fp8=True,
                     gradient_checkpointing=True, allena_text_encoder=False, risoluzione=1024),
         "equilibrato": dict(rank=32, alpha=16, ottimizzatore="AdamW8bit", learning_rate=1e-4, batch=1, fp8=False,
                             gradient_checkpointing=True, allena_text_encoder=False, risoluzione=1024),
@@ -369,7 +371,10 @@ class ArchivioAddestramento:
         tmp.replace(f)
 
     def config(self, pid, cid) -> ConfigAddestramento:
-        return self._leggi(self.cartella(pid, cid) / "config.json", ConfigAddestramento)
+        c = self._leggi(self.cartella(pid, cid) / "config.json", ConfigAddestramento)
+        if c.preset == "8gb" and c.ottimizzatore == "Adafactor" and c.learning_rate == 1e-4:
+            c.learning_rate = 4e-4          # preset «8 GB» delle versioni prima della 0.27 (imparava troppo poco)
+        return c
 
     def salva_config(self, pid, cid, c: ConfigAddestramento):
         self._scrivi(self.cartella(pid, cid) / "config.json", c)
