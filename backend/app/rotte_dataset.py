@@ -841,7 +841,7 @@ async def massima_somiglianza(pid: str, cid: str, req: Request):
                                              lambda v, t: l.avanza(0.02 + v * 0.6, t), l.log)
             rif = app.progetti.file_riferimento(pid, cid)
             tag = (await asyncio.to_thread(tagger.tagga, [rif])).get(rif.name, {})
-            aspetto = aspetto_da_tag(tag, pers, c.stile)
+            aspetto = aspetto_da_tag(tag, pers, f"{c.stile},{origine.get('positivo') or ''}")
             c.aspetto = ", ".join(aspetto)
             if aspetto:
                 fatto.append(f"aspetto del riferimento nel prompt: {c.aspetto}")
@@ -851,7 +851,11 @@ async def massima_somiglianza(pid: str, cid: str, req: Request):
             l.log(f"Aspetto dal riferimento saltato: {e}", "avviso")
         l.controlla()
         # 2) prompt nell'ordine delle proposte e varianti leggere alla stessa risoluzione
-        c.prompt_positivo = modello_come_proposte(origine.get("extra", ""))
+        if (origine.get("positivo") or "").strip():      # «Ho già il prompt»: il suo, con le varianti al loro posto
+            from .proposte import modello_da_prompt_proprio
+            c.prompt_positivo, c.stile = modello_da_prompt_proprio(origine["positivo"]), ""
+        else:
+            c.prompt_positivo = modello_come_proposte(origine.get("extra", ""))
         dim = DIMENSIONI.get(origine.get("inquadratura") or "", (832, 1216))
         dim = dim if dim[1] >= dim[0] else (832, 1216)
         c.varianti = varianti_leggere(*dim)

@@ -265,6 +265,9 @@
 .apri-avanzate {
   margin: -4px 0 8px;
 }
+.opzioni .pieno {
+  flex: 1 1 100%;
+}
 .opzioni.avanzate {
   align-items: center;
   .pieno {
@@ -299,4 +302,12 @@
 }
 .anteprima-prompt strong {
   margin-right: 6px;
+}
+
+.proprio {
+  margin: 4px 0 8px;
+}
+.avviso-prompt {
+  color: var(--cs-errore-testo);
+  font-size: 12.5px;
 }

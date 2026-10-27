@@ -49,6 +49,10 @@ Nel riquadro **Consigli** trovi le impostazioni più adatte alla tua scheda vide
      mancano i tratti fissi li ricava prima l'IA. Sulla proposta giusta premi **Usa questa** (diventa l'immagine di
      riferimento) oppure **Varianti** per averne altre simili; ⟲ riprende le scelte con cui è stata fatta quella
      proposta; **Togli le non scelte** sposta le altre nel cestino del progetto.
+   - **Hai già il prompt?** Accendi **Ho già il prompt** e scrivi positivo e negativo: le proposte li usano parola per
+     parola (pesi compresi) e non servono descrizione né tratti. Le LoRA non si scrivono nel prompt (`<lora:…>` in
+     ComfyUI non fa niente): si scelgono in «LoRA di stile». Nel dataset i tag di inquadratura, posa, angolazione,
+     espressione e sfondo del tuo prompt diventano le varianti, il resto resta identico.
    - **Il dataset è identico alle proposte.** Con «Usa questa» Comic Studio prepara anche il dataset del personaggio:
      lo stesso workflow delle proposte con in più solo l'immagine di riferimento (IPAdapter, se è installato), lo
      stesso prompt salvo la parte che cambia a ogni immagine, lo stesso negativo. Così il dataset, e quindi il LoRA,

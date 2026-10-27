@@ -44,16 +44,20 @@ async def genera(pid: str, cid: str, c: ConfigProposte, req: Request):
     p = _personaggio(app, pid, cid)
     if not app.comfy.connesso:
         raise ErroreProgetto("ComfyUI non è connesso: avvialo e riprova.", 409)
-    if not p.descrizione.strip() and not p.storia.strip():
-        raise ErroreProgetto(f"Scrivi prima la descrizione di {p.nome}.")
-    tp.verifica_contenuto([p.storia, p.descrizione, c.extra, c.stile], minori=p.adulto is False)
+    proprio = bool((c.positivo or "").strip())
+    if not proprio and not p.descrizione.strip() and not p.storia.strip():
+        raise ErroreProgetto(f"Scrivi prima la descrizione di {p.nome} (o il tuo prompt, con «Ho già il prompt»).")
+    tp.verifica_contenuto([p.storia, p.descrizione, c.extra, c.stile, c.positivo or ""], minori=p.adulto is False)
+    if proprio:
+        from .proposte import controlla_prompt_proprio
+        controlla_prompt_proprio(c.positivo)
     archivio = ArchivioProposte(app.progetti)
     origine = archivio.file(pid, cid, c.da) if c.da else None
     qualita = TAG_QUALITA.get(famiglia_da_nome(c.checkpoint) or "sdxl", TAG_QUALITA["sdxl"])
 
     async def lavoro(l: Lavoro):
         nonlocal p
-        if not p.descrizione.strip():
+        if not proprio and not p.descrizione.strip():
             from .rotte_testo import tratti_dal_testo
             l.avanza(0.02, f"l'IA legge la descrizione di {p.nome}")
             r = await tratti_dal_testo(app, p, p.storia, c.checkpoint, l)
@@ -96,6 +100,17 @@ async def anteprima(pid: str, cid: str, c: ConfigProposte, req: Request):
     """Il prompt positivo e negativo che userebbero le proposte, senza generare niente."""
     p = _personaggio(_app(req), pid, cid)
     famiglia = famiglia_da_nome(c.checkpoint) or "sdxl"
+    if (c.positivo or "").strip():
+        from .proposte import controlla_prompt_proprio
+        try:
+            controlla_prompt_proprio(c.positivo)
+            nota = None
+        except ErroreProgetto as e:
+            nota = str(e)
+        from .proposte import dividi_tag, pulisci
+        q = TAG_QUALITA.get(famiglia, TAG_QUALITA["sdxl"])
+        positivo, negativo = ", ".join(dividi_tag(c.positivo)), pulisci(c.negativo.replace("{negativo_qualita}", q[1]))
+        return {"positivo": positivo, "negativo": negativo, "famiglia": famiglia, "nota": nota, "proprio": True}
     if not p.descrizione.strip():
         return {"positivo": None, "negativo": None, "famiglia": famiglia,
                 "nota": "I tratti li ricava l'IA dalla descrizione libera quando generi."}

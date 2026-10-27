@@ -221,7 +221,9 @@ def aspetto_da_tag(tag: dict[str, float], p: Personaggio, gia: str = "", soglia:
     """I tag dell'aspetto del riferimento che i tratti (e lo stile) non dicono già, dai più sicuri."""
     def norm(t: str) -> str:
         return re.sub(r"\s+", " ", t.replace("_", " ").strip().lower())
-    noti = {norm(x) for x in f"{p.descrizione},{p.genere},{gia}".split(",") if x.strip()}
+    from .proposte import dividi_tag, nucleo
+    noti = {nucleo(x) for x in dividi_tag(f"{p.descrizione},{p.genere},{gia}")}
+    noti |= {nucleo(y) for x in noti for y in x.split(",")}          # «(a, b:1.1)»
     parole_noti = [set(x.split()) for x in noti]
 
     def detto(t: str) -> bool:      # «blonde hair» è già in «long blonde hair»
@@ -392,7 +394,7 @@ class ArchivioDataset:
         # lo stesso prompt delle proposte (stesso ordine, stessi tag di qualità automatici, stesso negativo): cambia
         # solo la parte delle varianti
         c.prompt_positivo, c.prompt_negativo = modello_dataset(ricetta)
-        c.stile = ricetta.get("stile", "")
+        c.stile = "" if (ricetta.get("positivo") or "").strip() else ricetta.get("stile", "")
         c.tag_qualita = c.tag_qualita_negativi = None
         self.salva_config(pid, cid, c)
         return c, voce, avvisi

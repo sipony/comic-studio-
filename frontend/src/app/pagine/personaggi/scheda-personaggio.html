@@ -95,6 +95,25 @@
       @if (modificato()) {
         <p class="avviso"><mat-icon>warning</mat-icon> Salva prima le modifiche: le proposte usano i tratti salvati.</p>
       }
+      <mat-slide-toggle class="proprio" [checked]="promptProprio()" (change)="promptProprio.set($event.checked)">
+        Ho già il prompt (positivo e negativo usati così come sono)
+      </mat-slide-toggle>
+      @if (promptProprio()) {
+        <div class="opzioni">
+          <mat-form-field class="pieno">
+            <mat-label>Prompt positivo</mat-label>
+            <textarea matInput rows="4" [ngModel]="positivoProprio()" (ngModelChange)="positivoProprio.set($event)" maxlength="8000"
+              placeholder="masterpiece, best quality, 1girl, solo, red hair, nun, black habit, full body, standing, white background, …"></textarea>
+            <mat-hint>Parola per parola, pesi (tag:1.2) compresi. Nel dataset i tag di inquadratura, posa, angolazione,
+              espressione e sfondo diventano le varianti; il resto resta identico.</mat-hint>
+          </mat-form-field>
+          <mat-form-field class="pieno">
+            <mat-label>Prompt negativo</mat-label>
+            <textarea matInput rows="2" [ngModel]="negativo()" (ngModelChange)="negativo.set($event)"></textarea>
+            <mat-hint>{{ '{' }}negativo_qualita{{ '}' }}, se lo lasci, diventa i tag negativi del checkpoint</mat-hint>
+          </mat-form-field>
+        </div>
+      }
       <div class="opzioni">
         <mat-form-field class="ck">
           <mat-label>Checkpoint</mat-label>
@@ -131,6 +150,7 @@
             <input matInput type="number" min="0" max="2" step="0.05" [ngModel]="forzaLora()" (ngModelChange)="forzaLora.set(numeroValido($event, 0, 2, 0.8))" />
           </mat-form-field>
         }
+        @if (!promptProprio()) {
         <mat-form-field class="stile">
           <mat-label>Stile (facoltativo, in inglese)</mat-label>
           <input matInput [ngModel]="stile()" (ngModelChange)="stile.set($event)" placeholder="western comics (style), cel shading" />
@@ -139,17 +159,20 @@
           <mat-label>Tag in più (facoltativi)</mat-label>
           <input matInput [ngModel]="extra()" (ngModelChange)="extra.set($event)" placeholder="ink lines, flat colors" />
         </mat-form-field>
+        }
       </div>
       <button mat-button type="button" class="apri-avanzate" (click)="avanzate.set(!avanzate())" [attr.aria-expanded]="avanzate()">
         <mat-icon>{{ avanzate() ? 'expand_less' : 'tune' }}</mat-icon> Negativo e campionamento
       </button>
       @if (avanzate()) {
         <div class="opzioni avanzate">
+          @if (!promptProprio()) {
           <mat-form-field class="pieno">
             <mat-label>Prompt negativo</mat-label>
             <textarea matInput rows="2" [ngModel]="negativo()" (ngModelChange)="negativo.set($event)"></textarea>
             <mat-hint>{{ '{' }}negativo_qualita{{ '}' }} diventa i tag negativi del checkpoint (es. score_4… per Pony)</mat-hint>
           </mat-form-field>
+          }
           @if (negativo() !== negativoPredefinito) {
             <button mat-button type="button" (click)="negativo.set(negativoPredefinito)"><mat-icon>undo</mat-icon> Negativo predefinito</button>
           }
@@ -183,7 +206,8 @@
       @if (anteprima(); as a) {
         <div class="anteprima-prompt">
           <div class="riga-ant"><span class="tag-famiglia">{{ famiglia() }}</span>
-            <span class="nota">tag di qualità messi da soli per questo tipo di checkpoint</span></div>
+            <span class="nota">{{ a.proprio ? 'il tuo prompt, così com\'è' : 'tag di qualità messi da soli per questo tipo di checkpoint' }}</span></div>
+          @if (a.proprio && a.nota) { <div class="avviso-prompt">{{ a.nota }}</div> }
           @if (a.positivo) {
             <div><strong>Positivo</strong> <code>{{ a.positivo }}</code></div>
             <div><strong>Negativo</strong> <code>{{ a.negativo }}</code></div>
@@ -197,7 +221,7 @@
         lo stesso checkpoint, la stessa LoRA, lo stesso stile e lo stesso negativo.
       </p>
       <div class="azioni">
-        <button mat-flat-button (click)="generaProposte(null)" [disabled]="!!lavoroProposte() || !checkpoint() || modificato() || !eventi.comfy()?.connesso">
+        <button mat-flat-button (click)="generaProposte(null)" [disabled]="!!lavoroProposte() || !checkpoint() || modificato() || !eventi.comfy()?.connesso || (promptProprio() && !positivoProprio().trim())">
           <mat-icon>casino</mat-icon> Genera {{ numero() }} proposte
         </button>
         @if (!eventi.comfy()?.connesso) { <span class="nota">ComfyUI non è connesso</span> }
