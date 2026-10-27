@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import time
 import re
 import shutil
 import subprocess
@@ -336,6 +337,35 @@ def epoche_da_provare(epoche: list[int], quante: int = 4) -> list[int]:
     return [epoche[i] for i in indici]
 
 
+class VersioneLora(BaseModel):
+    """Un LoRA del personaggio messo in ComfyUI (models/loras/comic_studio): lo storico non si sovrascrive."""
+    versione: int
+    file: str                              # nome nel menu dei LoRA di ComfyUI (comic_studio/<trigger>_v3.safetensors)
+    nome_file: str                         # nome del file nella cartella comic_studio
+    epoca: int | None = None
+    creato: float = Field(default_factory=time.time)
+    punteggio: float | None = None         # somiglianza al riferimento nella prova delle epoche, se c'era
+    addestramento: float | None = None     # inizio dell'addestramento da cui viene
+    parametri: dict = Field(default_factory=dict)
+    automatica: bool = False               # salvata da sola a fine addestramento (l'ultima epoca)
+    nota: str = ""
+
+
+class RegistroAddestramento(BaseModel):
+    inizio: float
+    durata: float | None = None
+    esito: str = "in corso"
+    epoche_salvate: int = 0
+    parametri: dict = Field(default_factory=dict)
+
+
+def riassunto_parametri(c: "ConfigAddestramento", immagini: int) -> dict:
+    return {"checkpoint": c.checkpoint, "preset": c.preset, "rank": c.rank, "alpha": c.alpha,
+            "learning_rate": c.learning_rate, "ottimizzatore": c.ottimizzatore, "epoche": c.epoche,
+            "immagini": immagini, "passi": passi_totali(c, immagini) if immagini else None,
+            "text_encoder": c.allena_text_encoder}
+
+
 class StatoAddestramento(BaseModel):
     lora_finale: str | None = None         # nome nel menu dei LoRA di ComfyUI
     epoca_finale: int | None = None
@@ -344,6 +374,8 @@ class StatoAddestramento(BaseModel):
     ultima_durata: float | None = None
     ultimo_esito: str | None = None
     test: dict[str, dict] = Field(default_factory=dict)    # "epoca" -> {"immagini": [...], "punteggio": x}
+    storico: list[VersioneLora] = Field(default_factory=list)            # i LoRA salvati in ComfyUI, dal primo
+    addestramenti: list[RegistroAddestramento] = Field(default_factory=list)
     prompt_test: list[str] = Field(default_factory=lambda: [
         "{trigger}, {genere}, solo, running in the rain, from side, city street, night",
         "{trigger}, {genere}, solo, sitting in a car, laughing, upper body",

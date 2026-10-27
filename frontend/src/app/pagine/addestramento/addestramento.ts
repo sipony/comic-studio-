@@ -13,7 +13,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { AvvisiService } from '../../core/avvisi.service';
 import { EventiService } from '../../core/eventi.service';
-import { ConfigAddestramento, Preset, RiassuntoAddestramento, StatoKohya } from '../../core/modelli';
+import { ConfigAddestramento, Preset, RiassuntoAddestramento, StatoKohya, VersioneLora } from '../../core/modelli';
 import { ProgettoService } from '../../core/progetto.service';
 import { SceltaPersonaggio } from '../../shell/scelta-personaggio';
 import { GraficoLoss } from './grafico-loss';
@@ -238,10 +238,40 @@ export class AddestramentoPage {
     }
   }
 
+  protected async usaVersione(v: VersioneLora) {
+    try {
+      this.dati.set(await this.api.usaVersioneLora(this.progetto().id, this.sceltoId()!, v.versione));
+      this.avvisi.ok(`LoRA in uso: versione ${v.versione}`);
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  protected async eliminaVersione(v: VersioneLora) {
+    if (!confirm(`Spostare nel cestino la versione ${v.versione} (${v.nome_file})?`)) return;
+    try {
+      this.dati.set(await this.api.eliminaVersioneLora(this.progetto().id, this.sceltoId()!, v.versione));
+    } catch (e) {
+      this.avvisi.errore(e);
+    }
+  }
+
+  protected data(t: number | null | undefined) {
+    return t ? new Date(t * 1000).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  }
+
+  protected parametri(p: Record<string, unknown>) {
+    if (!p || !Object.keys(p).length) return '';
+    const lr = typeof p['learning_rate'] === 'number' ? (p['learning_rate'] as number).toExponential(0) : p['learning_rate'];
+    return [p['preset'], p['rank'] != null ? `rank ${p['rank']}` : '', lr ? `lr ${lr}` : '', p['immagini'] != null ? `${p['immagini']} immagini` : '',
+      p['passi'] != null ? `${p['passi']} passi` : ''].filter(Boolean).join(' · ');
+  }
+
   protected async usa(epoca: number) {
     try {
       const s = await this.api.scegliEpoca(this.progetto().id, this.sceltoId()!, epoca);
       this.dati.update((d) => (d ? { ...d, stato: s } : d));
+      await this.carica();
       this.avvisi.ok(`LoRA pronto per il fumetto: ${s.lora_finale}`);
     } catch (e) {
       this.avvisi.errore(e);

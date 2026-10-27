@@ -335,3 +335,67 @@
     grid-template-columns: 1fr;
   }
 }
+
+.storico {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 14px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--mat-sys-on-surface-variant);
+    padding: 4px 6px;
+  }
+  td {
+    padding: 4px 6px;
+    border-top: 1px solid var(--mat-sys-outline-variant);
+    vertical-align: middle;
+  }
+  tr.in-uso td {
+    background: color-mix(in srgb, var(--mat-sys-primary) 8%, transparent);
+  }
+  tr.mancante td {
+    opacity: 0.6;
+  }
+  .file {
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11.5px;
+    word-break: break-all;
+  }
+  .azioni {
+    white-space: nowrap;
+    text-align: right;
+  }
+  .errore {
+    color: var(--cs-errore-testo);
+  }
+  td > .badge,
+  td > .nota {
+    margin-left: 6px;
+  }
+}
+.registro {
+  margin-top: 8px;
+  font-size: 12.5px;
+  summary {
+    cursor: pointer;
+    color: var(--mat-sys-on-surface-variant);
+  }
+  ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+  }
+}

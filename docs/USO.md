@@ -170,7 +170,13 @@ Per ogni personaggio (scegli in alto quale):
    selezionate 4), scrivi i **prompt di prova in inglese a tag** (`{trigger}, {genere}, solo, sitting, smile, upper
    body`) e premi **Prova**. Confronta le immagini affiancate e premi **Usa questa** sull'epoca migliore: quella
    «consigliata» è la più somigliante al riferimento.
-6. Hai già un LoRA addestrato altrove? Sceglilo in **Oppure usa un LoRA già addestrato**.
+   La prova usa la stessa LoRA di stile e gli stessi tag di stile delle proposte, così vedi il personaggio con il
+   disegno del dataset.
+6. **Storico dei LoRA**: a fine addestramento l'ultima epoca è già in ComfyUI (`comic_studio/<trigger>_v1…`), e ogni
+   **Usa questa** aggiunge una nuova versione senza cancellare le altre. Nella tabella vedi data, epoca, somiglianza
+   e parametri di ognuna; **Usa** torna a una versione precedente, 🗑 la sposta nel cestino. Sotto, il registro degli
+   addestramenti fatti.
+7. Hai già un LoRA addestrato altrove? Sceglilo in **Oppure usa un LoRA già addestrato**.
 
 ## 7. Step 4 · Fumetto
 

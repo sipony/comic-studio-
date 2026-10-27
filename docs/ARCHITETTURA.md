@@ -115,6 +115,7 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
         uscita/                      epoche: <trigger>-000001.safetensors … <trigger>.safetensors
         test/                        immagini di prova delle epoche
         comando.txt                  il comando di kohya usato
+        (stato.json: storico delle versioni del LoRA e registro degli addestramenti)
       fumetto/
         fumetto.json                 impostazioni, pagine, vignette, dialoghi
         immagini.json                versioni generate di ogni vignetta e quella scelta
@@ -221,7 +222,8 @@ installer/NOTE_RILASCIO.md  istruzioni d'installazione mostrate nella release
 | PUT | `…/addestramento/prompt-test` | prompt di prova delle epoche |
 | POST | `…/addestramento/prova` | `{epoche}` prova le epoche con ComfyUI (lavoro GPU) |
 | GET | `…/addestramento/test/{file}` | immagine di prova |
-| POST | `…/addestramento/scegli` / `…/addestramento/esistente` | `{epoca}` LoRA finale / `{lora}` LoRA già esistente |
+| POST | `…/addestramento/scegli` / `…/addestramento/esistente` | `{epoca}` nuova versione del LoRA (`<trigger>_v<n>.safetensors`, in uso) / `{lora}` LoRA già esistente |
+| POST / DELETE | `…/addestramento/storico/{v}/usa` / `…/addestramento/storico/{v}` | torna a una versione / la sposta nel cestino (non quella in uso); `GET …/addestramento` ha `storico` con `in_uso`, `esiste`, `byte` |
 | GET / PUT | `/api/progetti/{id}/fumetto` | fumetto, versioni delle immagini, LoRA dei personaggi / salva il fumetto |
 | POST | `…/fumetto/importa` | `{testo, sostituisci}` storia da testo |
 | POST | `…/fumetto/genera` | `{vignette, stesso_seme}` genera (tutte le mancanti se `vignette` è nullo) |
